@@ -5,12 +5,14 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Newsreader", ui-serif, Georgia, serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, monospace;
   --radius-sm: calc(var(--radius) - 2px);
   --radius-md: var(--radius);
   --radius-lg: calc(var(--radius) + 2px);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 6px);
+  --radius-2xl: calc(var(--radius) + 10px);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -20,19 +22,25 @@
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-primary-hover: var(--primary-hover);
+  --color-primary-soft: var(--primary-soft);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-copper: var(--copper);
+  --color-copper-soft: var(--copper-soft);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-ink: var(--ink);
   --color-ink-foreground: var(--ink-foreground);
+  --color-pine: var(--pine);
+  --color-pine-foreground: var(--pine-foreground);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-ring-offset-background: var(--background);
@@ -49,93 +57,215 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --shadow-paper: 0 1px 0 0 rgb(18 26 24 / 0.04), 0 1px 2px -1px rgb(18 26 24 / 0.08);
+  --shadow-lift: 0 1px 0 0 rgb(18 26 24 / 0.04), 0 12px 32px -16px rgb(18 26 24 / 0.22);
+  --shadow-float: 0 24px 64px -28px rgb(15 42 38 / 0.45);
 }
 
-/* Vren AI brand tokens (PRD §12.2) */
+/*
+ * Vren AI brand tokens: "Pine & Paper".
+ * Evolves PRD §12.2: warm paper canvas, deep pine primary, a single copper
+ * accent used only for emphasis marks. Semantic colours carry meaning only.
+ */
 :root {
-  --radius: 0.375rem;
-  --ink: oklch(0.25 0.025 255);
-  --ink-foreground: oklch(0.973 0.004 120);
-  --background: oklch(0.973 0.004 120); /* Canvas #F6F7F4 */
-  --foreground: oklch(0.25 0.025 255); /* Ink #1C2430 */
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.25 0.025 255);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.25 0.025 255);
-  --primary: oklch(0.511 0.086 186.4); /* Teal #0F766E */
-  --primary-hover: oklch(0.437 0.072 188); /* Teal dark #115E59 */
-  --primary-foreground: oklch(0.99 0 0);
-  --secondary: oklch(0.943 0.007 130); /* Surface-muted */
-  --secondary-foreground: oklch(0.25 0.025 255);
-  --muted: oklch(0.943 0.007 130);
-  --muted-foreground: oklch(0.52 0.03 265); /* #667085 */
-  --accent: oklch(0.943 0.007 130);
-  --accent-foreground: oklch(0.25 0.025 255);
-  --destructive: oklch(0.53 0.14 25); /* #B54747 */
-  --destructive-foreground: oklch(0.99 0 0);
-  --success: oklch(0.53 0.1 160); /* #2F7D5B */
-  --warning: oklch(0.57 0.12 70); /* #A96B16 */
-  --border: oklch(0.887 0.011 145); /* #D7DDD7 */
-  --input: oklch(0.887 0.011 145);
-  --ring: oklch(0.511 0.086 186.4);
-  --chart-1: oklch(0.511 0.086 186.4);
-  --chart-2: oklch(0.53 0.1 160);
-  --chart-3: oklch(0.57 0.12 70);
-  --chart-4: oklch(0.25 0.025 255);
-  --chart-5: oklch(0.52 0.03 265);
-  --sidebar: oklch(1 0 0);
-  --sidebar-foreground: oklch(0.25 0.025 255);
-  --sidebar-primary: oklch(0.511 0.086 186.4);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
-  --sidebar-accent: oklch(0.943 0.007 130);
-  --sidebar-accent-foreground: oklch(0.25 0.025 255);
-  --sidebar-border: oklch(0.887 0.011 145);
-  --sidebar-ring: oklch(0.511 0.086 186.4);
+  --radius: 0.5rem;
+  --ink: #121a18;
+  /* Primary text, dark controls */
+  --ink-foreground: #f5f3ee;
+  --pine: #0f2a26;
+  /* Dark editorial sections */
+  --pine-foreground: #e9efe9;
+  --background: #f5f3ee;
+  /* Paper canvas */
+  --foreground: #121a18;
+  --card: #ffffff;
+  --card-foreground: #121a18;
+  --popover: #ffffff;
+  --popover-foreground: #121a18;
+  --primary: #0f5e54;
+  /* Pine: primary action & focus */
+  --primary-hover: #0b4a42;
+  --primary-soft: #e3eee9;
+  --primary-foreground: #ffffff;
+  --secondary: #ece9e1;
+  /* Surface-muted */
+  --secondary-foreground: #121a18;
+  --muted: #ece9e1;
+  --muted-foreground: #5a635e;
+  --accent: #ece9e1;
+  --accent-foreground: #121a18;
+  --copper: #a8522f;
+  /* Emphasis marks only */
+  --copper-soft: #f4e6dd;
+  --destructive: #b54747;
+  --destructive-foreground: #ffffff;
+  --success: #2f7d5b;
+  --warning: #96600f;
+  --border: #dedad0;
+  --border-strong: #c9c4b7;
+  --input: #d6d1c6;
+  --ring: #0f5e54;
+  --chart-1: #0f5e54;
+  --chart-2: #2f7d5b;
+  --chart-3: #96600f;
+  --chart-4: #121a18;
+  --chart-5: #a8522f;
+  --sidebar: #efece5;
+  --sidebar-foreground: #121a18;
+  --sidebar-primary: #0f5e54;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e4e0d6;
+  --sidebar-accent-foreground: #121a18;
+  --sidebar-border: #dedad0;
+  --sidebar-ring: #0f5e54;
 }
 
 @layer base {
   * {
     border-color: var(--color-border);
   }
+
   html {
     font-family: var(--font-sans);
+    font-feature-settings: "ss01", "cv11";
+    text-rendering: optimizeLegibility;
+    scroll-behavior: smooth;
+    overflow-x: clip;
+    -webkit-text-size-adjust: 100%;
   }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: clip;
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
+
+  button,
+  a,
+  select,
+  input,
+  textarea {
+    touch-action: manipulation;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background: var(--color-primary-soft);
+    color: var(--color-ink);
+  }
+
   :focus-visible {
     outline: 2px solid var(--color-ring);
     outline-offset: 2px;
   }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href],
+  label[for],
+  select {
+    cursor: pointer;
+  }
+
   @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
     *,
     *::before,
     *::after {
       animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
       transition-duration: 0.01ms !important;
     }
   }
 }
 
+/* Editorial display type: Newsreader, optical sizing, tight leading. */
+@utility font-display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+/* Small uppercase mono label used above titles and for technical status. */
 @utility eyebrow {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--color-muted-foreground);
 }
 
+/* Default white surface. Hairline border, no heavy shadow. */
 @utility panel {
   background-color: var(--color-card);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-paper);
 }
 
+/* Interactive surface: lifts subtly on hover without layout shift. */
+@utility panel-interactive {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-paper);
+  transition:
+    box-shadow 200ms var(--ease-out-quart),
+    border-color 200ms var(--ease-out-quart);
+
+  &:hover {
+    border-color: var(--color-border-strong);
+    box-shadow: var(--shadow-lift);
+  }
+}
+
+/* Fine ruled grid used behind editorial heroes. */
 @utility rule-grid {
   background-image:
-    linear-gradient(to right, var(--color-border) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--color-border) 1px, transparent 1px);
-  background-size: 48px 48px;
+    linear-gradient(to right, color-mix(in oklab, var(--color-border) 70%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--color-border) 70%, transparent) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+/* Subtle paper grain for dark pine sections. */
+@utility grain {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Copper underline mark for one emphasised word in a headline. */
+@utility mark-copper {
+  background-image: linear-gradient(transparent 82%, color-mix(in oklab, var(--color-copper) 35%, transparent) 82%);
+  padding-inline: 0.05em;
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }

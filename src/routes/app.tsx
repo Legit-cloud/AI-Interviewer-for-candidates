@@ -1,7 +1,26 @@
-import { createFileRoute, Link, Outlet, redirect, useNavigate } from "@tanstack/react-router";
-import { LayoutDashboard, UserRound, Briefcase, PlayCircle, History, Settings, LogOut } from "lucide-react";
+import {
+  createFileRoute,
+  Link,
+  Outlet,
+  redirect,
+  useNavigate,
+  useRouterState,
+} from "@tanstack/react-router";
+import {
+  BriefcaseIcon,
+  ClockCounterClockwiseIcon,
+  GearIcon,
+  PlayCircleIcon,
+  PlusIcon,
+  SignOutIcon,
+  SquaresFourIcon,
+  UserIcon,
+} from "@phosphor-icons/react";
+import { Button } from "@/components/ui/button";
+import { motion } from "@/components/motion";
 import { Logo, Status } from "@/components/vren";
 import { auth, getState, useAppState } from "@/lib/store";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/app")({
   ssr: false,
@@ -15,54 +34,117 @@ export const Route = createFileRoute("/app")({
 });
 
 const nav = [
-  { to: "/app", label: "Dashboard", icon: LayoutDashboard, exact: true },
-  { to: "/app/profile", label: "Profile", icon: UserRound },
-  { to: "/app/jobs", label: "Jobs", icon: Briefcase },
-  { to: "/app/prepare", label: "Prepare", icon: PlayCircle },
-  { to: "/app/sessions", label: "Sessions", icon: History },
-  { to: "/app/settings", label: "Settings", icon: Settings },
+  { to: "/app", label: "Dashboard", icon: SquaresFourIcon, exact: true },
+  { to: "/app/profile", label: "Profile", icon: UserIcon },
+  { to: "/app/jobs", label: "Jobs", icon: BriefcaseIcon },
+  { to: "/app/prepare", label: "Prepare", icon: PlayCircleIcon },
+  { to: "/app/sessions", label: "Sessions", icon: ClockCounterClockwiseIcon },
+  { to: "/app/settings", label: "Settings", icon: GearIcon },
 ] as const;
 
 function AppLayout() {
   const { user, profile, extension } = useAppState();
   const navigate = useNavigate();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+
+  const handleSignOut = () => {
+    auth.signOut();
+    navigate({ to: "/auth", search: { mode: "signin" }, replace: true });
+  };
+
   return (
-    <div className="flex min-h-screen flex-col md:flex-row">
-      <aside className="flex shrink-0 flex-col border-b bg-sidebar md:sticky md:top-0 md:h-screen md:w-60 md:border-r md:border-b-0">
-        <div className="flex h-16 items-center px-5">
+    <div className="flex min-h-dvh flex-col bg-background md:flex-row">
+      <aside className="sticky top-0 z-30 flex shrink-0 flex-col border-b bg-sidebar/95 backdrop-blur-md md:h-dvh md:w-64 md:border-r md:border-b-0 md:bg-sidebar">
+        <div className="flex h-14 items-center justify-between px-4 md:h-16 md:px-5">
           <Logo />
-        </div>
-        <nav className="flex gap-1 overflow-x-auto px-3 pb-3 md:flex-col md:pb-0">
-          {nav.map(({ to, label, icon: Icon, ...rest }) => (
-            <Link
-              key={to}
-              to={to}
-              activeOptions={{ exact: "exact" in rest }}
-              className="flex items-center gap-2.5 whitespace-nowrap rounded-md px-3 py-2 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-foreground data-[status=active]:bg-sidebar-accent data-[status=active]:font-medium data-[status=active]:text-foreground"
+          <div className="flex items-center gap-1.5 md:hidden">
+            <Button size="sm" variant="outline" asChild className="h-9 px-2.5 text-xs">
+              <Link to="/app/prepare">
+                <PlusIcon className="size-3.5" aria-hidden="true" />
+                Prepare
+              </Link>
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              aria-label="Sign out"
+              onClick={handleSignOut}
+              className="h-9 w-9"
             >
-              <Icon className="size-4" /> {label}
+              <SignOutIcon className="size-4" aria-hidden="true" />
+            </Button>
+          </div>
+        </div>
+
+        <div className="hidden px-4 pb-4 md:block">
+          <Button className="w-full justify-start" size="sm" asChild>
+            <Link to="/app/prepare">
+              <PlayCircleIcon className="size-4" aria-hidden="true" />
+              Prepare interview
             </Link>
-          ))}
+          </Button>
+        </div>
+
+        <nav
+          aria-label="Workspace"
+          className="scrollbar-none flex gap-1 overflow-x-auto px-3 pb-2.5 md:flex-col md:overflow-visible md:pb-0"
+        >
+          {nav.map(({ to, label, icon: Icon, ...rest }) => {
+            const isActive =
+              "exact" in rest ? pathname === to : pathname === to || pathname.startsWith(`${to}/`);
+            return (
+              <Link
+                key={to}
+                to={to}
+                activeOptions={{ exact: "exact" in rest }}
+                className={cn(
+                  "relative flex min-h-10 items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors md:min-h-0 md:gap-2.5",
+                  isActive
+                    ? "font-medium text-foreground"
+                    : "text-muted-foreground hover:bg-sidebar-accent/70 hover:text-foreground",
+                )}
+              >
+                {isActive && (
+                  <motion.span
+                    layoutId="app-nav-pill"
+                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                    className="absolute inset-0 rounded-lg border bg-card shadow-xs"
+                  />
+                )}
+                <Icon
+                  className={cn("relative z-10 size-4 shrink-0", isActive && "text-primary")}
+                  weight={isActive ? "fill" : "regular"}
+                  aria-hidden="true"
+                />
+                <span className="relative z-10">{label}</span>
+              </Link>
+            );
+          })}
         </nav>
+
         <div className="mt-auto hidden space-y-3 border-t p-4 md:block">
-          <Status tone={extension.connected ? "success" : "neutral"}>{extension.connected ? "Extension connected" : "Extension not connected"}</Status>
+          <Link to="/app/settings" className="block">
+            <Status tone={extension.connected ? "success" : "neutral"}>
+              {extension.connected ? `Extension · v${extension.version}` : "Extension not connected"}
+            </Status>
+          </Link>
           <div className="text-sm">
-            <p className="truncate font-medium">{profile?.name}</p>
+            <p className="truncate font-medium text-foreground">{profile?.name || "Candidate"}</p>
             <p className="truncate text-xs text-muted-foreground">{user?.email}</p>
           </div>
           <button
-            onClick={() => {
-              auth.signOut();
-              navigate({ to: "/auth", search: { mode: "signin" }, replace: true });
-            }}
-            className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
+            type="button"
+            onClick={handleSignOut}
+            className="flex items-center gap-2 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
-            <LogOut className="size-3.5" /> Sign out
+            <SignOutIcon className="size-3.5" aria-hidden="true" />
+            Sign out
           </button>
         </div>
       </aside>
-      <main className="min-w-0 flex-1">
-        <div className="mx-auto max-w-5xl px-6 py-8 md:px-10 md:py-10">
+
+      <main className="min-w-0 flex-1 pb-[calc(2rem+env(safe-area-inset-bottom))]">
+        <div className="mx-auto max-w-5xl px-4 py-6 sm:px-8 md:px-10 md:py-10">
           <Outlet />
         </div>
       </main>

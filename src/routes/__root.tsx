@@ -1,3 +1,4 @@
+import { IconContext } from "@phosphor-icons/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -8,26 +9,39 @@ import {
   Scripts,
   type ErrorComponentProps,
 } from "@tanstack/react-router";
+import { MotionConfig } from "motion/react";
 import { type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
+import { Logo } from "@/components/vren";
 
 function NotFoundComponent() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-7xl font-bold text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Page not found</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The page you're looking for doesn't exist or has been moved.
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-6 py-12">
+      <div className="mb-10">
+        <Logo />
+      </div>
+      <div className="panel max-w-md p-8 text-center">
+        <p className="eyebrow">404 · Route missing</p>
+        <h1 className="font-display mt-3 text-4xl tracking-tight text-foreground">
+          This page doesn’t exist.
+        </h1>
+        <p className="mt-3 text-sm text-muted-foreground">
+          The link may have moved or expired. Head back to the workspace to keep preparing.
         </p>
-        <div className="mt-6">
+        <div className="mt-6 flex justify-center gap-3">
           <Link
             to="/"
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
           >
-            Go home
+            Back to home
+          </Link>
+          <Link
+            to="/app"
+            className="inline-flex h-9 items-center justify-center rounded-md border bg-card px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+          >
+            Open dashboard
           </Link>
         </div>
       </div>
@@ -40,27 +54,31 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
   const router = useRouter();
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">
-          This page didn't load
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-6 py-12">
+      <div className="mb-10">
+        <Logo />
+      </div>
+      <div className="panel max-w-md p-8 text-center">
+        <p className="eyebrow text-destructive">Unexpected error</p>
+        <h1 className="font-display mt-3 text-3xl tracking-tight text-foreground">
+          This view didn’t finish loading.
         </h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
+        <p className="mt-3 text-sm text-muted-foreground">
+          Your saved profile and session notes stay intact locally. Try reloading this view or return home.
         </p>
-        <div className="mt-6 flex flex-wrap justify-center gap-2">
+        <div className="mt-6 flex flex-wrap justify-center gap-2.5">
           <button
             onClick={() => {
               router.invalidate();
               reset();
             }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            className="inline-flex h-9 items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover"
           >
             Try again
           </button>
           <a
             href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            className="inline-flex h-9 items-center justify-center rounded-md border bg-card px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
           >
             Go home
           </a>
@@ -72,14 +90,19 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
-    // Replace these placeholders with the app's name and description when first building the app.
-    // Each content route, / included, must still set its own head(). Never add og:image or
-    // twitter:image here: every page without its own would inherit the root's preview image.
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Vren AI — Calm, honest interview guidance" },
-      { name: "description", content: "Prepare with your own CV and job context, then get concise, evidence-based interview guidance." },
+      {
+        name: "viewport",
+        content: "width=device-width, initial-scale=1, viewport-fit=cover",
+      },
+      { name: "theme-color", content: "#f5f3ee" },
+      { title: "Vren AI | Calm, honest interview guidance" },
+      {
+        name: "description",
+        content:
+          "Prepare with your own CV and job context, then get concise, evidence-based interview guidance.",
+      },
       { property: "og:title", content: "Vren AI" },
       { property: "og:description", content: "Concise interview guidance grounded in your real experience." },
       { property: "og:type", content: "website" },
@@ -90,7 +113,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
         rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap",
+        href: "https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap",
       },
       {
         rel: "stylesheet",
@@ -125,9 +148,12 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-      <Outlet />
-      <Toaster position="bottom-right" />
+      <MotionConfig reducedMotion="user">
+        <IconContext.Provider value={{ weight: "regular" }}>
+          <Outlet />
+          <Toaster position="bottom-right" />
+        </IconContext.Provider>
+      </MotionConfig>
     </QueryClientProvider>
   );
 }
