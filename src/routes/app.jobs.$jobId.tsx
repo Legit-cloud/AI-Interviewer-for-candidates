@@ -22,6 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { DetailSkeleton } from "@/components/loading";
 import { PageTransition } from "@/components/motion";
 import { EmptyState, PageHeader, Status } from "@/components/vren";
 import { deleteJob, matchJob, updateJob, useAppState } from "@/lib/store";
@@ -38,6 +39,7 @@ export const Route = createFileRoute("/app/jobs/$jobId")({
     ],
   }),
   component: JobDetail,
+  pendingComponent: DetailSkeleton,
 });
 
 function JobDetail() {

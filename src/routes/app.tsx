@@ -17,6 +17,7 @@ import {
   UserIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/button";
+import { WorkspaceLoadingShell } from "@/components/loading";
 import { motion } from "@/components/motion";
 import { Logo, Status } from "@/components/vren";
 import { auth, getState, useAppState } from "@/lib/store";
@@ -31,6 +32,7 @@ export const Route = createFileRoute("/app")({
     if (!user.onboarded) throw redirect({ to: "/onboarding" });
   },
   component: AppLayout,
+  pendingComponent: WorkspaceLoadingShell,
 });
 
 const nav = [

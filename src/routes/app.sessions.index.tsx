@@ -3,6 +3,7 @@ import { ClockCounterClockwiseIcon } from "@phosphor-icons/react";
 import { format } from "date-fns";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ListSkeleton } from "@/components/loading";
 import { PageTransition } from "@/components/motion";
 import { EmptyState, PageHeader, Status } from "@/components/vren";
 import { useAppState } from "@/lib/store";
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/app/sessions/")({
     ],
   }),
   component: Sessions,
+  pendingComponent: () => <ListSkeleton rows={3} />,
 });
 
 type Filter = "all" | "completed" | "interrupted" | "unreviewed";

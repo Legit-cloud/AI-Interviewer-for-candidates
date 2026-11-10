@@ -14,6 +14,7 @@ import { type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { Toaster } from "@/components/ui/sonner";
+import { NavigationProgress } from "@/components/loading";
 import { Logo } from "@/components/vren";
 
 function NotFoundComponent() {
@@ -150,6 +151,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <MotionConfig reducedMotion="user">
         <IconContext.Provider value={{ weight: "regular" }}>
+          <NavigationProgress />
           <Outlet />
           <Toaster position="bottom-right" />
         </IconContext.Provider>

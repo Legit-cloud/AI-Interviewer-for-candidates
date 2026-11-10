@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { DetailSkeleton } from "@/components/loading";
 import { PageTransition } from "@/components/motion";
 import { EmptyState, PageHeader, Status } from "@/components/vren";
 import {
@@ -46,6 +47,7 @@ export const Route = createFileRoute("/app/sessions/$sessionId")({
     ],
   }),
   component: SessionReview,
+  pendingComponent: DetailSkeleton,
 });
 
 const FEEDBACK_OPTIONS: { id: SuggestionFeedback; label: string; icon: typeof ThumbsUpIcon }[] = [

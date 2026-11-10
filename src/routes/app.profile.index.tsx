@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { DetailSkeleton } from "@/components/loading";
 import { PageTransition } from "@/components/motion";
 import { ConfidenceBar, EmptyState, OriginBadge, PageHeader, Status } from "@/components/vren";
 import {
@@ -53,6 +54,7 @@ export const Route = createFileRoute("/app/profile/")({
     ],
   }),
   component: ProfilePage,
+  pendingComponent: DetailSkeleton,
 });
 
 const tabs = ["Overview", "Experience", "Skills", "Education", "Documents"] as const;

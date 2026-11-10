@@ -1,5 +1,6 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouter } from "@tanstack/react-router";
+import { PageLoadingShell } from "@/components/loading";
 import { routeTree } from "./routeTree.gen";
 
 export const getRouter = () => {
@@ -12,6 +13,9 @@ export const getRouter = () => {
     scrollRestoration: true,
     // Lets Query own freshness; set caching defaults on the QueryClient, not the router.
     defaultPreloadStaleTime: 0,
+    defaultPendingMs: 150,
+    defaultPendingMinMs: 350,
+    defaultPendingComponent: () => <PageLoadingShell label="Loading Vren AI" />,
   });
 
   return router;

@@ -11,6 +11,7 @@ import {
 } from "@phosphor-icons/react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { DashboardSkeleton } from "@/components/loading";
 import { PageTransition, Stagger, StaggerItem } from "@/components/motion";
 import { EmptyState, PageHeader, Status } from "@/components/vren";
 import {
@@ -35,6 +36,7 @@ export const Route = createFileRoute("/app/")({
     ],
   }),
   component: Dashboard,
+  pendingComponent: DashboardSkeleton,
 });
 
 function Dashboard() {

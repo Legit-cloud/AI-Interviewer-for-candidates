@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { PrivacyDialog, TermsDialog } from "@/components/legal-dialogs";
+import { DetailSkeleton } from "@/components/loading";
 import { PageTransition } from "@/components/motion";
 import { PageHeader, Status } from "@/components/vren";
 import {
@@ -47,6 +48,7 @@ export const Route = createFileRoute("/app/settings")({
     ],
   }),
   component: Settings,
+  pendingComponent: DetailSkeleton,
 });
 
 function Row({ title, desc, children }: { title: string; desc?: string | undefined; children: ReactNode }) {

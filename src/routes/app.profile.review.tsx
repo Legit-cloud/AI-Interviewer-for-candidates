@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { DetailSkeleton } from "@/components/loading";
 import { PageTransition } from "@/components/motion";
 import { ConfidenceBar, EmptyState, OriginBadge, PageHeader } from "@/components/vren";
 import { saveVerifiedProfile, updateProfile, useAppState } from "@/lib/store";
@@ -23,6 +24,7 @@ export const Route = createFileRoute("/app/profile/review")({
     ],
   }),
   component: Review,
+  pendingComponent: DetailSkeleton,
 });
 
 function Review() {

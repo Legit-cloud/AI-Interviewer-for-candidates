@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { ListSkeleton } from "@/components/loading";
 import { PageTransition } from "@/components/motion";
 import { EmptyState, PageHeader, Status } from "@/components/vren";
 import { addJob, extractJob, jobCompleteness, matchJob, useAppState } from "@/lib/store";
@@ -36,6 +37,7 @@ export const Route = createFileRoute("/app/jobs/")({
     ],
   }),
   component: Jobs,
+  pendingComponent: () => <ListSkeleton rows={4} />,
 });
 
 function Jobs() {
