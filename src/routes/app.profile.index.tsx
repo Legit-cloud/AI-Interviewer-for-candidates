@@ -1,14 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  CheckCircleIcon,
-  FileTextIcon,
-  GraduationCapIcon,
-  PlusIcon,
-  SpinnerGapIcon,
-  TrashIcon,
-  UploadSimpleIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react";
+import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
+import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { SpinnerGapIcon } from "@phosphor-icons/react/SpinnerGap";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
+import { UploadSimpleIcon } from "@phosphor-icons/react/UploadSimple";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { format } from "date-fns";
 import { useState } from "react";
 import { toast } from "sonner";

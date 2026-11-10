@@ -1,5 +1,7 @@
 import * as React from "react";
-import { CaretLeftIcon as ChevronLeft, CaretRightIcon as ChevronRight, DotsThreeIcon as MoreHorizontal } from "@phosphor-icons/react";
+import { CaretLeftIcon as ChevronLeft } from "@phosphor-icons/react/CaretLeft";
+import { CaretRightIcon as ChevronRight } from "@phosphor-icons/react/CaretRight";
+import { DotsThreeIcon as MoreHorizontal } from "@phosphor-icons/react/DotsThree";
 
 import { cn } from "@/lib/utils";
 import { ButtonProps, buttonVariants } from "@/components/ui/button";

@@ -1,13 +1,11 @@
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
-import {
-  ArrowLeftIcon,
-  ArrowRightIcon,
-  CheckIcon,
-  FileTextIcon,
-  PuzzlePieceIcon,
-  UploadSimpleIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react";
+import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
+import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
+import { CheckIcon } from "@phosphor-icons/react/Check";
+import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
+import { UploadSimpleIcon } from "@phosphor-icons/react/UploadSimple";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

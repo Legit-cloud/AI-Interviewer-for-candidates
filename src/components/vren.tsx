@@ -1,5 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { CheckCircleIcon, WarningCircleIcon, SparkleIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
+import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { FieldOrigin } from "@/lib/store";

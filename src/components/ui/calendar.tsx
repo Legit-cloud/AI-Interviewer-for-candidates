@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { CaretDownIcon as ChevronDownIcon, CaretLeftIcon as ChevronLeftIcon, CaretRightIcon as ChevronRightIcon } from "@phosphor-icons/react";
+import { CaretDownIcon as ChevronDownIcon } from "@phosphor-icons/react/CaretDown";
+import { CaretLeftIcon as ChevronLeftIcon } from "@phosphor-icons/react/CaretLeft";
+import { CaretRightIcon as ChevronRightIcon } from "@phosphor-icons/react/CaretRight";
 import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker";
 
 import { cn } from "@/lib/utils";

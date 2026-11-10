@@ -1,5 +1,6 @@
 import { useRouterState } from "@tanstack/react-router";
-import { ArrowClockwiseIcon, WifiSlashIcon } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
+import { WifiSlashIcon } from "@phosphor-icons/react/WifiSlash";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";

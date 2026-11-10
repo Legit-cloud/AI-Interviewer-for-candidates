@@ -1,13 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import {
-  CheckCircleIcon,
-  DownloadSimpleIcon,
-  InfoIcon,
-  ThumbsDownIcon,
-  ThumbsUpIcon,
-  TrashIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react";
+import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
+import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
+import { InfoIcon } from "@phosphor-icons/react/Info";
+import { ThumbsDownIcon } from "@phosphor-icons/react/ThumbsDown";
+import { ThumbsUpIcon } from "@phosphor-icons/react/ThumbsUp";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import {

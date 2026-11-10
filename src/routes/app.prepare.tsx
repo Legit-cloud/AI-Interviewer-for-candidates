@@ -1,15 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import {
-  CheckCircleIcon,
-  MicrophoneIcon,
-  MonitorIcon,
-  PauseIcon,
-  PlayIcon,
-  RadioIcon,
-  SpeakerHighIcon,
-  StopIcon,
-  WarningIcon,
-} from "@phosphor-icons/react";
+import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
+import { MicrophoneIcon } from "@phosphor-icons/react/Microphone";
+import { MonitorIcon } from "@phosphor-icons/react/Monitor";
+import { PauseIcon } from "@phosphor-icons/react/Pause";
+import { PlayIcon } from "@phosphor-icons/react/Play";
+import { RadioIcon } from "@phosphor-icons/react/Radio";
+import { SpeakerHighIcon } from "@phosphor-icons/react/SpeakerHigh";
+import { StopIcon } from "@phosphor-icons/react/Stop";
+import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";

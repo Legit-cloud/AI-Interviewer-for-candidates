@@ -1,10 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import {
-  BriefcaseIcon,
-  MagnifyingGlassIcon,
-  PlusIcon,
-  UploadSimpleIcon,
-} from "@phosphor-icons/react";
+import { BriefcaseIcon } from "@phosphor-icons/react/Briefcase";
+import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { UploadSimpleIcon } from "@phosphor-icons/react/UploadSimple";
 import { format } from "date-fns";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";

@@ -1,19 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  ArrowRightIcon,
-  BriefcaseIcon,
-  CaretRightIcon,
-  CheckCircleIcon,
-  FileTextIcon,
-  LockKeyIcon,
-  MicrophoneIcon,
-  PauseIcon,
-  RadioIcon,
-  ShieldCheckIcon,
-  SpeakerHighIcon,
-  StopIcon,
-  WarningCircleIcon,
-} from "@phosphor-icons/react";
+import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
+import { BriefcaseIcon } from "@phosphor-icons/react/Briefcase";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
+import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { LockKeyIcon } from "@phosphor-icons/react/LockKey";
+import { MicrophoneIcon } from "@phosphor-icons/react/Microphone";
+import { PauseIcon } from "@phosphor-icons/react/Pause";
+import { RadioIcon } from "@phosphor-icons/react/Radio";
+import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
+import { SpeakerHighIcon } from "@phosphor-icons/react/SpeakerHigh";
+import { StopIcon } from "@phosphor-icons/react/Stop";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PrivacyDialog, TermsDialog } from "@/components/legal-dialogs";

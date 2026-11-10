@@ -6,16 +6,14 @@ import {
   useNavigate,
   useRouterState,
 } from "@tanstack/react-router";
-import {
-  BriefcaseIcon,
-  ClockCounterClockwiseIcon,
-  GearIcon,
-  PlayCircleIcon,
-  PlusIcon,
-  SignOutIcon,
-  SquaresFourIcon,
-  UserIcon,
-} from "@phosphor-icons/react";
+import { BriefcaseIcon } from "@phosphor-icons/react/Briefcase";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
+import { GearIcon } from "@phosphor-icons/react/Gear";
+import { PlayCircleIcon } from "@phosphor-icons/react/PlayCircle";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { SignOutIcon } from "@phosphor-icons/react/SignOut";
+import { SquaresFourIcon } from "@phosphor-icons/react/SquaresFour";
+import { UserIcon } from "@phosphor-icons/react/User";
 import { Button } from "@/components/ui/button";
 import { WorkspaceLoadingShell } from "@/components/loading";
 import { motion } from "@/components/motion";

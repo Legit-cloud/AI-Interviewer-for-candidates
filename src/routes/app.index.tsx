@@ -1,14 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  ArrowRightIcon,
-  BriefcaseIcon,
-  CheckCircleIcon,
-  CircleIcon,
-  ClockCounterClockwiseIcon,
-  FileTextIcon,
-  PuzzlePieceIcon,
-  XIcon,
-} from "@phosphor-icons/react";
+import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
+import { BriefcaseIcon } from "@phosphor-icons/react/Briefcase";
+import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
+import { CircleIcon } from "@phosphor-icons/react/Circle";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
+import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
+import { XIcon } from "@phosphor-icons/react/X";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { DashboardSkeleton } from "@/components/loading";

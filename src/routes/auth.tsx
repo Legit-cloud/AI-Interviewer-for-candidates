@@ -1,13 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import {
-  ArrowLeftIcon,
-  CheckCircleIcon,
-  EnvelopeSimpleIcon,
-  EyeIcon,
-  EyeSlashIcon,
-  SpinnerGapIcon,
-  SparkleIcon,
-} from "@phosphor-icons/react";
+import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
+import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
+import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
+import { EyeIcon } from "@phosphor-icons/react/Eye";
+import { EyeSlashIcon } from "@phosphor-icons/react/EyeSlash";
+import { SpinnerGapIcon } from "@phosphor-icons/react/SpinnerGap";
+import { SparkleIcon } from "@phosphor-icons/react/Sparkle";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";

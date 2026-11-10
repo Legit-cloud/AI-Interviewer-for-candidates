@@ -1,5 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { DownloadSimpleIcon, PuzzlePieceIcon, ShieldCheckIcon, TrashIcon } from "@phosphor-icons/react";
+import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
+import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
+import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { format } from "date-fns";
 import type { ReactNode } from "react";
 import { toast } from "sonner";

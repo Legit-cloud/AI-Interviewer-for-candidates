@@ -1,11 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import {
-  ArchiveIcon,
-  ArrowCounterClockwiseIcon,
-  ArrowRightIcon,
-  PencilSimpleIcon,
-  TrashIcon,
-} from "@phosphor-icons/react";
+import { ArchiveIcon } from "@phosphor-icons/react/Archive";
+import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
+import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
+import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useState } from "react";
 import { toast } from "sonner";
 import {

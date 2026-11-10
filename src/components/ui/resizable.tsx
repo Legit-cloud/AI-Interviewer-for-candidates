@@ -1,4 +1,4 @@
-import { DotsSixVerticalIcon as GripVertical } from "@phosphor-icons/react";
+import { DotsSixVerticalIcon as GripVertical } from "@phosphor-icons/react/DotsSixVertical";
 import { Group, Panel, Separator } from "react-resizable-panels";
 
 import { cn } from "@/lib/utils";

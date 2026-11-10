@@ -1,5 +1,8 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { CheckCircleIcon, FileTextIcon, TrashIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
+import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
+import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
