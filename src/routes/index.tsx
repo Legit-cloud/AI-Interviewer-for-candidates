@@ -12,6 +12,7 @@ import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { SpeakerHighIcon } from "@phosphor-icons/react/SpeakerHigh";
 import { StopIcon } from "@phosphor-icons/react/Stop";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
+import { WaveformIcon } from "@phosphor-icons/react/Waveform";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { PrivacyDialog, TermsDialog } from "@/components/legal-dialogs";
@@ -43,8 +44,6 @@ export const Route = createFileRoute("/")({
 const cues = [
   {
     id: "matched",
-    status: "Listening",
-    tone: "success" as const,
     time: "12:48",
     questionType: "Behavioural · Detected",
     question: "“Tell me about a time you improved a key product metric.”",
@@ -56,12 +55,10 @@ const cues = [
     ],
     evidence: "From your verified CV: Paystack, onboarding redesign",
     missing: false,
-    caption: "Interviewer: “Tell me about a time you improved a key product metric…”",
+    caption: "“Tell me about a time you improved a key product metric…”",
   },
   {
     id: "gap",
-    status: "Listening",
-    tone: "success" as const,
     time: "23:05",
     questionType: "Technical · Gap flagged",
     question: "“Have you written SQL to analyse product funnels yourself?”",
@@ -73,7 +70,7 @@ const cues = [
     ],
     evidence: "No matching evidence found. Vren will not fabricate SQL experience.",
     missing: true,
-    caption: "Interviewer: “Have you written SQL to analyse funnels yourself?”",
+    caption: "“Have you written SQL to analyse funnels yourself?”",
   },
 ];
 
@@ -143,6 +140,8 @@ const personas = [
   },
 ];
 
+const bars = [14, 24, 18, 30, 22, 16, 26, 12];
+
 function Landing() {
   const [cueIndex, setCueIndex] = useState(0);
   const [personaId, setPersonaId] = useState(personas[0]!.id);
@@ -152,30 +151,39 @@ function Landing() {
   return (
     <div className="min-h-dvh bg-background text-foreground">
       {/* Top navigation */}
-      <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur-md">
+      <header className="sticky top-0 z-40 border-b border-white/10 bg-pine/95 text-pine-foreground backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-          <Logo />
+          <Logo inverted />
           <nav
             aria-label="Primary"
-            className="hidden items-center gap-7 text-sm text-muted-foreground md:flex"
+            className="hidden items-center gap-7 text-sm text-pine-foreground/75 md:flex"
           >
-            <a href="#how" className="transition-colors hover:text-foreground">
+            <a href="#how" className="transition-colors hover:text-white">
               How it works
             </a>
-            <a href="#personas" className="transition-colors hover:text-foreground">
+            <a href="#personas" className="transition-colors hover:text-white">
               Who it’s for
             </a>
-            <a href="#privacy" className="transition-colors hover:text-foreground">
+            <a href="#privacy" className="transition-colors hover:text-white">
               Privacy & control
             </a>
           </nav>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-pine-foreground hover:bg-white/10 hover:text-white"
+              asChild
+            >
               <Link to="/auth" search={{ mode: "signin" }}>
                 Sign in
               </Link>
             </Button>
-            <Button size="sm" asChild>
+            <Button
+              size="sm"
+              className="bg-background text-ink hover:bg-background/90"
+              asChild
+            >
               <Link to="/auth" search={{ mode: "signup" }}>
                 Create account
               </Link>
@@ -184,208 +192,255 @@ function Landing() {
         </div>
       </header>
 
-      {/* Editorial Hero */}
-      <section className="rule-grid relative overflow-hidden border-b">
-        <div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-14 sm:px-6 lg:grid-cols-[1fr_1.08fr] lg:gap-12 lg:py-24">
-          <Stagger className="relative z-10">
+      {/* Atmospheric Full-Bleed Hero Stage */}
+      <section className="grain relative overflow-hidden border-b border-white/10 bg-pine text-pine-foreground">
+        {/* Atmospheric desk photograph + deep pine vignette */}
+        <img
+          src="/images/hero-desk.jpg"
+          alt=""
+          aria-hidden="true"
+          loading="eager"
+          decoding="async"
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover object-center opacity-22 mix-blend-luminosity"
+        />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(15,42,38,0.45)_0%,rgba(12,30,27,0.92)_68%,#0b1c19_100%)]"
+        />
+        {/* Oversized subtle typographic depth mark */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-12 hidden select-none justify-center overflow-hidden font-display text-[15rem] leading-none font-normal tracking-tight text-white/[0.03] lg:flex"
+        >
+          Vren
+        </div>
+
+        <div className="relative z-10 mx-auto max-w-6xl px-4 pt-14 pb-16 sm:px-6 sm:pt-20 sm:pb-24">
+          {/* Centered Editorial Headline + Focused CTAs */}
+          <Stagger className="mx-auto max-w-3xl text-center">
             <StaggerItem>
-              <h1 className="font-display text-4xl leading-[1.04] tracking-tight text-foreground sm:text-5xl lg:text-[3.5rem]">
+              <h1 className="font-display text-4xl leading-[1.06] tracking-tight text-white sm:text-6xl lg:text-[4.25rem]">
                 Think clearly.
                 <br />
-                Answer from <span className="mark-copper">what you’ve actually done.</span>
+                Answer from{" "}
+                <span className="bg-[linear-gradient(transparent_82%,rgba(212,126,87,0.55)_82%)] px-0.5">
+                  what you’ve actually done.
+                </span>
               </h1>
             </StaggerItem>
 
             <StaggerItem>
-              <p className="mt-6 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-                Vren AI pairs your verified CV with the job description and delivers concise,
-                evidence-backed talking points during browser interviews. It never speaks for you,
-                and never invents experience.
+              <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-pine-foreground/80 sm:text-lg">
+                Vren AI pairs your verified CV with the job description and delivers short,
+                evidence-backed talking points during browser interviews. Never automated speech,
+                never invented claims.
               </p>
             </StaggerItem>
 
             <StaggerItem>
-              <div className="mt-8 flex flex-wrap items-center gap-3">
-                <Button size="lg" asChild>
+              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                <Button
+                  size="lg"
+                  className="rounded-full bg-background px-6 text-ink hover:bg-background/90"
+                  asChild
+                >
                   <Link to="/auth" search={{ mode: "signup" }}>
                     Prepare your first interview
                     <ArrowRightIcon className="size-4" aria-hidden="true" />
                   </Link>
                 </Button>
-                <Button size="lg" variant="outline" asChild>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="rounded-full border-white/20 bg-white/5 px-6 text-white hover:bg-white/12 hover:text-white"
+                  asChild
+                >
                   <a href="#how">See the workflow</a>
                 </Button>
               </div>
             </StaggerItem>
-
-            <StaggerItem>
-              <dl className="mt-10 grid grid-cols-3 gap-4 border-t pt-6 text-xs">
-                <div>
-                  <dt className="font-mono uppercase tracking-wider text-muted-foreground">Audio</dt>
-                  <dd className="mt-1 font-medium text-foreground">Discarded by default</dd>
-                </div>
-                <div>
-                  <dt className="font-mono uppercase tracking-wider text-muted-foreground">
-                    Evidence
-                  </dt>
-                  <dd className="mt-1 font-medium text-foreground">Verified CV only</dd>
-                </div>
-                <div>
-                  <dt className="font-mono uppercase tracking-wider text-muted-foreground">
-                    Capture
-                  </dt>
-                  <dd className="mt-1 font-medium text-foreground">Explicit start & stop</dd>
-                </div>
-              </dl>
-            </StaggerItem>
           </Stagger>
 
-          {/* Unified Browser Meeting Tab + Docked Vren AI Side Panel */}
-          <Reveal delay={0.12} className="relative">
-            <div className="panel overflow-hidden shadow-[0_24px_60px_-32px_rgba(18,26,24,0.28)]">
-              {/* Minimal Browser Window Bar */}
-              <div className="flex items-center justify-between border-b bg-sidebar px-4 py-2.5">
-                <div className="flex items-center gap-1.5" aria-hidden="true">
-                  <span className="size-2.5 rounded-full bg-border-strong" />
-                  <span className="size-2.5 rounded-full bg-border-strong" />
-                  <span className="size-2.5 rounded-full bg-border-strong" />
+          {/* Layered Floating Product Stage */}
+          <Reveal delay={0.14} className="relative mx-auto mt-12 max-w-4xl sm:mt-16">
+            <div className="grid gap-4 lg:grid-cols-[240px_1fr_220px] lg:items-end">
+              {/* Left floating micro-card: Live Audio Stream */}
+              <div className="order-2 rounded-2xl border border-white/15 bg-white/[0.06] p-4 backdrop-blur-md lg:order-1 lg:mb-6">
+                <div className="flex items-center justify-between text-xs text-pine-foreground/75">
+                  <span className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider">
+                    <WaveformIcon className="size-3.5 text-[#7ad4c4]" aria-hidden="true" />
+                    Tab capture
+                  </span>
+                  <span className="font-mono text-[11px] text-[#7ad4c4]">Active</span>
                 </div>
-                <span className="rounded-md border bg-card px-3 py-0.5 font-mono text-[11px] text-muted-foreground">
-                  meet.google.com/interview-loop
-                </span>
-                <span className="font-mono text-[11px] text-primary">Side Panel</span>
+                <div className="mt-3 flex h-8 items-end gap-1" aria-hidden="true">
+                  {bars.map((h, idx) => (
+                    <motion.span
+                      key={idx}
+                      className="flex-1 rounded-full bg-[#7ad4c4]/80"
+                      initial={{ height: h }}
+                      animate={{ height: [h * 0.55, h, h * 0.45, h * 0.9] }}
+                      transition={{
+                        duration: 1.8 + idx * 0.15,
+                        repeat: Infinity,
+                        repeatType: "mirror",
+                        ease: "easeInOut",
+                      }}
+                    />
+                  ))}
+                </div>
+                <p className="mt-3 text-xs leading-relaxed text-pine-foreground/80">
+                  {cue.caption}
+                </p>
               </div>
 
-              <div className="grid sm:grid-cols-[0.88fr_1.12fr]">
-                {/* Left: Calm Meeting Call Viewport (hidden on narrow mobile to keep hero tight) */}
-                <div className="relative hidden flex-col justify-between overflow-hidden border-r bg-pine sm:flex">
-                  <img
-                    src="/images/persona-prepared.jpg"
-                    alt="Candidate in a browser video interview"
-                    loading="eager"
-                    decoding="async"
-                    className="absolute inset-0 h-full w-full object-cover object-center opacity-80"
-                  />
-                  <div className="relative z-10 flex items-center justify-between p-3.5">
-                    <span className="rounded-md bg-ink/75 px-2 py-0.5 font-mono text-[10px] text-white backdrop-blur-xs">
-                      Tab audio shared
+              {/* Centerpiece: Crisp Live Side Panel Card */}
+              <div className="order-1 overflow-hidden rounded-2xl border border-white/15 bg-card text-foreground shadow-[0_32px_80px_-24px_rgba(0,0,0,0.6)] lg:order-2">
+                <div className="flex items-center justify-between border-b px-4 py-3 sm:px-5">
+                  <div className="flex items-center gap-2">
+                    <span className="grid size-5 place-items-center rounded bg-ink text-[10px] font-bold text-ink-foreground">
+                      V
+                    </span>
+                    <span className="text-xs font-semibold tracking-tight">
+                      Vren AI · Chrome Side Panel
                     </span>
                   </div>
-                  <div className="relative z-10 bg-gradient-to-t from-ink/90 via-ink/60 to-transparent p-4 pt-12 text-white">
-                    <p className="font-mono text-[10px] uppercase tracking-wider text-white/70">
-                      Live caption
-                    </p>
-                    <p className="mt-1 text-xs leading-relaxed text-white/95">{cue.caption}</p>
+                  <div className="flex items-center gap-2">
+                    <Status tone="success" pulse>
+                      Listening
+                    </Status>
+                    <span className="font-mono text-[11px] text-muted-foreground tabular">
+                      {cue.time}
+                    </span>
                   </div>
                 </div>
 
-                {/* Right: Docked Chrome Side Panel */}
-                <div className="flex flex-col justify-between bg-card">
-                  <div className="flex items-center justify-between border-b px-4 py-3">
-                    <span className="text-xs font-semibold tracking-tight text-foreground">
-                      Vren AI
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Status tone={cue.tone} pulse>
-                        {cue.status}
-                      </Status>
-                      <span className="font-mono text-[11px] text-muted-foreground tabular">
-                        {cue.time}
-                      </span>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={cue.id}
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.22, ease: EASE }}
+                    className="space-y-3.5 p-4 sm:p-5"
+                  >
+                    <div>
+                      <p className="eyebrow mb-1">{cue.questionType}</p>
+                      <p className="text-sm font-medium leading-snug text-foreground sm:text-[15px]">
+                        {cue.question}
+                      </p>
                     </div>
-                  </div>
 
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={cue.id}
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -4 }}
-                      transition={{ duration: 0.22, ease: EASE }}
-                      className="space-y-3.5 p-4"
+                    <div
+                      className={cn(
+                        "rounded-xl border-l-2 p-3.5",
+                        cue.missing ? "border-warning bg-warning/6" : "border-primary bg-muted/70",
+                      )}
                     >
-                      <div>
-                        <p className="eyebrow mb-1">{cue.questionType}</p>
-                        <p className="text-sm font-medium leading-snug text-foreground">
-                          {cue.question}
-                        </p>
-                      </div>
-
-                      <div
+                      <p
                         className={cn(
-                          "rounded-lg border-l-2 p-3",
-                          cue.missing ? "border-warning bg-warning/6" : "border-primary bg-muted/70",
+                          "mb-1.5 font-mono text-[11px] font-medium",
+                          cue.missing ? "text-warning" : "text-primary",
                         )}
                       >
-                        <p
-                          className={cn(
-                            "mb-1.5 font-mono text-[11px] font-medium",
-                            cue.missing ? "text-warning" : "text-primary",
-                          )}
-                        >
-                          {cue.framework}
-                        </p>
-                        <ul className="space-y-1 text-[13px] leading-relaxed text-foreground">
-                          {cue.bullets.map((b) => (
-                            <li key={b} className="flex gap-2">
-                              <span className="text-muted-foreground" aria-hidden="true">
-                                •
-                              </span>
-                              <span>{b}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                        {cue.framework}
+                      </p>
+                      <ul className="space-y-1.5 text-[13px] leading-relaxed text-foreground">
+                        {cue.bullets.map((b) => (
+                          <li key={b} className="flex gap-2">
+                            <span className="text-muted-foreground" aria-hidden="true">
+                              •
+                            </span>
+                            <span>{b}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
 
-                      <div className="flex items-start gap-2 text-xs">
-                        {cue.missing ? (
-                          <WarningCircleIcon
-                            className="mt-0.5 size-4 shrink-0 text-warning"
-                            weight="fill"
-                            aria-hidden="true"
-                          />
-                        ) : (
-                          <CheckCircleIcon
-                            className="mt-0.5 size-4 shrink-0 text-success"
-                            weight="fill"
-                            aria-hidden="true"
-                          />
+                    <div className="flex items-start gap-2 text-xs">
+                      {cue.missing ? (
+                        <WarningCircleIcon
+                          className="mt-0.5 size-4 shrink-0 text-warning"
+                          weight="fill"
+                          aria-hidden="true"
+                        />
+                      ) : (
+                        <CheckCircleIcon
+                          className="mt-0.5 size-4 shrink-0 text-success"
+                          weight="fill"
+                          aria-hidden="true"
+                        />
+                      )}
+                      <span
+                        className={cn(
+                          cue.missing ? "font-medium text-warning" : "text-muted-foreground",
                         )}
-                        <span
-                          className={cn(
-                            cue.missing ? "font-medium text-warning" : "text-muted-foreground",
-                          )}
-                        >
-                          {cue.evidence}
-                        </span>
-                      </div>
-                    </motion.div>
-                  </AnimatePresence>
-
-                  <div className="flex items-center justify-between border-t bg-muted/40 px-4 py-2.5 text-[11px]">
-                    <span className="flex items-center gap-1.5 font-mono text-muted-foreground">
-                      <SpeakerHighIcon className="size-3.5" aria-hidden="true" />
-                      Tab: on · Mic: off
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setCueIndex((i) => (i + 1) % cues.length)}
-                        className="inline-flex min-h-8 items-center gap-1 rounded-md border bg-card px-2 font-mono text-[11px] text-foreground transition-colors hover:bg-muted"
                       >
-                        {cue.missing ? "Matched cue" : "Gap example"}
-                        <CaretRightIcon className="size-3" aria-hidden="true" />
-                      </button>
-                      <span className="inline-flex items-center gap-1.5 text-foreground" aria-hidden="true">
-                        <PauseIcon className="size-3.5" />
-                        <StopIcon className="size-3.5 text-destructive" weight="fill" />
+                        {cue.evidence}
                       </span>
                     </div>
+                  </motion.div>
+                </AnimatePresence>
+
+                <div className="flex items-center justify-between border-t bg-muted/40 px-4 py-2.5 text-[11px] sm:px-5">
+                  <span className="flex items-center gap-1.5 font-mono text-muted-foreground">
+                    <SpeakerHighIcon className="size-3.5" aria-hidden="true" />
+                    Tab: on · Mic: off
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCueIndex((i) => (i + 1) % cues.length)}
+                      className="inline-flex min-h-8 items-center gap-1 rounded-md border bg-card px-2.5 font-mono text-[11px] text-foreground transition-colors hover:bg-muted"
+                    >
+                      {cue.missing ? "Matched cue" : "Gap example"}
+                      <CaretRightIcon className="size-3" aria-hidden="true" />
+                    </button>
+                    <span
+                      className="inline-flex items-center gap-1.5 text-foreground"
+                      aria-hidden="true"
+                    >
+                      <PauseIcon className="size-3.5" />
+                      <StopIcon className="size-3.5 text-destructive" weight="fill" />
+                    </span>
                   </div>
                 </div>
+              </div>
+
+              {/* Right floating micro-card: Grounded Boundary */}
+              <div className="order-3 rounded-2xl border border-white/15 bg-white/[0.06] p-4 backdrop-blur-md lg:mb-6">
+                <p className="font-mono text-[11px] uppercase tracking-wider text-pine-foreground/70">
+                  Candidate truth
+                </p>
+                <p className="mt-1.5 text-2xl font-semibold tracking-tight text-white tabular">
+                  0s
+                </p>
+                <p className="mt-1 text-xs leading-relaxed text-pine-foreground/80">
+                  Raw audio retained by default. Suggestions cite only verified CV items.
+                </p>
               </div>
             </div>
           </Reveal>
+
+          {/* Subtle Bottom Anchors */}
+          <dl className="mx-auto mt-10 grid max-w-4xl grid-cols-2 gap-4 border-t border-white/12 pt-6 text-xs text-pine-foreground/75 sm:grid-cols-4">
+            <div>
+              <dt className="font-mono uppercase tracking-wider text-pine-foreground/55">Capture</dt>
+              <dd className="mt-1 font-medium text-white">User-initiated only</dd>
+            </div>
+            <div>
+              <dt className="font-mono uppercase tracking-wider text-pine-foreground/55">Format</dt>
+              <dd className="mt-1 font-medium text-white">3-5 scannable bullets</dd>
+            </div>
+            <div>
+              <dt className="font-mono uppercase tracking-wider text-pine-foreground/55">Gaps</dt>
+              <dd className="mt-1 font-medium text-white">Flagged, never invented</dd>
+            </div>
+            <div>
+              <dt className="font-mono uppercase tracking-wider text-pine-foreground/55">Review</dt>
+              <dd className="mt-1 font-medium text-white">Opt-in transcript & notes</dd>
+            </div>
+          </dl>
         </div>
       </section>
 
@@ -442,11 +497,7 @@ function Landing() {
               </h2>
             </Reveal>
 
-            <div
-              className="flex flex-wrap gap-2"
-              role="tablist"
-              aria-label="Candidate personas"
-            >
+            <div className="flex flex-wrap gap-2" role="tablist" aria-label="Candidate personas">
               {personas.map((p) => (
                 <button
                   key={p.id}
