@@ -1,6 +1,8 @@
 import json
 import logging
+import os
 import re
+from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
@@ -42,12 +44,14 @@ class LLMProviderAdapter:
 
     @property
     def is_configured(self) -> bool:
+        if "PYTEST_CURRENT_TEST" in os.environ or self.settings.env == "test":
+            return False
         provider = self.settings.llm_provider
         if provider == "offline":
             return False
         if provider == "gemini":
             return bool(self.settings.gemini_api_key)
-        return bool(self.settings.llm_api_key)
+        return bool(self.settings.llm_api_key) or bool(self.settings.gemini_api_key)
 
     async def complete_json(
         self,
@@ -61,9 +65,126 @@ class LLMProviderAdapter:
 
         if self.settings.llm_provider == "gemini":
             return await self._complete_gemini(system_prompt, user_prompt, temperature, max_tokens)
-        return await self._complete_openai_compatible(
+
+        result = await self._complete_openai_compatible(
             system_prompt, user_prompt, temperature, max_tokens
         )
+        if result is not None:
+            return result
+        if self.settings.gemini_api_key:
+            return await self._complete_gemini(system_prompt, user_prompt, temperature, max_tokens)
+        return None
+
+    async def stream_text(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.2,
+        max_tokens: int = 240,
+    ) -> AsyncIterator[str]:
+        """Streams low-latency text tokens from the active LLM provider."""
+        if not self.is_configured:
+            return
+
+        if self.settings.llm_provider == "gemini":
+            async for chunk in self._stream_gemini(system_prompt, user_prompt, temperature, max_tokens):
+                yield chunk
+            return
+
+        streamed_any = False
+        async for chunk in self._stream_openai_compatible(
+            system_prompt, user_prompt, temperature, max_tokens
+        ):
+            streamed_any = True
+            yield chunk
+
+        if not streamed_any and self.settings.gemini_api_key:
+            async for chunk in self._stream_gemini(system_prompt, user_prompt, temperature, max_tokens):
+                yield chunk
+
+    async def _stream_openai_compatible(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float,
+        max_tokens: int,
+    ) -> AsyncIterator[str]:
+        base_url = self.settings.llm_base_url.rstrip("/")
+        url = f"{base_url}/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {self.settings.llm_api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.settings.llm_model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": True,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                async with client.stream("POST", url, headers=headers, json=payload) as response:
+                    response.raise_for_status()
+                    async for raw_line in response.aiter_lines():
+                        line = raw_line.strip()
+                        if not line or not line.startswith("data:"):
+                            continue
+                        data_part = line[5:].strip()
+                        if data_part == "[DONE]":
+                            break
+                        try:
+                            event = json.loads(data_part)
+                        except json.JSONDecodeError:
+                            continue
+                        choices = event.get("choices") or []
+                        if not choices:
+                            continue
+                        delta = choices[0].get("delta", {}).get("content", "")
+                        if isinstance(delta, list):
+                            delta = "".join(
+                                part.get("text", "") for part in delta if isinstance(part, dict)
+                            )
+                        if delta:
+                            yield str(delta)
+        except Exception as exc:
+            logger.warning("OpenAI-compatible LLM stream failed cleanly: %s", exc)
+
+    async def _stream_gemini(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float,
+        max_tokens: int,
+    ) -> AsyncIterator[str]:
+        try:
+            from google import genai
+            from google.genai import types
+
+            model = (
+                self.settings.llm_model
+                if self.settings.llm_model.startswith("gemini-")
+                else "gemini-3.5-flash-lite"
+            )
+            client = genai.Client(api_key=self.settings.gemini_api_key)
+            stream = await client.aio.models.generate_content_stream(
+                model=model,
+                contents=user_prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=temperature,
+                    max_output_tokens=max_tokens,
+                ),
+            )
+            async for chunk in stream:
+                text = getattr(chunk, "text", None)
+                if text:
+                    yield str(text)
+        except Exception as exc:
+            logger.warning("Gemini LLM stream failed cleanly: %s", exc)
 
     async def _complete_openai_compatible(
         self,
@@ -116,23 +237,38 @@ class LLMProviderAdapter:
             from google import genai
             from google.genai import types
 
-            model = (
-                self.settings.llm_model
-                if self.settings.llm_model.startswith("gemini-")
-                else "gemini-3.8-flash"
-            )
+            candidates: list[str] = []
+            if self.settings.llm_model.startswith("gemini-"):
+                candidates.append(self.settings.llm_model)
+            for fallback_model in (
+                "gemini-3.5-flash-lite",
+                "gemini-3.5-flash",
+                "gemini-3.8-flash",
+                "gemini-3.7-flash",
+                "gemini-3.1-flash-lite",
+            ):
+                if fallback_model not in candidates:
+                    candidates.append(fallback_model)
+
             client = genai.Client(api_key=self.settings.gemini_api_key)
-            response = await client.aio.models.generate_content(
-                model=model,
-                contents=user_prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    temperature=temperature,
-                    max_output_tokens=max_tokens,
-                    response_mime_type="application/json",
-                ),
-            )
-            return _extract_json_object(response.text or "")
+            for model in candidates:
+                try:
+                    response = await client.aio.models.generate_content(
+                        model=model,
+                        contents=user_prompt,
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_prompt,
+                            temperature=temperature,
+                            max_output_tokens=max_tokens,
+                            response_mime_type="application/json",
+                        ),
+                    )
+                    parsed = _extract_json_object(response.text or "")
+                    if parsed is not None:
+                        return parsed
+                except Exception as inner_exc:
+                    logger.warning("Gemini LLM model=%s failed: %s", model, inner_exc)
+            return None
         except Exception as exc:
             logger.warning("Gemini LLM request failed cleanly: %s", exc)
             return None

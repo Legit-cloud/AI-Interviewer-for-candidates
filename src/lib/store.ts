@@ -994,10 +994,13 @@ export async function completeOnboarding(
     await apiFetch("/v1/documents", { method: "POST", body: fd });
   }
   if (connectExt) {
-    await apiFetch("/v1/extensions/pair", {
+    const paired = await apiFetch<{ pairing_token?: string }>("/v1/extensions/pair", {
       method: "POST",
       body: JSON.stringify({ version: "0.1.0" }),
     });
+    if (paired.pairing_token) {
+      notifyExtensionBridge("VREN_PAIR_TOKEN", paired.pairing_token);
+    }
   }
   await hydrateFromBackend();
 }
@@ -1541,18 +1544,36 @@ export function deleteSession(id: string) {
 /* Extension, preferences, data controls                               */
 /* ------------------------------------------------------------------ */
 
-export function connectExtension() {
+function notifyExtensionBridge(type: "VREN_PAIR_TOKEN" | "VREN_EXTENSION_REVOKE", token?: string) {
+  if (typeof window === "undefined") return;
+  window.postMessage(
+    {
+      source: "vren-webapp",
+      type,
+      ...(token ? { token } : {}),
+    },
+    window.location.origin,
+  );
+}
+
+export async function connectExtension(): Promise<{ pairingToken?: string | undefined }> {
   setState((s) => ({
     ...s,
-    extension: { connected: true, version: "0.9.2", connectedAt: now(), lastSeenAt: now() },
-    consents: [consent("Chrome extension connected", "Version 0.9.2"), ...s.consents],
+    extension: { connected: true, version: "0.1.0", connectedAt: now(), lastSeenAt: now() },
+    consents: [consent("Chrome extension connected", "Version 0.1.0"), ...s.consents],
   }));
-  if (hasAuthSession()) {
-    void apiFetch("/v1/extensions/pair", {
-      method: "POST",
-      body: JSON.stringify({ version: "0.9.2" }),
-    }).then(() => hydrateFromBackend());
+  if (!hasAuthSession()) {
+    return {};
   }
+  const paired = await apiFetch<{ pairing_token?: string }>("/v1/extensions/pair", {
+    method: "POST",
+    body: JSON.stringify({ version: "0.1.0" }),
+  });
+  if (paired.pairing_token) {
+    notifyExtensionBridge("VREN_PAIR_TOKEN", paired.pairing_token);
+  }
+  await hydrateFromBackend();
+  return { pairingToken: paired.pairing_token };
 }
 
 export function revokeExtension() {
@@ -1561,6 +1582,7 @@ export function revokeExtension() {
     extension: { connected: false },
     consents: [consent("Extension access revoked", "All extension tokens invalidated"), ...s.consents],
   }));
+  notifyExtensionBridge("VREN_EXTENSION_REVOKE");
   if (hasAuthSession()) {
     void apiFetch("/v1/extensions/revoke", { method: "POST" }).then(() => hydrateFromBackend());
   }

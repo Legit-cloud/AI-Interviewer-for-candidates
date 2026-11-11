@@ -1,9 +1,14 @@
+import asyncio
 import base64
 import io
+import json
 import logging
 import math
+import os
 import struct
 import wave
+from collections.abc import Awaitable, Callable
+from contextlib import suppress
 
 import httpx
 
@@ -63,9 +68,9 @@ class AudioUtteranceBuffer:
         elif self.has_speech:
             self.silence_streak += 1
 
-        # Auto-flush after ~2 silent frames following speech or once buffer >= ~6s
-        should_flush = (self.has_speech and self.silence_streak >= 2) or (
-            len(self._chunks) >= sample_rate * channels * 2 * 6
+        # Fast end-of-turn flush (~250ms quiet after speech) or bounded 5s max chunk
+        should_flush = (self.has_speech and self.silence_streak >= 1) or (
+            len(self._chunks) >= sample_rate * channels * 2 * 5
         )
         return True, should_flush
 
@@ -87,24 +92,140 @@ class AudioUtteranceBuffer:
         return len(self._chunks)
 
 
+class DeepgramStreamingChannel:
+    """Dedicated per-channel Deepgram Flux (/v2/listen) or Nova (/v1/listen) WebSocket client."""
+
+    def __init__(
+        self,
+        api_key: str,
+        model: str,
+        source: str,
+        on_transcript: Callable[[str, bool], Awaitable[None]],
+    ) -> None:
+        self.api_key = api_key
+        self.model = model or "flux-general-en"
+        self.source = source
+        self.on_transcript = on_transcript
+        self._ws: object | None = None
+        self._recv_task: asyncio.Task[None] | None = None
+        self._closed = False
+
+    async def connect(self) -> bool:
+        try:
+            import websockets
+
+            is_flux = self.model.startswith("flux")
+            if is_flux:
+                url = (
+                    f"wss://api.deepgram.com/v2/listen"
+                    f"?model={self.model}&encoding=linear16&sample_rate=16000"
+                    f"&eot_threshold=0.7&eager_eot_threshold=0.45&eot_timeout_ms=3500"
+                )
+            else:
+                url = (
+                    f"wss://api.deepgram.com/v1/listen"
+                    f"?model={self.model}&encoding=linear16&sample_rate=16000&channels=1"
+                    f"&interim_results=true&endpointing=300&punctuate=true&smart_format=true"
+                )
+            self._ws = await websockets.connect(
+                url,
+                additional_headers={"Authorization": f"Token {self.api_key}"},
+            )
+            self._recv_task = asyncio.create_task(self._read_loop())
+            return True
+        except Exception as exc:
+            logger.warning("Deepgram streaming connect failed source=%s: %s", self.source, exc)
+            return False
+
+    async def send_pcm(self, pcm_bytes: bytes) -> None:
+        if self._closed or self._ws is None or not pcm_bytes:
+            return
+        try:
+            await self._ws.send(pcm_bytes)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+    async def close(self) -> None:
+        self._closed = True
+        if self._ws is not None:
+            with suppress(Exception):
+                await self._ws.send(json.dumps({"type": "CloseStream"}))  # type: ignore[attr-defined]
+                await self._ws.close()  # type: ignore[attr-defined]
+            self._ws = None
+        if self._recv_task is not None:
+            self._recv_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._recv_task
+            self._recv_task = None
+
+    async def _read_loop(self) -> None:
+        ws = self._ws
+        if ws is None:
+            return
+        try:
+            async for raw in ws:  # type: ignore[attr-defined]
+                try:
+                    msg = json.loads(raw)
+                except Exception:
+                    continue
+                msg_type = str(msg.get("type") or "")
+                # Deepgram Flux v2 events
+                if msg_type == "EndOfTurn":
+                    text = str(msg.get("transcript") or "").strip()
+                    if text:
+                        await self.on_transcript(text, True)
+                    continue
+                if msg_type in ("Update", "EagerEndOfTurn"):
+                    text = str(msg.get("transcript") or "").strip()
+                    if text:
+                        await self.on_transcript(text, False)
+                    continue
+                # Deepgram Nova v1 Results fallback
+                if msg_type == "Results":
+                    alts = (msg.get("channel") or {}).get("alternatives") or []
+                    text = str(alts[0].get("transcript") or "").strip() if alts else ""
+                    if text:
+                        is_final = bool(msg.get("speech_final") or msg.get("is_final"))
+                        await self.on_transcript(text, is_final)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.info("Deepgram stream ended source=%s: %s", self.source, exc)
+
+
 class STTProviderAdapter:
-    """Server-side streaming/turn Speech-to-Text adapter supporting OpenAI-compatible & Gemini."""
+    """Server-side streaming/turn Speech-to-Text adapter supporting Deepgram Flux, OpenAI Whisper & Gemini."""
 
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
 
     @property
-    def is_configured(self) -> bool:
-        if self.settings.stt_provider == "offline":
-            return False
+    def active_provider(self) -> str:
+        if "PYTEST_CURRENT_TEST" in os.environ or self.settings.env == "test":
+            return "offline"
+        if self.settings.stt_provider == "deepgram" and self.settings.deepgram_api_key:
+            return "deepgram"
+        if self.settings.deepgram_api_key and self.settings.stt_provider == "offline":
+            return "deepgram"
         if self.settings.stt_provider == "gemini":
-            return bool(self.settings.gemini_api_key)
-        return bool(self.settings.stt_api_key)
+            return "gemini" if self.settings.gemini_api_key else "offline"
+        if self.settings.stt_provider == "openai_compatible":
+            if self.settings.stt_api_key:
+                return "openai_compatible"
+            return "gemini" if self.settings.gemini_api_key else "offline"
+        if self.settings.gemini_api_key:
+            return "gemini"
+        return "offline"
+
+    @property
+    def is_configured(self) -> bool:
+        return self.active_provider != "offline"
 
     async def transcribe_wav(self, wav_bytes: bytes, language: str = "en") -> str | None:
-        if not wav_bytes or not self.is_configured:
+        provider = self.active_provider
+        if not wav_bytes or provider == "offline":
             return None
-        if self.settings.stt_provider == "gemini":
+        if provider == "gemini":
             return await self._transcribe_gemini(wav_bytes, language)
         return await self._transcribe_openai_compatible(wav_bytes, language)
 
@@ -133,15 +254,27 @@ class STTProviderAdapter:
             from google.genai import types
 
             client = genai.Client(api_key=self.settings.gemini_api_key)
-            response = await client.aio.models.generate_content(
-                model="gemini-3.8-flash",
-                contents=[
-                    types.Part.from_bytes(data=wav_bytes, mime_type="audio/wav"),
-                    f"Transcribe this spoken audio accurately in {language or 'English'}. Return only the spoken words, or empty string if silent.",
-                ],
-            )
-            text = (response.text or "").strip()
-            return text or None
+            for model in (
+                "gemini-3.5-flash-lite",
+                "gemini-3.5-flash",
+                "gemini-3.8-flash",
+                "gemini-3.7-flash",
+                "gemini-3.1-flash-lite",
+            ):
+                try:
+                    response = await client.aio.models.generate_content(
+                        model=model,
+                        contents=[
+                            types.Part.from_bytes(data=wav_bytes, mime_type="audio/wav"),
+                            f"Transcribe the spoken words accurately in {language or 'English'}. Return only the spoken words. If there is no speech, return an empty string.",
+                        ],
+                    )
+                    text = (response.text or "").strip()
+                    if text:
+                        return text
+                except Exception as inner_exc:
+                    logger.warning("Gemini STT model=%s failed: %s", model, inner_exc)
+            return None
         except Exception as exc:
             logger.warning("Gemini STT request failed cleanly: %s", exc)
             return None

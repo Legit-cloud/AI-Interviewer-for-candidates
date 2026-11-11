@@ -4,7 +4,7 @@ import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { format } from "date-fns";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -69,6 +69,58 @@ function Row({ title, desc, children }: { title: string; desc?: string | undefin
 function Settings() {
   const { user, extension, preferences, consents, sessions } = useAppState();
   const navigate = useNavigate();
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [pairingBusy, setPairingBusy] = useState(false);
+  const [extensionDetected, setExtensionDetected] = useState(false);
+  const [autoPaired, setAutoPaired] = useState(false);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== window || event.origin !== window.location.origin) return;
+      const data = event.data as { source?: string; type?: string } | null;
+      if (!data || data.source !== "vren-extension") return;
+      if (data.type === "VREN_EXTENSION_PONG") {
+        setExtensionDetected(true);
+      } else if (data.type === "VREN_EXTENSION_PAIRED") {
+        setAutoPaired(true);
+        setPairingCode(null);
+        toast.success("Chrome extension paired and synced.");
+      }
+    };
+    window.addEventListener("message", onMessage);
+    window.postMessage({ source: "vren-webapp", type: "VREN_EXTENSION_PING" }, window.location.origin);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  const handleConnectExtension = async () => {
+    setPairingBusy(true);
+    setAutoPaired(false);
+    try {
+      const res = await connectExtension();
+      if (res.pairingToken) {
+        setPairingCode(res.pairingToken);
+        toast.success(
+          extensionDetected
+            ? "Pairing sent to your Chrome Side Panel."
+            : "Pairing code generated. Copy it into the Chrome Side Panel.",
+        );
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not generate extension pairing code.");
+    } finally {
+      setPairingBusy(false);
+    }
+  };
+
+  const copyPairingCode = async () => {
+    if (!pairingCode) return;
+    try {
+      await navigator.clipboard.writeText(pairingCode);
+      toast.success("Pairing code copied.");
+    } catch {
+      toast.error("Copy failed. Select and copy the code manually.");
+    }
+  };
 
   const downloadExport = () => {
     const blob = new Blob([exportData()], { type: "application/json" });
@@ -121,24 +173,57 @@ function Settings() {
             title="Extension status"
             desc={
               extension.connected && extension.connectedAt
-                ? `Connected ${format(new Date(extension.connectedAt), "d MMM yyyy, HH:mm")} · v${extension.version}. Browsing history is never recorded.`
-                : "Not connected. Connect from the Chrome Side Panel or below."
+                ? `Connected ${format(new Date(extension.connectedAt), "d MMM yyyy, HH:mm")} · v${extension.version ?? "0.1.0"}. Browsing history is never recorded.`
+                : extensionDetected
+                  ? "Chrome extension detected. Click Connect extension to pair in one click."
+                  : "Not connected. Install the Chrome extension or generate a pairing code below."
             }
           >
             {extension.connected ? (
-              <div className="flex items-center gap-2.5">
-                <Status tone="success">Connected</Status>
-                <Button variant="outline" size="sm" onClick={revokeExtension}>
+              <div className="flex flex-wrap items-center gap-2.5">
+                <Status tone="success">{autoPaired ? "Paired" : "Connected"}</Status>
+                <Button variant="outline" size="sm" disabled={pairingBusy} onClick={handleConnectExtension}>
+                  New pairing code
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setPairingCode(null);
+                    setAutoPaired(false);
+                    revokeExtension();
+                  }}
+                >
                   Revoke access
                 </Button>
               </div>
             ) : (
-              <Button variant="outline" size="sm" onClick={connectExtension}>
+              <Button variant="outline" size="sm" disabled={pairingBusy} onClick={handleConnectExtension}>
                 <PuzzlePieceIcon className="size-4" aria-hidden="true" />
-                Connect extension
+                {pairingBusy ? "Connecting..." : "Connect extension"}
               </Button>
             )}
           </Row>
+          {pairingCode && (
+            <div className="flex flex-col gap-2 py-4 md:flex-row md:items-center md:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">One-time pairing code</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {extensionDetected
+                    ? "Sent automatically to your extension. If it did not connect, paste this code into the Side Panel (expires in 15 minutes)."
+                    : "Paste this code into the Vren AI Chrome Side Panel within 15 minutes."}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <code className="max-w-[240px] truncate rounded-md border bg-muted/50 px-2.5 py-1.5 font-mono text-xs text-foreground">
+                  {pairingCode}
+                </code>
+                <Button variant="outline" size="sm" onClick={copyPairingCode}>
+                  Copy code
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 

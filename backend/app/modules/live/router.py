@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -8,7 +9,7 @@ from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters.stt import AudioUtteranceBuffer, get_stt_adapter
+from app.adapters.stt import AudioUtteranceBuffer, DeepgramStreamingChannel, get_stt_adapter
 from app.core.config import get_settings
 from app.core.database import get_db
 from app.core.errors import AppError
@@ -23,7 +24,7 @@ from app.db.models import (
     TranscriptSegment,
 )
 from app.modules.live.question_detector import QuestionDetector
-from app.modules.sessions.grounding import generate_grounded_suggestion
+from app.modules.sessions.grounding import stream_grounded_suggestion
 from app.modules.sessions.router import finalize_session_row
 
 logger = logging.getLogger(__name__)
@@ -55,14 +56,19 @@ async def _handle_completed_utterance(
     source: str,
     segment_seq: int,
     item_id: str,
+    recent_turns: list[str],
 ) -> int:
     text = utterance_text.strip()
     if not text:
         return segment_seq
 
+    # Deterministic per-channel attribution: tab audio is Interviewer, mic is You.
     speaker = "You" if source == "microphone" else "Interviewer"
     ts_label = _elapsed_label(session_row.started_at)
     segment_seq += 1
+    recent_turns.append(f"{speaker}: {text[:220]}")
+    if len(recent_turns) > 6:
+        del recent_turns[:-4]
 
     if session_row.transcript_retained:
         db.add(
@@ -106,7 +112,13 @@ async def _handle_completed_utterance(
         )
     )
     await websocket.send_json(
-        _event("suggestion.started", session_row.id, question_id=question_id)
+        _event(
+            "suggestion.started",
+            session_row.id,
+            question_id=question_id,
+            question_text=detected.text,
+            question_type=detected.kind,
+        )
     )
 
     prefs = await db.get(InterviewPreferences, session_row.user_id)
@@ -124,15 +136,31 @@ async def _handle_completed_utterance(
         )
     ).scalars().all()
 
+    framework = prefs.framework
+    outline: list[str] = []
+    evidence_ref = ""
+    caveat = ""
     try:
-        framework, outline, evidence_ref, caveat = await generate_grounded_suggestion(
+        async for evt_kind, payload in stream_grounded_suggestion(
             question_text=detected.text,
             question_type=detected.kind,
             prefs=prefs,
             experiences=experiences,
             skills=skills,
             job=job,
-        )
+            recent_turns=recent_turns,
+        ):
+            if evt_kind == "delta":
+                await websocket.send_json(
+                    _event(
+                        "suggestion.delta",
+                        session_row.id,
+                        question_id=question_id,
+                        delta=str(payload),
+                    )
+                )
+            elif evt_kind == "done":
+                framework, outline, evidence_ref, caveat = payload
     except Exception:
         await websocket.send_json(
             _event(
@@ -241,6 +269,40 @@ async def live_session_ws(
     )
     paused = session_row.state == "paused"
     stopped_cleanly = False
+    recent_turns: list[str] = []
+    dg_channels: dict[str, DeepgramStreamingChannel] = {}
+
+    async def _on_deepgram_event(src: str, text: str, is_final: bool) -> None:
+        nonlocal segment_seq
+        if paused:
+            return
+        if not is_final:
+            await websocket.send_json(
+                _event("transcript.delta", session_row.id, item_id=f"live_{src}", source=src, text=text)
+            )
+            return
+        segment_seq = await _handle_completed_utterance(
+            websocket,
+            db,
+            session_row,
+            detector,
+            text,
+            src,
+            segment_seq,
+            f"dg_{src}_{uuid4().hex[:8]}",
+            recent_turns,
+        )
+
+    if stt.active_provider == "deepgram" and settings.deepgram_api_key:
+        for src in ("tab", "microphone"):
+            ch = DeepgramStreamingChannel(
+                api_key=settings.deepgram_api_key,
+                model=settings.deepgram_model,
+                source=src,
+                on_transcript=lambda text, is_final, s=src: _on_deepgram_event(s, text, is_final),
+            )
+            if await ch.connect():
+                dg_channels[src] = ch
 
     expires_at = datetime.now(timezone.utc) + timedelta(minutes=settings.max_session_minutes)
     await websocket.send_json(
@@ -249,7 +311,7 @@ async def live_session_ws(
             session_id,
             state=session_row.state,
             expires_at=expires_at.isoformat(),
-            stt_mode=settings.stt_provider,
+            stt_mode=stt.active_provider,
         )
     )
 
@@ -325,6 +387,16 @@ async def live_session_ws(
                 payload_b64 = str(msg.get("payload") or "")
                 sample_rate = int(msg.get("sample_rate") or 16000)
                 channels = int(msg.get("channels") or 1)
+
+                if src in dg_channels:
+                    try:
+                        pcm_raw = base64.b64decode(payload_b64, validate=True)
+                    except Exception:
+                        pcm_raw = b""
+                    if pcm_raw:
+                        await dg_channels[src].send_pcm(pcm_raw)
+                    continue
+
                 try:
                     accepted, should_flush = buffers[src].append_base64(
                         payload_b64, sample_rate, channels
@@ -352,7 +424,15 @@ async def live_session_ws(
                         text = await stt.transcribe_wav(wav_bytes, language=lang)
                         if text:
                             segment_seq = await _handle_completed_utterance(
-                                websocket, db, session_row, detector, text, src, segment_seq, item_id
+                                websocket,
+                                db,
+                                session_row,
+                                detector,
+                                text,
+                                src,
+                                segment_seq,
+                                item_id,
+                                recent_turns,
                             )
                 else:
                     await websocket.send_json(
@@ -367,7 +447,15 @@ async def live_session_ws(
 
                 if direct_text:
                     segment_seq = await _handle_completed_utterance(
-                        websocket, db, session_row, detector, direct_text, src, segment_seq, item_id
+                        websocket,
+                        db,
+                        session_row,
+                        detector,
+                        direct_text,
+                        src,
+                        segment_seq,
+                        item_id,
+                        recent_turns,
                     )
                 elif src in buffers:
                     wav_bytes = buffers[src].drain_wav()
@@ -377,11 +465,23 @@ async def live_session_ws(
                         text = await stt.transcribe_wav(wav_bytes, language=lang)
                         if text:
                             segment_seq = await _handle_completed_utterance(
-                                websocket, db, session_row, detector, text, src, segment_seq, item_id
+                                websocket,
+                                db,
+                                session_row,
+                                detector,
+                                text,
+                                src,
+                                segment_seq,
+                                item_id,
+                                recent_turns,
                             )
                 continue
 
             if msg_type == "session.stop":
+                for ch in dg_channels.values():
+                    await ch.close()
+                dg_channels.clear()
+
                 for src, buf in buffers.items():
                     wav_bytes = buf.drain_wav()
                     if wav_bytes and stt.is_configured:
@@ -389,7 +489,15 @@ async def live_session_ws(
                         text = await stt.transcribe_wav(wav_bytes, language=prefs.language if prefs else "English")
                         if text:
                             segment_seq = await _handle_completed_utterance(
-                                websocket, db, session_row, detector, text, src, segment_seq, f"turn_{uuid4().hex[:8]}"
+                                websocket,
+                                db,
+                                session_row,
+                                detector,
+                                text,
+                                src,
+                                segment_seq,
+                                f"turn_{uuid4().hex[:8]}",
+                                recent_turns,
                             )
                     buf.clear()
 
@@ -409,6 +517,9 @@ async def live_session_ws(
     except WebSocketDisconnect:
         logger.info("Live WebSocket disconnected session_id=%s clean=%s", session_id, stopped_cleanly)
     finally:
+        for ch in dg_channels.values():
+            await ch.close()
+        dg_channels.clear()
         for buf in buffers.values():
             buf.clear()
         if not stopped_cleanly and session_row.state != "ended":

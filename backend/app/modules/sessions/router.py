@@ -239,6 +239,7 @@ async def create_session(
         snapshot={
             "job_title": job.title if job else "General Interview",
             "company": job.company if job else "",
+            "interview_type": payload.interview_type or "Mixed",
             "framework": prefs.framework,
             "length": prefs.length,
             "style": prefs.style,

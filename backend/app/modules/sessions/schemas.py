@@ -54,6 +54,7 @@ class SessionCreateIn(BaseModel):
     job_id: UUID | None = None
     state: SessionStateType = "listening"
     transcript_retained: bool | None = None
+    interview_type: str | None = Field(default=None, max_length=60)
 
 
 class SessionSuggestIn(BaseModel):

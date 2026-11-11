@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, status
@@ -8,10 +8,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.deps import get_verified_user
 from app.core.errors import AppError
-from app.core.security import generate_opaque_token, hash_token
+from app.core.rate_limit import rate_limit
+from app.core.security import (
+    create_extension_access_token,
+    generate_opaque_token,
+    hash_token,
+)
 from app.db.models import AuditEvent, ExtensionConnection, User
+from app.modules.auth.schemas import UserSummary
 from app.modules.extensions.schemas import (
     ExtensionConnectionOut,
+    ExtensionExchangeIn,
+    ExtensionExchangeOut,
+    ExtensionHeartbeatIn,
     ExtensionPairIn,
     ExtensionPairOut,
 )
@@ -89,6 +98,114 @@ async def pair_extension(
         connected_at=conn.connected_at,
         last_seen_at=conn.last_seen_at,
         pairing_token=raw_token,
+    )
+
+
+@router.post(
+    "/exchange",
+    response_model=ExtensionExchangeOut,
+    dependencies=[Depends(rate_limit("extension_exchange", 20, 300))],
+)
+async def exchange_pairing_token(
+    payload: ExtensionExchangeIn,
+    db: AsyncSession = Depends(get_db),
+) -> ExtensionExchangeOut:
+    token_value = payload.pairing_token.strip()
+    conn = (
+        await db.execute(
+            select(ExtensionConnection).where(
+                ExtensionConnection.token_hash == hash_token(token_value),
+                ExtensionConnection.revoked_at.is_(None),
+            )
+        )
+    ).scalar_one_or_none()
+    if not conn:
+        raise AppError(
+            code="INVALID_PAIRING_TOKEN",
+            message="Pairing code is invalid, already used, or revoked.",
+            status_code=401,
+        )
+
+    now = datetime.now(timezone.utc)
+    created = conn.connected_at if conn.connected_at.tzinfo else conn.connected_at.replace(tzinfo=timezone.utc)
+    if created < now - timedelta(minutes=15):
+        raise AppError(
+            code="PAIRING_TOKEN_EXPIRED",
+            message="Pairing code expired. Generate a fresh code from Vren AI Settings.",
+            status_code=401,
+        )
+
+    user = await db.get(User, conn.user_id)
+    if not user or not user.is_verified:
+        raise AppError(
+            code="ACCOUNT_NOT_VERIFIED",
+            message="Verify your Vren AI account before connecting the extension.",
+            status_code=403,
+        )
+
+    # Rotate token_hash immediately so the pairing code is strictly single-use.
+    conn.token_hash = hash_token(f"paired_{generate_opaque_token()}")
+    conn.version = payload.version.strip() or conn.version
+    conn.last_seen_at = now
+    db.add(
+        AuditEvent(
+            user_id=user.id,
+            event_type="extension_exchanged",
+            metadata_json={"connection_id": str(conn.id), "version": conn.version},
+        )
+    )
+    await db.commit()
+
+    access_token, expires_at = create_extension_access_token(
+        user_id=user.id,
+        email=user.email,
+        connection_id=conn.id,
+    )
+    return ExtensionExchangeOut(
+        access_token=access_token,
+        expires_at=expires_at,
+        connection_id=conn.id,
+        user=UserSummary(
+            id=user.id,
+            email=user.email,
+            verified=user.is_verified,
+            onboarded=user.onboarded,
+            created_at=user.created_at,
+        ),
+    )
+
+
+@router.post("/heartbeat", response_model=ExtensionConnectionOut)
+async def extension_heartbeat(
+    payload: ExtensionHeartbeatIn,
+    user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> ExtensionConnectionOut:
+    stmt = select(ExtensionConnection).where(
+        ExtensionConnection.user_id == user.id,
+        ExtensionConnection.revoked_at.is_(None),
+    )
+    if payload.connection_id:
+        stmt = stmt.where(ExtensionConnection.id == payload.connection_id)
+    stmt = stmt.order_by(ExtensionConnection.connected_at.desc()).limit(1)
+    conn = (await db.execute(stmt)).scalar_one_or_none()
+    if not conn:
+        raise AppError(
+            code="EXTENSION_REVOKED",
+            message="Extension connection is inactive or revoked.",
+            status_code=401,
+        )
+
+    conn.last_seen_at = datetime.now(timezone.utc)
+    if payload.version.strip():
+        conn.version = payload.version.strip()
+    await db.commit()
+    return ExtensionConnectionOut(
+        connected=True,
+        connection_id=conn.id,
+        version=conn.version,
+        connected_at=conn.connected_at,
+        last_seen_at=conn.last_seen_at,
     )
 
 

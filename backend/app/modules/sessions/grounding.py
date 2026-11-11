@@ -1,7 +1,8 @@
 import re
-from typing import Sequence
+from collections.abc import AsyncIterator
+from typing import Any, Sequence
 
-from app.adapters.llm import LLMProviderAdapter, get_llm_adapter
+from app.adapters.llm import get_llm_adapter
 from app.db.models import CandidateExperience, CandidateSkill, InterviewPreferences, JobDescription
 
 _STOPWORDS = {
@@ -42,42 +43,43 @@ def _direct_domain_outline(
 
     if any(k in lower for k in ("campaign", "marketing", "roas", "cac", "seo", "paid", "ads", "social", "funnel", "audience")):
         bullets = [
-            "Start with the audience and one measurable goal (pipeline, signups, or CAC) before naming channels.",
-            "Show how you test small first: 2 to 3 hooks or creatives, read early click/conversion data, cut losers fast.",
-            f"Close with attribution: explain what happens next when scaling winning creative for {role_title}.",
+            "I start by locking in one measurable goal, like qualified signups or lower acquisition cost, and mapping the audience's main pain point before picking channels.",
+            "I launch two or three distinct creative hooks on a tight test budget, track early click-to-conversion drop-off, and cut underperformers within the first few days.",
+            f"Once an angle proves consistent payback, I shift budget onto that winner and verify attribution cleanly for {role_title}.",
         ]
     elif any(k in lower for k in ("3d", "render", "shader", "topology", "uv", "lighting", "blender", "maya", "unreal", "texture", "poly", "rig")):
         bullets = [
-            "Lead with pipeline constraints first: target engine, poly budget, texture budget, and frame-rate or render deadline.",
-            "Walk cleanly through your workflow: blockout silhouette, clean topology/UVs, PBR look-dev, and lighting checks.",
-            "Mention trade-offs clearly (bake detail into normal maps instead of heavy geometry where performance matters).",
+            "I lock down target engine limits first, including poly budget, texture memory, shader complexity, and target frame rate, before building high-detail geometry.",
+            "I block out the silhouette, keep topology and UVs packed cleanly, and bake fine surface detail into normal maps instead of heavy meshes.",
+            "If frame rate drops, I profile shader instruction count and light complexity directly in-engine, then simplify expensive transparencies and shadow-casting lights first.",
         ]
     elif any(k in lower for k in ("client", "stakeholder", "budget", "sales", "deadline", "disagree", "conflict", "pushback")):
         bullets = [
-            "Listen first: pinpoint whether their pushback is about timeline, risk, or unclear expectations.",
-            "Offer a concrete option instead of arguing (e.g., ship a smaller test scope this week, measure, then decide).",
-            "Keep tone calm and outcome-focused rather than defensive.",
+            "When a timeline tightens or someone pushes back, I first clarify whether the real constraint is the launch date, budget, or risk tolerance.",
+            "Instead of arguing preferences, I propose two clear options: ship the highest-impact core scope on schedule, or move lower-priority items to a fast follow-up.",
+            "Once we agree on the trade-off and success metric, I send a short written recap so everyone stays aligned.",
         ]
     elif "behavior" in question_type.lower() or any(k in lower for k in ("tell me about a time", "describe a", "walk me through")):
         bullets = [
-            "Set the scene in one sentence: what was broken or at stake.",
-            "Focus 60% of the answer on what YOU specifically changed or decided.",
-            "End on the concrete result and one quick takeaway you still apply today.",
+            "We had a clear bottleneck slowing down delivery and results, so I stepped in to own the fix end to end.",
+            "Instead of waiting for a full overhaul, I isolated the biggest friction point first, shipped a focused fix, and aligned the team on clear ownership.",
+            "That unblocked the team right away and left a simpler process we kept using afterward.",
         ]
     else:
         bullets = [
-            "Give a direct 1-sentence answer upfront before unpacking your steps.",
-            f"Explain the practical approach you'd take in {role_title} (inputs, key trade-off, and how you verify it worked).",
-            "Keep sentences short so it sounds like natural speech, not a textbook.",
+            "My direct approach is to solve the core bottleneck simply first rather than over-complicating things upfront.",
+            f"For {role_title}, I check the constraints, put the cleanest working solution in place with clear verification, and measure the real result before scaling.",
+            "That keeps quality reliable while moving fast under real deadlines.",
         ]
 
     if bridge_item:
         bridge_note = (
-            f"Tie it back briefly to {bridge_item.title} at {bridge_item.organization}"
+            f"In my previous work as {bridge_item.title} at {bridge_item.organization}"
             if bridge_item.organization
-            else f"Tie it back briefly to {bridge_item.title}"
+            else f"In my previous work as {bridge_item.title}"
         )
-        bullets[-1] = f"{bridge_note}: {bridge_item.summary[:120] or bullets[-1]}"
+        summary = bridge_item.summary.strip()
+        bullets[-1] = f"{bridge_note}, I applied this directly: {summary[:120]}" if summary else f"{bridge_note}, I handled similar problems hands-on."
 
     return bullets[:4]
 
@@ -112,17 +114,15 @@ async def generate_grounded_suggestion(
 
         ai_res = await llm.complete_json(
             system_prompt=(
-                "You are a sharp, human-sounding real-time interview partner for ANY industry "
-                "(digital marketing, 3D art, design, sales, operations, finance, healthcare, software, etc.). "
-                "Your job is to help the candidate answer tough interviewer questions or live tasks clearly, "
-                "EVEN WHEN the question topic is NOT on their CV. "
-                "Rules: "
-                "1) Always provide a direct, practical, usable answer to the question or task. Never refuse just because a keyword is missing from the CV. "
-                "2) If a verified CV item genuinely fits, anchor the answer in it naturally. Never fabricate fake past jobs, titles, or dates on their CV. "
-                "3) Write like a sharp human talking out loud: short everyday words, zero fluff, zero clichés or AI buzzwords "
-                "(ban: leverage, synergy, delve, tapestry, holistic, fast-paced world, rockstar, Spearhead, Great question). "
-                "4) Respect the candidate's preferred framework/length/style. "
-                "Return JSON: {framework: string, outline: string[] (3-4 concise spoken-style bullets), evidence_ref: string, caveat: string}."
+                "You are generating the exact spoken interview answer for a candidate during a live interview "
+                "(any industry: digital marketing, 3D art, design, sales, operations, finance, healthcare, software, etc.). "
+                "CRITICAL RULES: "
+                "1) ALWAYS write the ACTUAL ANSWER in first person ('I...' / 'We...') that the candidate can say out loud word-for-word. "
+                "2) NEVER coach or tell the candidate what to do. STRICTLY FORBIDDEN phrases: 'Start with', 'Begin by', 'Mention', 'Walk through', 'Explain how', 'Focus on', 'Set the scene', 'Highlight', 'You should', 'Talk about', 'Tie it back', 'Share a'. Give the real answer itself, not advice on how to answer. "
+                "3) Answer tough questions directly even when the topic is NOT on their CV. If a verified CV item fits, weave it in naturally without inventing fake jobs or metrics. "
+                "4) Sound like a sharp human speaking casually and clearly: short direct sentences, everyday words, zero AI buzzwords "
+                "(ban: leverage, synergy, delve, tapestry, holistic, fast-paced, rockstar, spearheaded, great question). "
+                "Return JSON: {framework: string, outline: string[] (3-4 ready-to-say first-person answer lines), evidence_ref: string, caveat: string}."
             ),
             user_prompt=(
                 f"Target role: {job_line}\n"
@@ -164,28 +164,120 @@ async def generate_grounded_suggestion(
         snippet = best_item.summary.strip() or f"Your work as {best_item.title}."
         if framework == "STAR":
             outline = [
-                f"Scene: Anchor in your time as {best_item.title} ({best_item.dates_text or 'recent role'}).",
-                f"Action: Walk through what you handled: {snippet[:185]}",
-                "Result: Share the real outcome in plain terms and what it changed for the team.",
+                f"In my role as {best_item.title}{f' at {best_item.organization}' if best_item.organization else ''} ({best_item.dates_text or 'recently'}), I ran into a similar challenge.",
+                f"I handled it directly: {snippet[:185]}",
+                "That resolved the bottleneck cleanly and gave the team a concrete outcome we could measure.",
             ]
         else:
             matched_skills = [
                 s.name for s in skills if any(tok in s.normalized_name for tok in q_tokens)
             ][:3]
-            skills_note = f" ({', '.join(matched_skills)})" if matched_skills else ""
+            skills_note = f" using {', '.join(matched_skills)}" if matched_skills else ""
             outline = [
-                f"Direct point{skills_note}: tie this directly to {best_item.title}.",
-                f"Real detail: {snippet[:190]}",
-                f"Why it fits {job.title if job else 'this role'}: connect that approach to their priorities.",
+                f"Yes, I've done this hands-on{skills_note} as {best_item.title}.",
+                f"Specifically, {snippet[:190]}",
+                f"For {job.title if job else 'this role'}, I would apply that exact same approach from day one.",
             ]
         return framework, outline, evidence_ref[:180], ""
 
-    # Outside CV or general tough task: still give a sharp, direct, natural answer!
+    # Outside CV or general tough task: still give a sharp, direct, first-person answer.
     outline = _direct_domain_outline(question_text, question_type, job, best_item)
     evidence_ref = (
-        f"Role guidance + Bridge from {best_item.title}"
+        f"Role answer + {best_item.title}"
         if best_item
-        else f"Direct role guidance ({job.title if job else question_type})"
+        else f"Direct role answer ({job.title if job else question_type})"
     )
-    caveat = "Outside your CV: answer directly on approach and keep examples grounded in real work."
+    caveat = ""
     return framework, outline, evidence_ref[:180], caveat
+
+
+def _parse_streamed_bullets(raw_text: str) -> list[str]:
+    lines = []
+    for raw in raw_text.splitlines():
+        cleaned = re.sub(r"^\s*(?:[-*]|\d+[.)])\s*", "", raw).strip()
+        if cleaned:
+            lines.append(cleaned[:240])
+    if len(lines) <= 1 and raw_text.strip():
+        parts = [p.strip() for p in re.split(r"(?<=[.!?])\s+", raw_text.strip()) if p.strip()]
+        if len(parts) > 1:
+            lines = [p[:240] for p in parts[:3]]
+    return lines[:3]
+
+
+async def stream_grounded_suggestion(
+    question_text: str,
+    question_type: str,
+    prefs: InterviewPreferences,
+    experiences: Sequence[CandidateExperience],
+    skills: Sequence[CandidateSkill],
+    job: JobDescription | None,
+    recent_turns: Sequence[str] = (),
+) -> AsyncIterator[tuple[str, Any]]:
+    """
+    Streams fast first-person spoken answer chunks (`('delta', str)`) followed by
+    the finalized tuple `('done', (framework, outline, evidence_ref, caveat))`.
+    """
+    active_items = [e for e in experiences if e.active]
+    framework = prefs.framework
+    if framework == "Auto":
+        framework = (
+            "STAR"
+            if ("behavior" in question_type.lower() or "tell me" in question_text.lower())
+            else "Direct"
+        )
+
+    llm = get_llm_adapter()
+    if llm.is_configured:
+        # Lean fixed prefix: top 4 experiences + top 8 skills + last 2 transcript turns
+        evidence_lines = "\n".join(
+            f"- {e.title} ({e.organization or 'Independent'}): {e.summary[:140]}"
+            for e in active_items[:4]
+        ) or "None provided"
+        skill_line = ", ".join(s.name for s in skills[:8]) or "General"
+        job_line = f"{job.title} ({job.company})" if job and job.company else (job.title if job else "General")
+        turns_block = "\n".join(recent_turns[-2:]) if recent_turns else "None"
+
+        system_prompt = (
+            "Output ONLY 2 to 3 short first-person spoken interview bullet lines starting with '- '. "
+            "Write exact words the candidate can read aloud immediately ('I...'). "
+            "NEVER give coaching instructions ('Start with', 'Mention', 'Walk through', 'Explain how'). "
+            "Answer tough questions directly even outside the CV. Zero buzzwords. No preamble."
+        )
+        user_prompt = (
+            f"Role: {job_line} | Style: {framework}, {prefs.length}, {prefs.language}\n"
+            f"Background:\n{evidence_lines}\nSkills: {skill_line}\n"
+            f"Recent turns:\n{turns_block}\n"
+            f"Question ({question_type}): {question_text}"
+        )
+
+        collected: list[str] = []
+        async for chunk in llm.stream_text(
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=0.2,
+            max_tokens=200,
+        ):
+            collected.append(chunk)
+            yield ("delta", chunk)
+
+        outline = _parse_streamed_bullets("".join(collected))
+        if outline:
+            evidence_ref = (
+                f"Anchored in {active_items[0].title}"
+                if active_items
+                else f"Direct answer ({job_line})"
+            )
+            yield ("done", (framework, outline, evidence_ref[:180], ""))
+            return
+
+    # Deterministic low-latency fallback (no AI delay)
+    fw, outline, evidence_ref, caveat = await generate_grounded_suggestion(
+        question_text=question_text,
+        question_type=question_type,
+        prefs=prefs,
+        experiences=experiences,
+        skills=skills,
+        job=job,
+    )
+    yield ("delta", "\n".join(f"- {b}" for b in outline))
+    yield ("done", (fw, outline, evidence_ref, caveat))

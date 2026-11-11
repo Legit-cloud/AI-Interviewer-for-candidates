@@ -43,7 +43,9 @@ class Settings(BaseSettings):
     gemini_api_key: str | None = None
 
     # Speech-to-Text provider configuration (server-side only; raw audio stays in RAM only)
-    stt_provider: Literal["openai_compatible", "gemini", "offline"] = "offline"
+    stt_provider: Literal["deepgram", "openai_compatible", "gemini", "offline"] = "offline"
+    deepgram_api_key: str | None = None
+    deepgram_model: str = "flux-general-en"
     stt_base_url: str = "https://api.openai.com/v1"
     stt_api_key: str | None = None
     stt_model: str = "whisper-1"

@@ -49,6 +49,29 @@ def create_access_token(user_id: UUID, email: str) -> tuple[str, datetime]:
     return token, expires
 
 
+def create_extension_access_token(
+    user_id: UUID,
+    email: str,
+    connection_id: UUID,
+    minutes: int = 60 * 24 * 7,
+) -> tuple[str, datetime]:
+    settings = get_settings()
+    now = datetime.now(UTC)
+    expires = now + timedelta(minutes=minutes)
+    payload: dict[str, Any] = {
+        "sub": str(user_id),
+        "email": email,
+        "conn_id": str(connection_id),
+        "iss": settings.jwt_issuer,
+        "aud": settings.jwt_audience,
+        "iat": int(now.timestamp()),
+        "exp": int(expires.timestamp()),
+        "scope": "extension",
+    }
+    token = jwt.encode(payload, settings.active_jwt_secret, algorithm="HS256")
+    return token, expires
+
+
 def decode_access_token(token: str) -> dict[str, Any]:
     settings = get_settings()
     try:

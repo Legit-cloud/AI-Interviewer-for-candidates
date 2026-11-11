@@ -159,7 +159,12 @@ def test_live_websocket_protocol_question_detection_and_stop(tmp_path) -> None:
                 qd = ws.receive_json()
                 assert qd["type"] == "question.detected"
                 assert ws.receive_json()["type"] == "suggestion.started"
+                deltas = []
                 sr = ws.receive_json()
+                while sr["type"] == "suggestion.delta":
+                    deltas.append(sr["delta"])
+                    sr = ws.receive_json()
+                assert len(deltas) >= 1
                 assert sr["type"] == "suggestion.ready"
                 assert len(sr["suggestion"]["outline"]) >= 3
 
