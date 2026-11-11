@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AnimatePresence, motion, EASE } from "@/components/motion";
 import { Logo } from "@/components/vren";
+import { ApiError } from "@/lib/api";
 import { auth, delay, useAppState } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -88,18 +89,29 @@ function AuthPage() {
       return;
     }
     setPending(true);
-    await delay(550);
-    setPending(false);
-    if (mode === "signup") {
-      auth.signUp(email.trim());
-      setResendCooldown(30);
-      go("verify");
-    } else if (mode === "signin") {
-      auth.signIn(email.trim());
-      navigate({ to: "/app" });
-    } else {
-      toast.success("If an account exists for that email, a reset link is on its way.");
-      go("signin");
+    try {
+      if (mode === "signup") {
+        await auth.signUpWithPassword(email.trim(), password);
+        setResendCooldown(30);
+        go("verify");
+      } else if (mode === "signin") {
+        const signedInUser = await auth.signInWithPassword(email.trim(), password);
+        navigate({ to: signedInUser.onboarded ? "/app" : "/onboarding" });
+      } else {
+        await auth.forgotPassword(email.trim());
+        toast.success("If an account exists for that email, a reset link is on its way.");
+        go("signin");
+      }
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "EMAIL_NOT_VERIFIED") {
+        auth.signUp(email.trim());
+        toast.info("Verify your email address first.");
+        go("verify");
+      } else {
+        setError(err instanceof Error ? err.message : "Could not complete request.");
+      }
+    } finally {
+      setPending(false);
     }
   };
 
@@ -199,9 +211,18 @@ function AuthPage() {
                   <Button
                     className="w-full"
                     size="lg"
-                    onClick={() => {
-                      auth.verify();
-                      navigate({ to: "/onboarding" });
+                    disabled={pending}
+                    onClick={async () => {
+                      setError(null);
+                      setPending(true);
+                      try {
+                        await auth.verifyWithBackend();
+                        navigate({ to: "/onboarding" });
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : "Verification failed.");
+                      } finally {
+                        setPending(false);
+                      }
                     }}
                   >
                     <CheckCircleIcon className="size-4" aria-hidden="true" />
@@ -211,8 +232,11 @@ function AuthPage() {
                   <Button
                     variant="outline"
                     className="w-full"
-                    disabled={resendCooldown > 0}
-                    onClick={() => {
+                    disabled={resendCooldown > 0 || pending}
+                    onClick={async () => {
+                      if (user?.email) {
+                        await auth.resendVerification(user.email);
+                      }
                       setResendCooldown(30);
                       toast.success("Verification email resent.");
                     }}

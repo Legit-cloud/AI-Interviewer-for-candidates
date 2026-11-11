@@ -73,7 +73,7 @@ function ProfilePage() {
   const unverified = unverifiedCount(profile);
   const save = (fn: (p: Profile) => Partial<Profile>) => updateProfile(fn(profile));
 
-  const handleUpload = (file: File | null) => {
+  const handleUpload = async (file: File | null) => {
     setDocError(null);
     if (!file) return;
     const ext = file.name.split(".").pop()?.toLowerCase();
@@ -85,8 +85,12 @@ function ProfilePage() {
       setDocError("File exceeds the 5 MB / 10-page limit.");
       return;
     }
-    addDocument({ name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)) });
-    toast.success("CV queued for extraction. Fields will appear once processed.");
+    try {
+      await addDocument({ name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)), file });
+      toast.success("CV uploaded and sorted into your profile.");
+    } catch (err) {
+      setDocError(err instanceof Error ? err.message : "Could not process this CV document.");
+    }
   };
 
   return (

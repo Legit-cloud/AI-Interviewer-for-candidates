@@ -1,66 +1,74 @@
 # Vren AI
 
-**Calm, honest interview guidance grounded in your real experience.**
+Clear, natural interview preparation and live question guidance for any role or industry.
 
-Vren AI is an interview preparation and live-guidance workspace that pairs your CV and verified candidate profile with target job descriptions to deliver concise, evidence-backed talking points during browser interviews, without fabricating experience or hiding capture state.
+Vren AI pairs your CV and target job descriptions with a FastAPI + PostgreSQL backend to deliver concise, spoken-style talking points during browser interviews, helping you answer tough questions both from your background and outside your CV without sounding scripted.
 
-## Core Principles
+## Architecture
 
-- **Candidate truth over fluency**: Extracted CV items are marked with origin badges (`Extracted`, `Verified by you`, or `Missing`), and Vren AI highlights skill gaps instead of inventing claims.
-- **Explicit capture control**: Designed around user-initiated, visible, and stoppable tab-audio and microphone controls.
-- **Short, scannable guidance**: Concise bullet outlines and answer frameworks (`STAR`, etc.) designed to be read at a glance while speaking.
-- **Privacy by default**: Transcript retention and session notes are opt-in and exportable or deletable from settings.
+- **Frontend:** TanStack Start / Router, React 19, Tailwind CSS v4, Vite 8
+- **Backend:** FastAPI, SQLAlchemy 2 (async), Alembic migrations, PostgreSQL (or local SQLite)
+- **Live Pipeline:** Scoped session WebSocket (`/v1/live/{session_id}`), bounded in-memory audio buffering, STT adapter, and question detection
+- **Storage:** Private local CV storage (`backend/storage/uploads/`, gitignored)
 
-## Current Scope
+## Collaborator Setup
 
-This repository currently contains the **Vren AI web application frontend**. Application state is persisted in a `localStorage` mock store ([`src/lib/store.ts`](src/lib/store.ts)) so workflows can be explored end-to-end before connecting the backend API and Chrome extension (see the Product Requirements Document in this directory).
-
-### Routes & Views
-
-| Route | Description |
-| --- | --- |
-| `/` | Product landing page and live side-panel preview |
-| `/auth` | Sign in, sign up, password reset, and verification flow |
-| `/onboarding` | 3-step setup (profile focus, CV upload, extension connection) |
-| `/app` | Candidate dashboard with setup checklist |
-| `/app/profile` | Structured candidate profile (experience, education, projects, skills, documents) |
-| `/app/profile/review` | Two-pane review and verification of extracted CV fields |
-| `/app/jobs` | Manage active and archived job descriptions (paste or file upload) |
-| `/app/jobs/:jobId` | Job requirement breakdown and honest gap analysis |
-| `/app/prepare` | Configure interview type, language, response style, retention, and companion preview |
-| `/app/sessions` | Session history (including completed and interrupted sessions) |
-| `/app/sessions/:sessionId` | Question-by-question session review, evidence citations, transcript, and notes |
-| `/app/settings` | Privacy controls, consent history, data export (`vren-export.json`), and account deletion |
-
-## Tech Stack
-
-- **Framework:** [TanStack Start](https://tanstack.com/start) & [TanStack Router](https://tanstack.com/router) (file-based routing)
-- **UI & Styling:** React 19, Tailwind CSS v4, shadcn/ui (Radix UI), Phosphor Icons, Motion
-- **State & Data:** TanStack React Query, `localStorage` mock store (`useSyncExternalStore`)
-- **Tooling:** Vite 8, Nitro, TypeScript, Vitest, ESLint, Prettier
-
-## Getting Started
+Your local database data and `.env` secrets are **not** committed to Git. Collaborators run their own isolated database using the versioned Alembic migrations in `backend/alembic/`.
 
 ### Prerequisites
 
-- Node.js (v20+ recommended) and npm
+- Node.js v20+ and npm
+- Python 3.12+ and [`uv`](https://docs.astral.sh/uv/)
+- Docker Desktop (easiest for Postgres) or a local PostgreSQL 16+ installation
 
-### Installation & Development
+### 1. Clone and install dependencies
 
 ```sh
 git clone https://github.com/krusty-hub/Vren-AI.git
 cd Vren-AI
 npm install
+uv --directory backend sync
+```
+
+### 2. Configure `backend/.env` and start the database
+
+```sh
+cp backend/.env.example backend/.env
+```
+
+Choose one database option:
+
+- **Option A: Docker Postgres (recommended)**
+  ```sh
+  docker compose -f backend/docker-compose.yml up -d
+  ```
+- **Option B: Your own local PostgreSQL**
+  Create a database named `vren_ai` and set `DATABASE_URL` inside `backend/.env`.
+- **Option C: Zero-install SQLite file**
+  Set `DATABASE_URL=sqlite+aiosqlite:///./storage/vren_local.db` in `backend/.env`.
+
+Then create all database tables via Alembic:
+
+```sh
+uv --directory backend run alembic upgrade head
+```
+
+*(Optional)* Add your AgentRouter (`LLM_API_KEY`) or Gemini (`GEMINI_API_KEY`) key in `backend/.env` for live AI CV sorting and suggestions. Without a key, deterministic role-based fallbacks still work cleanly.
+
+### 3. Run frontend and backend together
+
+```sh
 npm run dev
 ```
 
+This uses `concurrently` to start Vite on `http://localhost:5173` and FastAPI on `http://127.0.0.1:8000` (with `/v1/*` API & WebSocket traffic proxied automatically).
+
 ## Available Scripts
 
-- `npm run dev`: Start the Vite development server
+- `npm run dev`: Run Vite web app and FastAPI backend concurrently
+- `npm run dev:web`: Run only the frontend Vite server
+- `npm run dev:api`: Run only the FastAPI server (`--reload`)
 - `npm run build`: Build client and SSR/Nitro bundles for production
-- `npm run build:dev`: Build in development mode
-- `npm run preview`: Preview the production build locally
-- `npm run test`: Run unit tests once with Vitest
-- `npm run test:watch`: Run Vitest in watch mode
-- `npm run lint`: Run ESLint across the repository
-- `npm run format`: Format files with Prettier
+- `npm run test`: Run frontend unit tests (`vitest`)
+- `uv --directory backend run pytest -v`: Run backend integration & WebSocket tests
+- `npm run lint`: Run ESLint across the frontend

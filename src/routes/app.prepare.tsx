@@ -25,14 +25,13 @@ import { AnimatePresence, PageTransition, motion, EASE } from "@/components/moti
 import { PageHeader, Status } from "@/components/vren";
 import {
   ANSWER_LENGTHS,
+  createPracticeSessionAsync,
   FRAMEWORKS,
   INTERVIEW_TYPES,
   LANGUAGES,
   matchJob,
   RESPONSE_STYLES,
   savePrep,
-  setState,
-  uid,
   useAppState,
   type PrepConfig,
 } from "@/lib/store";
@@ -158,68 +157,16 @@ function Prepare() {
     toast.success("Preparation snapshot saved.");
   };
 
-  const saveSimulatedSession = () => {
+  const saveSimulatedSession = async () => {
     if (!job) return;
-    const id = uid();
-    const firstExp = profile?.experience[0];
-    setState((s) => ({
-      ...s,
-      sessions: [
-        {
-          id,
-          date: new Date().toISOString(),
-          jobId: job.id,
-          durationMin: 18,
-          state: "completed",
-          transcriptRetained: cfg.retainTranscript,
-          reviewed: false,
-          snapshot: {
-            interviewType: cfg.interviewType,
-            language: cfg.language,
-            length: cfg.length,
-            style: cfg.style,
-            framework: cfg.framework,
-            retainTranscript: cfg.retainTranscript,
-            notes: cfg.notes,
-          },
-          questions: [
-            {
-              id: uid(),
-              q: `Walk me through a project relevant to ${job.title}.`,
-              type: cfg.interviewType,
-              askedAt: "03:18",
-              framework: cfg.framework,
-              outline: firstExp?.summary
-                ? [
-                    `Context: ${firstExp.role} at ${firstExp.employer}`,
-                    `Action & outcome: ${firstExp.summary}`,
-                  ]
-                : ["Describe a project directly from your experience", "Focus on measurable outcomes"],
-              evidence: firstExp
-                ? `${firstExp.employer} · ${firstExp.role}`
-                : null,
-            },
-          ],
-          transcript: cfg.retainTranscript
-            ? [
-                {
-                  t: "03:18",
-                  speaker: "Interviewer",
-                  text: `Walk me through a project relevant to ${job.title}.`,
-                },
-              ]
-            : [],
-          strengths: ["Grounded answer in verified background"],
-          improvements: ["Keep opening context under 20 seconds"],
-          missedEvidence: [],
-          notes: "",
-        },
-        ...s.sessions,
-      ],
-    }));
-    setSimOpen(false);
-    toast.success("Practice session saved to history.");
-    navigate({ to: "/app/sessions/$sessionId", params: { sessionId: id } });
+    try {
+      const id = await createPracticeSessionAsync(job, cfg);
+      setSimOpen(false);
+      toast.success("Practice session saved to history.");
+      navigate({ to: "/app/sessions/$sessionId", params: { sessionId: id } });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save practice session.");
+    }
   };
 
   return (

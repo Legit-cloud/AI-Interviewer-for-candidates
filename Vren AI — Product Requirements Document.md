@@ -42,7 +42,7 @@ The recommended initial architecture is a React/TypeScript web application, a WX
 
 ### 2.1 Vision
 
-Vren AI should feel like a calm, professional interview workspace that helps a candidate think clearly without taking control away from them. The product should reduce preparation overhead, surface relevant evidence from the candidate's own background, and make live guidance short enough to use naturally.
+Vren AI should feel like a calm, capable interview partner for candidates across **any role or industry** (digital marketing, 3D art, product design, sales, finance, operations, healthcare, software engineering, and more). It helps candidates answer tough interview questions and live problem-solving tasks clearly — drawing from their real CV background when relevant, and still delivering sharp, natural, straightforward answers when questions go outside their resume. Every suggestion is concise enough to glance at while speaking and sounds genuinely human, never scripted or robotic.
 
 ### 2.2 Product objectives
 
@@ -76,11 +76,11 @@ Vren AI addresses the problem with structured candidate context, question-aware 
 
 ### 3.1 Product principles
 
-1. **Candidate truth over fluency.** If the system cannot support a claim from the candidate context, it must say so or ask the candidate to add evidence.
-2. **Explicit control over convenience.** Capture starts only after an intentional user action and remains visibly controllable.
-3. **Short guidance over long answers.** The assistant supplies talking points, structures, and evidence; it does not attempt to speak for the candidate.
-4. **One product, two surfaces.** The dashboard and extension share identity, context, preferences, and session history.
-5. **Graceful degradation.** If transcription or AI is unavailable, the extension explains the state and preserves the user's ability to stop safely.
+1. **Answer every tough question naturally, CV or not.** When candidate experience applies, weave it in accurately without inventing fake employment history. When a tough domain question or live task falls outside the CV, still answer it directly using clear, practical domain knowledge tailored to the role.
+2. **Spoken human clarity over AI polish.** Never generate robotic paragraphs, textbook definitions, or corporate clichés. Suggestions must be crisp, conversational, direct, and easy to say out loud.
+3. **Explicit control over convenience.** Capture starts only after an intentional user action and remains visibly controllable.
+4. **Short guidance over long essays.** The assistant supplies concise talking points (3-5 short bullets by default); it never speaks for the candidate.
+5. **One product, two surfaces.** The dashboard and extension share identity, context, preferences, and session history.
 6. **Privacy by default.** Raw audio is not retained by default. Transcript and note retention require clear user choice.
 
 ---
@@ -93,15 +93,15 @@ A job seeker with one or more active applications who wants to prepare with thei
 
 **Needs:** reusable profile, job matching, practice questions, focused live prompts, safe storage, editable extracted data.
 
-### 4.2 Secondary persona: Career changer
+### 4.2 Secondary persona: Career changer & cross-domain candidate
 
-A candidate whose CV contains transferable skills but whose experience may not map directly to the target role. They need help identifying relevant evidence without the system inventing equivalence.
+A candidate transitioning into a new industry or facing tough role-specific tasks outside their written resume. They need direct help answering unfamiliar practical, strategic, or domain questions cleanly while bridging transferable wins from their real history without faking past titles.
 
-**Needs:** transferable-skill framing, explicit evidence gaps, configurable response style, prompts to clarify rather than fabricate.
+**Needs:** direct domain-authentic answers to tough questions, transferable-skill framing, configurable response style, role-agnostic guidance across creative, marketing, commercial, and operational loops.
 
-### 4.3 Secondary persona: Technical candidate
+### 4.3 Tertiary persona: Specialist & hands-on practitioner (Creative, Marketing, Technical, Ops)
 
-A candidate attending technical interviews who needs a compact way to organise problem-solving steps, assumptions, trade-offs, and questions to ask.
+A digital marketer, 3D artist, designer, operator, analyst, or engineer attending portfolio deep-dives, live case prompts, campaign audits, or technical rounds who needs compact, straightforward talking points on approach, trade-offs, tools, and clarifying questions.
 
 **Needs:** technical interview mode, coding/problem-solving structure, domain terminology support, longer context window, no automatic code execution in MVP.
 
@@ -353,11 +353,11 @@ The system must not generate a new suggestion for every partial transcript chang
 **Rules:** use debounce, duplicate fingerprint, transcript stability threshold, and question confidence.  
 **Acceptance criteria:** benchmark covers direct questions, statements, incomplete sentences, follow-ups, interruptions, and repeated questions.
 
-### FR-9 Contextual guidance
+### FR-9 Contextual & direct interview guidance
 
-**Description:** Generate concise, structured answer guidance grounded in active context.  
-**Rules:** output schema is validated; unsupported claims are rejected; suggestion length follows preference.  
-**Acceptance criteria:** every suggestion includes either supporting evidence or an explicit “No matching evidence found” state.
+**Description:** Generate concise, natural-sounding answer guidance for tough questions and tasks across any profession, grounded in active CV context when available and direct role/domain expertise when a question goes outside the CV.  
+**Rules:** output schema is validated; past employers/dates are never fabricated onto the candidate's CV; anti-buzzword conversational tone is enforced; suggestion length follows preference.  
+**Acceptance criteria:** every question receives a usable, concise spoken-style outline (either linked to CV evidence or answered directly for the target role), without generic AI filler.
 
 ### FR-10 Session review
 
@@ -654,27 +654,27 @@ Question detection uses:
 - minimum material text change;
 - interruption cancellation for in-flight generation.
 
-The generator receives only the relevant candidate evidence and job requirements. It returns:
+The generator receives the candidate profile, target role context, and question. When CV evidence fits, it anchors the answer in verified background; when the question asks for a domain task, concept, or scenario outside the CV, it answers directly with natural, concise, role-authentic talking points and optional transferable framing. It returns:
 
 ```json
 {
   "question_id": "q_123",
-  "question_type": "behavioral",
-  "answer_framework": "STAR",
-  "headline": "Choose one example where you improved a process.",
+  "question_type": "domain_task",
+  "answer_framework": "Direct",
+  "headline": "Lead with the goal, audience, and how you'd validate early results.",
   "talking_points": [
-    "Situation: describe the reporting workflow before the change.",
-    "Action: explain the automation you personally implemented.",
-    "Result: give the measured outcome, if verified."
+    "Start with one clear goal: define what success looks like in the first 30 days.",
+    "Pick two focused tests first instead of spreading budget across five channels.",
+    "Track early drop-off daily and cut anything that misses baseline after week one."
   ],
-  "evidence_refs": ["experience_4", "project_2"],
+  "evidence_refs": ["experience_4"],
   "unsupported_claims": [],
-  "follow_up": "Be ready to explain the trade-off you accepted.",
-  "confidence": "grounded"
+  "follow_up": "Mention how you align stakeholders around early experiments.",
+  "confidence": "grounded_or_direct"
 }
 ```
 
-If no evidence matches, the response must say so and provide a general structure without pretending that the candidate has completed the experience.
+It never fabricates fake past jobs on the candidate's CV, and never leaves a tough question unanswered just because a keyword is missing from the CV.
 
 ---
 
@@ -1172,8 +1172,8 @@ Do not log raw audio, full CVs, transcript text, or complete generated suggestio
 - Live audio reaches the backend only after session start and stops on user stop.
 - Partial and final transcripts render and reconcile without duplicate final rows.
 - Question detection suppresses ordinary conversation and duplicate questions within the configured window.
-- Suggestions are concise, structured, and grounded in active profile/job evidence.
-- The system never invents a candidate experience in acceptance tests.
+- Suggestions are concise, natural, human-sounding, and usable across any industry or role, answering tough questions even outside the CV while anchoring in profile/job context when relevant.
+- The system never invents fake past employers or titles onto the candidate's CV in acceptance tests, and never sounds generic or robotic.
 - WebSocket disconnects produce reconnecting or interrupted states, never a silent success state.
 - Raw audio is not retained by default.
 - Transcript retention and deletion controls work as disclosed.
@@ -1220,7 +1220,7 @@ A feature is done only when its UI, API, data model, ownership rules, error stat
 - **Listening state:** “Listening — guidance will appear here.”
 - **Paused state:** “Paused — no audio is being sent.”
 - **Unsupported tab:** “This tab cannot be captured by Vren AI. Open the interview in a supported Chrome tab.”
-- **Grounding warning:** “No matching experience found in your profile. Use your own example rather than presenting this as past experience.”
+- **Role-direct note (outside CV):** “No direct match on your CV for this topic. Suggested approach above uses practical role knowledge and natural bridging.”
 - **Reconnect state:** “Connection lost. We are trying to reconnect. You can stop safely at any time.”
 - **Review state:** “Session ended. Review the questions and notes when you are ready.”
 

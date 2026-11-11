@@ -7,12 +7,13 @@ import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { UploadSimpleIcon } from "@phosphor-icons/react/UploadSimple";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AnimatePresence, motion, EASE } from "@/components/motion";
 import { Logo } from "@/components/vren";
-import { completeOnboarding, connectExtension, getState, LANGUAGES } from "@/lib/store";
+import { completeOnboarding, getState, LANGUAGES } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/onboarding")({
@@ -45,6 +46,7 @@ function Onboarding() {
   const [cv, setCv] = useState<File | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const acceptFile = (file: File | null) => {
     setFileError(null);
@@ -61,10 +63,16 @@ function Onboarding() {
     setCv(file);
   };
 
-  const finish = (connect: boolean) => {
-    completeOnboarding(name.trim() || "Candidate", language, roleFocus.trim(), !!cv);
-    if (connect) connectExtension();
-    navigate({ to: cv ? "/app/profile/review" : "/app" });
+  const finish = async (connect: boolean) => {
+    setSubmitting(true);
+    try {
+      await completeOnboarding(name.trim() || "Candidate", language, roleFocus.trim(), !!cv, cv, connect);
+      navigate({ to: cv ? "/app/profile/review" : "/app" });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not complete onboarding.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -300,10 +308,12 @@ function Onboarding() {
                     Back
                   </Button>
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => finish(false)}>
+                    <Button variant="outline" disabled={submitting} onClick={() => finish(false)}>
                       Skip for now
                     </Button>
-                    <Button onClick={() => finish(true)}>Connect extension</Button>
+                    <Button disabled={submitting} onClick={() => finish(true)}>
+                      {submitting ? "Setting up..." : "Connect extension"}
+                    </Button>
                   </div>
                 </div>
               </section>

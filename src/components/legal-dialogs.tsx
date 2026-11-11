@@ -63,9 +63,9 @@ export function TermsDialog({ trigger }: { trigger: ReactNode }) {
             constitute an objective hiring evaluation.
           </p>
           <p>
-            <strong className="font-medium text-foreground">Candidate truth.</strong> Vren AI cites
-            only experience and skills you have verified and refuses to fabricate employment history
-            or qualifications.
+            <strong className="font-medium text-foreground">Natural, honest guidance.</strong> Vren
+            AI draws on your verified background when it fits and answers tough role questions
+            clearly without fabricating fake employers or qualifications on your CV.
           </p>
           <p>
             <strong className="font-medium text-foreground">Respect meeting rules.</strong> You are
