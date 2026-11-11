@@ -68,6 +68,27 @@ export class LiveCaptureEngine {
     return true;
   }
 
+  pushExternalPcmFrame(source: AudioSource, base64Payload: string): void {
+    if (this.stopped || this.paused || !base64Payload) return;
+    this.sequences[source] += 1;
+    const ok = this.queue.enqueue({
+      source,
+      sequence: this.sequences[source],
+      capturedAt: new Date().toISOString(),
+      sampleRate: TARGET_SAMPLE_RATE,
+      channels: 1,
+      payload: base64Payload,
+    });
+    if (!ok) {
+      this.opts.onEvent({
+        target: "sidepanel",
+        type: "LIVE_BUFFER_OVERFLOW",
+        droppedFrames: this.queue.droppedCount,
+      });
+    }
+    this.flushQueue();
+  }
+
   stop(notifyBackend = true): void {
     if (this.stopped) return;
     this.stopped = true;
@@ -301,6 +322,14 @@ export class LiveCaptureEngine {
   }
 
   private async attachAudio(): Promise<void> {
+    const hasRemote = Boolean(
+      this.opts.remoteStream && this.opts.remoteStream.getAudioTracks().length > 0,
+    );
+    const hasMic = Boolean(this.opts.micStream && this.opts.micStream.getAudioTracks().length > 0);
+    if (!hasRemote && !hasMic) {
+      return;
+    }
+
     const ctx = new AudioContext();
     this.audioCtx = ctx;
     if (ctx.state === "suspended") {

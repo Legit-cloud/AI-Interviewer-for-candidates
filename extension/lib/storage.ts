@@ -1,7 +1,6 @@
 import type {
   CaptureState,
   ExtensionAuthRecord,
-  FloatingWindowBounds,
   JobSummary,
   LiveSuggestionItem,
   LiveTranscriptItem,
@@ -9,6 +8,7 @@ import type {
   PreferencesSummary,
   ProfileSummary,
   SessionSelection,
+  WidgetUiState,
 } from "./types";
 
 export const DEFAULT_API_BASE_URL = "http://127.0.0.1:8000";
@@ -18,7 +18,7 @@ export const EXTENSION_VERSION = "0.1.0";
 const AUTH_KEY = "vren_ext_auth";
 const SELECTION_KEY = "vren_ext_selection";
 const CACHE_KEY = "vren_ext_context_cache";
-const BOUNDS_KEY = "vren_ext_floating_bounds";
+const WIDGET_UI_KEY = "vren_ext_widget_ui";
 const CAPTURE_STATE_KEY = "vren_capture_state";
 const ACTIVE_SESSION_KEY = "vren_active_session";
 const LIVE_SNAPSHOT_KEY = "vren_live_snapshot";
@@ -32,6 +32,7 @@ export interface LiveSnapshotState {
   transcript: LiveTranscriptItem[];
   suggestions: LiveSuggestionItem[];
   detectedQuestion: string | null;
+  streamingText?: string;
   degradedMessage: string | null;
   endedCleanly: boolean;
 }
@@ -100,19 +101,24 @@ export async function saveContextCache(cache: ContextCache): Promise<void> {
   await chrome.storage.local.set({ [CACHE_KEY]: cache });
 }
 
-export async function getFloatingBounds(): Promise<FloatingWindowBounds> {
-  const res = await chrome.storage.local.get(BOUNDS_KEY);
-  const b = res[BOUNDS_KEY] as Partial<FloatingWindowBounds> | undefined;
+export async function getWidgetUiState(): Promise<WidgetUiState> {
+  const res = await chrome.storage.local.get(WIDGET_UI_KEY);
+  const w = res[WIDGET_UI_KEY] as Partial<WidgetUiState> | undefined;
   return {
-    left: typeof b?.left === "number" ? b.left : 80,
-    top: typeof b?.top === "number" ? b.top : 80,
-    width: typeof b?.width === "number" ? Math.max(320, b.width) : 390,
-    height: typeof b?.height === "number" ? Math.max(380, b.height) : 540,
+    x: typeof w?.x === "number" ? w.x : -1,
+    y: typeof w?.y === "number" ? w.y : -1,
+    width: typeof w?.width === "number" && w.width >= 300 ? w.width : 380,
+    height: typeof w?.height === "number" && w.height >= 260 ? w.height : 480,
+    expanded: Boolean(w?.expanded),
+    hidden: Boolean(w?.hidden),
   };
 }
 
-export async function saveFloatingBounds(bounds: FloatingWindowBounds): Promise<void> {
-  await chrome.storage.local.set({ [BOUNDS_KEY]: bounds });
+export async function saveWidgetUiState(patch: Partial<WidgetUiState>): Promise<WidgetUiState> {
+  const current = await getWidgetUiState();
+  const next = { ...current, ...patch };
+  await chrome.storage.local.set({ [WIDGET_UI_KEY]: next });
+  return next;
 }
 
 export async function getCaptureState(): Promise<CaptureState> {

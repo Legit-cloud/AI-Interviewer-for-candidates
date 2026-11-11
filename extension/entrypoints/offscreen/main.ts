@@ -18,7 +18,7 @@ async function startCapture(msg: StartOffscreenCapturePayload) {
   }
 
   let tabStream: MediaStream | null = null;
-  if (msg.captureTab && msg.streamId) {
+  if (msg.captureTab && !msg.externalDisplayAudio && msg.streamId) {
     tabStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         mandatory: {
@@ -49,12 +49,21 @@ async function startCapture(msg: StartOffscreenCapturePayload) {
     captureMic: msg.captureMic,
     remoteStream: tabStream,
     micStream,
-    passthroughRemoteAudio: true,
+    passthroughRemoteAudio: !msg.externalDisplayAudio,
     onEvent: emit,
   });
   engine = nextEngine;
   await nextEngine.start();
 }
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== "vren-display-audio") return;
+  port.onMessage.addListener((msg: { payload?: string; source?: "tab" | "microphone" }) => {
+    if (msg?.payload && engine) {
+      engine.pushExternalPcmFrame(msg.source === "microphone" ? "microphone" : "tab", msg.payload);
+    }
+  });
+});
 
 chrome.runtime.onMessage.addListener(
   (message: StartOffscreenCapturePayload | ControlOffscreenPayload, _sender, sendResponse) => {

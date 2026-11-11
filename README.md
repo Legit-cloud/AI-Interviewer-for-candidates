@@ -2,17 +2,17 @@
 
 Clear, natural interview preparation and live question guidance for any role or industry.
 
-Vren AI pairs your background and target job descriptions with a FastAPI + PostgreSQL backend and a Chrome Manifest V3 Side Panel extension to deliver concise, spoken-style talking points during browser interviews. It works across technical and non-technical fields (digital marketing, 3D art, product design, operations, engineering, and more) and helps you answer questions both grounded in your CV and outside your prior experience without sounding scripted.
+Vren AI pairs your background and target job descriptions with a FastAPI + PostgreSQL backend and a lightweight Chrome Manifest V3 always-on-screen floating widget extension to deliver concise, first-person talking points during live interviews. It works across technical and non-technical fields (digital marketing, 3D art, product design, operations, engineering, and more) and helps you answer questions both grounded in your CV and outside your prior experience without sounding scripted.
 
 ## Architecture & Key Features
 
 - **Web Dashboard (`src/`):** TanStack Start / Router, React 19, Tailwind CSS v4, Vite 8
   - Account auth with email verification, CV upload and experience review (`/app/profile`), target job extraction and gap analysis (`/app/jobs`), response style preparation (`/app/prepare`), post-session review (`/app/sessions`), and privacy/revocation controls (`/app/settings`).
 - **Chrome MV3 Extension (`extension/`):** WXT, React 19, TypeScript, Tailwind CSS v4
-  - Docked Side Panel AND movable always-on-top floating window (`documentPictureInPicture` or remembered popup coordinates) so you can place notes anywhere on screen (such as directly under your webcam) while keeping the interview tab DOM untouched.
+  - Single resizable, draggable always-on-screen floating widget injected via isolated Shadow DOM across web pages (`widget.content.tsx`): starts as a floating clickable **V** icon, expands into a Pine & Paper floating assistant with free corner/edge resizing and `S / M / L` size presets, and collapses back via Minimize (`_`) while remembering position and size across domains.
   - One-click webapp pairing via a localhost-only bridge (`POST /v1/extensions/pair` -> `POST /v1/extensions/exchange`), with pairing-code copy and direct email sign-in fallbacks.
-  - Flexible interview source capture: pick any open Chrome tab (`chrome.tabCapture`, auto-highlighting Google Meet, Zoom web, Teams, Webex, and coding tabs) OR pick a screen, desktop Zoom/Teams window, or tab via Chrome's native picker (`getDisplayMedia`).
-  - Dedicated extension mic-permission tab (`permissions.html`) so Chrome's Allow dialog grants origin-wide mic access cleanly, plus `Alt+H` quick note hiding and compact teleprompter mode.
+  - Unified in-widget audio capture: choose **Current Chrome tab** (silent `chrome.tabCapture` when invoked from Chrome's toolbar, or automatic in-widget `getDisplayMedia` share prompt) or **Window / screen** (for desktop Zoom/Teams apps or entire monitors), paired cleanly with your extension microphone (`permissions.html`) on two separate channels.
+  - Answer-first live layout with a persistent role/CV context bar, `Answer` and `Transcript` tabs, streaming first-person bullet points, `Alt+H` quick note hiding, and a slim quick-ask bar when STT is offline.
   - MV3 Offscreen `AudioWorklet` capture pipeline with automatic speaker passthrough for tab audio, bounded in-memory frame queuing, and exponential-backoff WebSocket reconnection.
 - **FastAPI Backend (`backend/`):** FastAPI, SQLAlchemy 2 (async), Alembic migrations, PostgreSQL (or local SQLite)
   - Live WebSocket pipeline (`/v1/live/{session_id}`), scoped session tokens, STT adapter (OpenAI-compatible Whisper, Gemini audio, or offline prompt mode), question detection, and natural guidance generation.
@@ -27,7 +27,7 @@ Your local database data and `.env` secrets are **not** committed to Git. Collab
 - Node.js v20+ and npm
 - Python 3.12+ and [`uv`](https://docs.astral.sh/uv/)
 - Docker Desktop (easiest for Postgres) or a local PostgreSQL 16+ installation
-- Google Chrome (or another Chromium browser supporting Manifest V3 Side Panel)
+- Google Chrome (or another Chromium browser supporting Manifest V3 extensions)
 
 ### 1. Clone and install dependencies
 
@@ -64,7 +64,7 @@ uv --directory backend run alembic upgrade head
 
 *(Optional)* Configure AI and Speech-to-Text in `backend/.env`:
 - `LLM_API_KEY` (AgentRouter/OpenAI-compatible) or `GEMINI_API_KEY`: enables live AI CV extraction and custom answer generation (deterministic role-based fallbacks still run if unset).
-- `STT_PROVIDER=openai_compatible` + `STT_API_KEY` (or `STT_PROVIDER=gemini` + `GEMINI_API_KEY`): enables live audio transcription from Chrome tab audio and microphone. When `STT_PROVIDER=offline` (default), you can still type or paste interviewer questions directly inside the Side Panel during a live session.
+- `STT_PROVIDER=deepgram` + `DEEPGRAM_API_KEY` (or `STT_PROVIDER=openai_compatible` + `STT_API_KEY`): enables live audio transcription from Chrome tab audio and microphone. When `STT_PROVIDER=offline` (default), you can still type or paste interviewer questions directly inside the floating widget during a live session.
 
 ### 3. Run web app and backend together
 
@@ -89,13 +89,13 @@ npm run build:ext
    - Sign up and verify your account, then complete onboarding by uploading a CV or entering your role focus and background.
    - Add one or more target job descriptions in **Jobs** and tune your preferred answer length, style, and framework in **Prepare** or **Settings**.
 2. **Pair the Chrome Extension:**
-   - Open `http://localhost:5173/app/settings` while the extension is loaded and click **Connect extension**. If the extension is installed, it pairs automatically in one click (or copy the 15-minute pairing code / sign in directly inside the Side Panel).
+   - Open `http://localhost:5173/app/settings` while the extension is loaded and click **Connect extension**. If the extension is installed, it pairs automatically in one click (or copy the 15-minute pairing code / sign in directly inside the floating widget).
    - You can revoke extension access anytime from **Settings**, which immediately invalidates extension API calls.
 3. **Run a Live Interview Session:**
-   - Open your browser interview tab (such as Google Meet, Zoom web, or Microsoft Teams) or desktop Zoom/Teams app, then click the **Vren AI** extension icon to open the Side Panel.
-   - Choose your target job and interview type, confirm audio capture toggles, and in Preflight select whether your interview is in a **Chrome tab** or a **Window or screen** (Chrome's native picker). Click **Allow mic** if prompted so Chrome opens the one-time extension mic permission tab.
-   - Optionally click **Float movable window** (or **Pop out**) to drag Vren AI near your webcam, and press `Alt+H` anytime to hide/show notes. Both Side Panel and floating windows stay outside the interview tab so tab shares and meeting-window shares cannot capture them.
-   - Click **Start session** to view concise, real-time talking points and a non-focus-stealing live transcript. Use **Pause / Resume** or **Stop** at any time, then click **Review on dashboard** to view notes and session feedback.
+   - Open your browser interview tab (such as Google Meet, Zoom web, or Microsoft Teams) or desktop Zoom/Teams app, then click the floating **V** icon (or Vren AI toolbar icon) to open the widget.
+   - Choose your target job, interview type, and interview location (**Current Chrome tab** or **Window / screen**). Click **Allow mic** if prompted so Chrome opens the one-time extension mic permission tab.
+   - Drag the header to place Vren AI anywhere on screen, resize from any corner/edge or `S / M / L` preset pills, press `Alt+H` anytime to hide/show notes, or click Minimize (`_`) to return it to the draggable floating icon.
+   - Click **Start session** to view concise, first-person talking points under the **Answer** tab and speaker-separated **Transcript** turns. Use **Pause / Resume** or **Stop** at any time, then click **Review session on dashboard** to inspect saved feedback.
 
 ## Available Scripts
 

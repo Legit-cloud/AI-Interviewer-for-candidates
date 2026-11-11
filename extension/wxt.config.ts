@@ -10,16 +10,24 @@ export default defineConfig({
   manifest: {
     name: "Vren AI",
     short_name: "Vren AI",
-    description: "Real-time interview preparation and live guidance side panel grounded in your context.",
+    description: "Real-time interview preparation and live guidance floating companion grounded in your context.",
     version: "0.1.0",
-    permissions: ["sidePanel", "tabCapture", "offscreen", "storage", "tabs"],
-    host_permissions: ["http://127.0.0.1/*", "http://localhost/*"],
+    permissions: ["tabCapture", "offscreen", "storage", "tabs", "scripting"],
+    host_permissions: [
+      "http://127.0.0.1/*",
+      "http://localhost/*",
+      "http://*/*",
+      "https://*/*",
+    ],
     action: {
-      default_title: "Open Vren AI Side Panel",
+      default_title: "Toggle Vren AI Floating Widget",
     },
-    side_panel: {
-      default_path: "sidepanel.html",
-    },
+    web_accessible_resources: [
+      {
+        resources: ["pcm-processor.js"],
+        matches: ["http://*/*", "https://*/*"],
+      },
+    ],
     icons: {
       "16": "icon/16.png",
       "48": "icon/48.png",

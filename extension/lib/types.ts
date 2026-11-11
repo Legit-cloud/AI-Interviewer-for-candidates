@@ -89,11 +89,38 @@ export interface SessionSelection {
   retainTranscript: boolean;
 }
 
-export interface FloatingWindowBounds {
-  left: number;
-  top: number;
+export interface WidgetUiState {
+  x: number;
+  y: number;
   width: number;
   height: number;
+  expanded: boolean;
+  hidden: boolean;
+}
+
+export interface WidgetPublicSnapshot {
+  authenticated: boolean;
+  userEmail: string | null;
+  profileName: string | null;
+  profileExperienceCount: number;
+  jobs: JobSummary[];
+  preferences: PreferencesSummary | null;
+  selection: SessionSelection;
+  micGranted: boolean;
+  tabCaptureReady: boolean;
+  apiHealthy: boolean;
+  sessionId: string | null;
+  stage: PanelStage;
+  liveStatus: "connecting" | "listening" | "paused";
+  sttMode: string;
+  startedAt: string | null;
+  transcript: LiveTranscriptItem[];
+  suggestions: LiveSuggestionItem[];
+  detectedQuestion: string | null;
+  streamingText: string;
+  degradedMessage: string | null;
+  endedCleanly: boolean;
+  webBaseUrl: string;
 }
 
 export interface LiveTranscriptItem {
@@ -125,6 +152,7 @@ export interface StartOffscreenCapturePayload {
   wsToken: string;
   captureMode: CaptureTargetMode;
   streamId: string | null;
+  externalDisplayAudio?: boolean;
   captureTab: boolean;
   captureMic: boolean;
 }
