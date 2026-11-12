@@ -6,8 +6,12 @@ const MAX_ANSWERS = 30;
 /** Pure reducer: server event in, new panel state out. */
 export function reduceEvent(state: PanelState, evt: ServerEvent): PanelState {
   switch (evt.type) {
-    case "session.ready":
-      return { ...state, ended: false };
+    case "session.ready": {
+      const notes: string[] = [];
+      if (evt["stt_mode"] === "offline") notes.push("Speech-to-text is not set up on the server, so audio cannot be transcribed.");
+      if (evt["answers_ready"] === false) notes.push("The AI provider is not set up on the server, so no answers can be written.");
+      return { ...state, ended: false, notice: notes.join(" ") };
+    }
     case "capture.state":
       return { ...state, capture: evt["state"] === "paused" ? "paused" : "listening" };
     case "transcript.completed":

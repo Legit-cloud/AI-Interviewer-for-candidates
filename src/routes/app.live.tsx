@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageTransition } from "@/components/motion";
+import { apiFetch } from "@/lib/api";
 import { PageHeader, Status } from "@/components/vren";
 import {
   endSessionById,
@@ -78,10 +79,22 @@ function LiveSessionPage() {
   const [answers, setAnswers] = useState<LiveAnswer[]>([]);
   const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
   const [notice, setNotice] = useState("");
+  const [ai, setAi] = useState<{ answers: boolean; transcription: string } | null>(null);
   const [testText, setTestText] = useState("");
   const countdown = useCountdown(pairing?.expiresAt);
 
   useEffect(() => () => handle.current?.close(), []);
+
+  // Pre-flight: tell the user up front if the server has no AI or speech-to-text keys.
+  useEffect(() => {
+    apiFetch<{ ai?: { answers: boolean; transcription: string } }>(
+      "/v1/health",
+      {},
+      { auth: false },
+    )
+      .then((h) => setAi(h.ai ?? null))
+      .catch(() => setAi(null));
+  }, []);
 
   // Warn before closing the tab while a live session is running.
   useEffect(() => {
@@ -104,6 +117,15 @@ function LiveSessionPage() {
 
   const onEvent = useCallback((evt: LiveServerEvent) => {
     switch (evt.type) {
+      case "session.ready": {
+        const notes: string[] = [];
+        if (evt["stt_mode"] === "offline")
+          notes.push("Speech-to-text is not set up on the server, so audio cannot be transcribed.");
+        if (evt["answers_ready"] === false)
+          notes.push("The AI provider is not set up on the server, so no answers can be written.");
+        if (notes.length) setNotice(notes.join(" "));
+        break;
+      }
       case "capture.state": {
         setPaired(true);
         setCapture(evt["state"] === "paused" ? "paused" : "listening");
@@ -228,6 +250,27 @@ function LiveSessionPage() {
           title="Start a live session"
           description="You set everything up here. The extension only relays tab audio when you press Start capture, and shows the answers."
         />
+        {ai && (!ai.answers || ai.transcription === "offline") && (
+          <section
+            role="status"
+            aria-label="Server setup"
+            className="rounded-xl border border-copper/30 bg-copper-soft/40 p-5 text-sm"
+          >
+            <p className="font-medium">The server is not fully set up for live answers</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+              {!ai.answers && <li>No AI provider key. Add LLM_API_KEY to backend/.env.</li>}
+              {ai.transcription === "offline" && (
+                <li>
+                  No speech-to-text. Set STT_PROVIDER=deepgram and DEEPGRAM_API_KEY in backend/.env.
+                </li>
+              )}
+            </ul>
+            <p className="mt-2 text-muted-foreground">
+              You can still start a session and type test questions, but nothing is transcribed or
+              answered until this is set up.
+            </p>
+          </section>
+        )}
         {resumable && (
           <section
             aria-label="Session in progress"

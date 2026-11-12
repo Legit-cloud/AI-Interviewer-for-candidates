@@ -37,6 +37,13 @@ describe("panel state reducer", () => {
     expect(s.notice).toMatch(/unavailable/i);
   });
 
+  it("tells the user when the server has no speech-to-text or AI configured", () => {
+    const s = reduceEvent(emptyState(), ev("session.ready", { stt_mode: "offline", answers_ready: false }));
+    expect(s.notice).toMatch(/Speech-to-text/);
+    expect(s.notice).toMatch(/AI provider/);
+    expect(reduceEvent(emptyState(), ev("session.ready", { stt_mode: "deepgram", answers_ready: true })).notice).toBe("");
+  });
+
   it("marks the session ended on finalise or expiry", () => {
     expect(reduceEvent(emptyState(), ev("session.finalized")).ended).toBe(true);
     expect(reduceEvent(emptyState(), ev("session.expired")).ended).toBe(true);

@@ -23,6 +23,7 @@ from fastapi import WebSocket
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.llm import get_llm_adapter
 from app.adapters.stt import AudioUtteranceBuffer, DeepgramStreamingChannel, get_stt_adapter
 from app.core.config import get_settings
 from app.db.models import (
@@ -170,6 +171,7 @@ class LiveSession:
                 role=role,
                 expires_at=self.expires_at.isoformat(),
                 stt_mode=get_stt_adapter().active_provider,
+                answers_ready=get_llm_adapter().is_configured,
             ),
         )
         if last_event_id:

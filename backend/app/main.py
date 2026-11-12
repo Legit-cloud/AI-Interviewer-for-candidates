@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager, suppress
+from typing import Any
 from uuid import uuid4
 
 from fastapi import Depends, FastAPI, Request
@@ -11,6 +12,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal, get_db
 from app.core.errors import register_exception_handlers
+from app.adapters.llm import get_llm_adapter
+from app.adapters.stt import get_stt_adapter
 from app.core.schema_check import schema_status
 from app.modules.auth.router import router as auth_router
 from app.modules.documents.router import router as documents_router
@@ -97,12 +100,17 @@ app.include_router(pairing_router)
 
 
 @app.get("/v1/health", tags=["system"])
-async def health(db: AsyncSession = Depends(get_db)) -> dict[str, str]:
+async def health(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     await db.execute(text("SELECT 1"))
     return {
         "status": "ok",
         "database": "connected",
         "schema": await schema_status(db),
         "auth_mode": settings.auth_mode,
+        # Which AI pieces the server can actually use. Never includes keys.
+        "ai": {
+            "answers": get_llm_adapter().is_configured,
+            "transcription": get_stt_adapter().active_provider,
+        },
     }
 

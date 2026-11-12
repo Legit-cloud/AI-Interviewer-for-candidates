@@ -315,3 +315,54 @@ async def test_unexpected_errors_return_json_and_health_reports_schema(client: A
     assert res.status_code == 500
     assert res.json()["error"]["code"] == "INTERNAL_ERROR"
     assert "request_id" in res.json()["error"]
+
+
+def _speech_frame(loud: bool) -> str:
+    """One 250 ms frame of 16 kHz PCM16: a loud tone (stands in for speech) or near silence."""
+    import base64
+    import math
+    import struct
+
+    n = 4000
+    amp = 8000 if loud else 0
+    samples = [int(amp * math.sin(2 * math.pi * 220 * i / 16000)) for i in range(n)]
+    return base64.b64encode(struct.pack(f"<{n}h", *samples)).decode()
+
+
+def test_audio_frames_become_transcript_question_and_answer(ws_env, monkeypatch) -> None:
+    """The whole server path for captured audio: frames -> end-of-turn -> speech-to-text -> question -> answer."""
+    tc, _ = ws_env
+
+    class FakeSTT:
+        active_provider = "fake"
+        is_configured = True
+        heard: list[int] = []
+
+        async def transcribe_wav(self, wav_bytes: bytes, language: str = "en") -> str | None:
+            self.heard.append(len(wav_bytes))
+            return QUESTION
+
+    stt = FakeSTT()
+    monkeypatch.setattr("app.modules.live.session.get_stt_adapter", lambda: stt)
+
+    headers = _signup(tc, "audio@example.com")
+    sid = tc.post("/v1/sessions", headers=headers, json={"rules_acknowledged": True}).json()["id"]
+    token = tc.post(f"/v1/sessions/{sid}/token", headers=headers).json()["ws_token"]
+
+    with tc.websocket_connect(f"/v1/live/{sid}?token={token}") as ws:
+        ready = ws.receive_json()
+        assert ready["stt_mode"] == "fake" and "answers_ready" in ready
+        ws.send_json({"type": "session.configure", "sources": ["tab"]})
+        assert ws.receive_json()["type"] == "capture.state"
+
+        seq = 0
+        for loud in (True, True, False):  # two frames of speech, then a quiet frame ends the turn
+            seq += 1
+            ws.send_json({"type": "audio.frame", "source": "tab", "sequence": seq, "sample_rate": 16000, "channels": 1, "payload": _speech_frame(loud)})
+        events = _collect_until(ws, "answer.ready")
+
+    types = [e["type"] for e in events]
+    assert "transcript.completed" in types and "question.detected" in types
+    completed = next(e for e in events if e["type"] == "transcript.completed")
+    assert completed["speaker"] == "Interviewer" and completed["text"] == QUESTION
+    assert stt.heard and stt.heard[0] > 16000  # a real WAV of the buffered speech was sent to speech-to-text
