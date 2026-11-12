@@ -8,6 +8,7 @@ import {
 } from "@tanstack/react-router";
 import { BriefcaseIcon } from "@phosphor-icons/react/Briefcase";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
+import { BroadcastIcon } from "@phosphor-icons/react/Broadcast";
 import { GearIcon } from "@phosphor-icons/react/Gear";
 import { PlayCircleIcon } from "@phosphor-icons/react/PlayCircle";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -38,6 +39,7 @@ const nav = [
   { to: "/app/profile", label: "Profile", icon: UserIcon },
   { to: "/app/jobs", label: "Jobs", icon: BriefcaseIcon },
   { to: "/app/prepare", label: "Prepare", icon: PlayCircleIcon },
+  { to: "/app/live", label: "Live", icon: BroadcastIcon },
   { to: "/app/sessions", label: "Sessions", icon: ClockCounterClockwiseIcon },
   { to: "/app/settings", label: "Settings", icon: GearIcon },
 ] as const;

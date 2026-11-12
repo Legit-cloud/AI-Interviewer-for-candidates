@@ -1,0 +1,21 @@
+{
+  "name": "vren-ai-extension",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Thin Vren AI client: pairs with a web session, relays tab audio on user action, shows answers in the Side Panel.",
+  "scripts": {
+    "dev": "wxt",
+    "build": "node scripts/generate-icons.mjs && wxt build",
+    "zip": "node scripts/generate-icons.mjs && wxt zip",
+    "postinstall": "node scripts/generate-icons.mjs && wxt prepare",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.1",
+    "typescript": "^5.7.3",
+    "vitest": "^3.2.4",
+    "wxt": "^0.20.11"
+  }
+}

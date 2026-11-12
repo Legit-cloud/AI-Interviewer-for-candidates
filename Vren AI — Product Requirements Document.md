@@ -1,12 +1,14 @@
 # Vren AI — Product Requirements Document
 
 **Document status:** Draft for product and technical approval  
-**Version:** 1.0  
+**Version:** 1.1  
 **Product:** Vren AI  
 **Author:** Manus AI  
-**Last updated:** 10 November 2026  
+**Last updated:** 12 November 2026  
 **Primary interfaces:** Web dashboard and Google Chrome extension  
 **Audience:** Product, design, frontend, extension, backend, AI, security, QA, and operations teams
+
+**Revision 1.1:** (1) The product returns a ready-to-say answer to each interviewer question instead of coaching-style guidance. (2) The web app does the heavy lifting (account, CV, jobs, session control, AI, review); the Chrome extension is a thin client that relays tab audio on user action and displays answers in its Side Panel. (3) The extension connects through a short-lived pairing code created in the web app. (4) A **Private view** mode keeps answers in the user's own Side Panel only. (5) Explicit boundary: the product does not hide itself from, or evade, screen sharing, proctoring or monitoring. (6) The "Coaching" response style is removed. (7) An optional visible desktop overlay is recorded as a deferred idea in Appendix C.  
 
 ---
 
@@ -15,11 +17,11 @@
 Vren AI is one connected product with two interfaces:
 
 1. A web dashboard for account management, candidate context, job descriptions, interview preparation, session history, and review.
-2. A Chrome extension that provides an explicit, user-controlled companion panel during supported browser-based interviews.
+2. A Chrome extension that is deliberately thin: it pairs to a session created in the web app, relays tab audio after a user action, and displays the answers in its own Side Panel (Private view). It holds no CV data, no AI keys and no business logic.
 
-The product helps a candidate prepare for and navigate an interview by combining the candidate's structured professional context, the relevant job description, selected interview preferences, and the live interview conversation. It returns concise guidance rather than long text that is difficult to read while speaking.
+The product helps a candidate prepare for and navigate an interview by combining the candidate's structured professional context, the relevant job description, selected interview preferences, and the live interview conversation. For each question the interviewer asks, it returns a short, first-person answer the candidate can say aloud, rather than advice about how to answer. The web application does most of the work; the extension only displays the result.
 
-The initial release must prioritise reliability, transparency, privacy, and useful latency over feature breadth. Vren AI must never fabricate a candidate's experience, qualifications, employment history, or achievements. It must not hide capture activity, bypass browser permissions, evade screen-sharing detection, or claim compatibility with every meeting platform.
+The initial release must prioritise reliability, transparency, privacy, and useful latency over feature breadth. Vren AI must never fabricate a candidate's experience, qualifications, employment history, or achievements. It must not bypass browser permissions, mask Chrome's own capture indicators, evade screen-sharing, proctoring or monitoring tools, disguise itself, or claim compatibility with every meeting platform. Private view (FR-13) keeps answers in the user's own panel but is not a promise of non-detection.
 
 The MVP will support:
 
@@ -27,14 +29,14 @@ The MVP will support:
 - CV upload, extraction, review, and structured candidate context.
 - Multiple job descriptions and reusable candidate profiles.
 - Interview preferences and preparation configuration.
-- Chrome Manifest V3 extension with a Side Panel interface.
+- Chrome Manifest V3 extension that pairs with a web session by a short-lived code, relays tab audio after a user action, and displays answers in a Side Panel (Private view).
 - Explicit tab-audio capture and optional microphone capture as separate paths.
 - Streaming transcription through a server-side provider adapter.
-- Question detection, context retrieval, and concise structured suggestions.
+- Question detection, context retrieval, and a ready-to-say answer for every interviewer question, with source labels.
 - Session termination, consent-based transcript storage, notes, and review.
 - Recovery from ordinary network and provider failures.
 
-The recommended initial architecture is a React/TypeScript web application, a WXT/React/TypeScript Manifest V3 extension, a Python/FastAPI modular monolith, Supabase Auth/PostgreSQL/Storage, and a backend-owned WebSocket pipeline. Chrome's `tabCapture` API requires user invocation before capture begins, and tab audio is not automatically the candidate microphone. The product therefore treats permissions and capture paths as first-class workflow states. [1] [2]
+The recommended initial architecture is a React/TypeScript web application that owns session control, a thin WXT/React/TypeScript Manifest V3 extension (capture relay and answer display only), a Python/FastAPI modular monolith, Supabase Auth/PostgreSQL/Storage, and a backend-owned WebSocket pipeline that serves one capture client and one or more display clients per session. Chrome's `tabCapture` API requires user invocation before capture begins, and tab audio is not automatically the candidate microphone. The product therefore treats permissions and capture paths as first-class workflow states. [1] [2]
 
 ---
 
@@ -42,23 +44,23 @@ The recommended initial architecture is a React/TypeScript web application, a WX
 
 ### 2.1 Vision
 
-Vren AI should feel like a calm, capable interview partner for candidates across **any role or industry** (digital marketing, 3D art, product design, sales, finance, operations, healthcare, software engineering, and more). It helps candidates answer tough interview questions and live problem-solving tasks clearly — drawing from their real CV background when relevant, and still delivering sharp, natural, straightforward answers when questions go outside their resume. Every suggestion is concise enough to glance at while speaking and sounds genuinely human, never scripted or robotic.
+Vren AI should feel like a calm, capable interview partner for candidates across **any role or industry** (digital marketing, 3D art, product design, sales, finance, operations, healthcare, software engineering, and more). It helps candidates answer tough interview questions and live problem-solving tasks clearly — drawing from their real CV background when relevant, and still delivering sharp, natural, straightforward answers when questions go outside their resume. For every question the interviewer asks, it supplies the answer itself in first-person, spoken wording that is short enough to read at a glance and sounds genuinely human, never scripted or robotic.
 
 ### 2.2 Product objectives
 
 | Objective | Measurement direction | MVP target |
 |---|---|---|
 | Make setup reusable | A candidate can reuse one profile across jobs | No repeated CV upload for each job |
-| Make live assistance useful | Suggestions reference the active question and candidate context | At least 80% of evaluated suggestions are relevant in an internal benchmark |
-| Keep guidance concise | Suggestions are scannable while speaking | Default answer guidance is 3–5 bullets or a short outline |
-| Protect user control | Capture is visible, user-initiated, stoppable, and disclosed | Zero hidden capture paths in release testing |
+| Make live assistance useful | Answers respond to the active question and candidate context | At least 80% of evaluated answers are relevant in an internal benchmark |
+| Keep answers speakable | Answers are short enough to say aloud naturally | Default answer is 2–4 spoken sentences, with an optional key-points strip |
+| Protect user control | Capture is user-initiated, stoppable, disclosed and clearly indicated; answers appear only in the paired panel | Zero hidden capture paths in release testing |
 | Protect sensitive data | Private content is isolated per user and deletable | RLS, signed URLs, deletion flows, and audit events pass security tests |
 | Make sessions dependable | Connection and provider failures are recoverable | Session state is never silently marked complete after disconnect |
 | Control operating cost | AI and transcription usage is bounded | Per-session quota, duration cap, and provider usage telemetry |
 
 ### 2.3 Non-objectives for MVP
 
-The MVP will not include invisible or undetectable operation, screen-sharing evasion, desktop-wide audio capture, automatic capture of arbitrary native applications, candidate impersonation, automated speaking, coding execution, recruiter-side workflows, team administration, or a broad meeting-platform compatibility promise.
+The MVP will not include any operation designed to evade detection or monitoring: hiding the product from screen-capture or screen-sharing APIs, disguising the extension's name, icon, description or process, interfering with proctoring, focus or tab-switch checks, or masking Chrome's capture indicators. It also excludes desktop-wide audio capture, automatic capture of arbitrary native applications, candidate impersonation, automated speaking, coding execution, recruiter-side workflows, team administration, and a broad meeting-platform compatibility promise. Private view (FR-13) is in scope: it keeps answers in the user's own Side Panel and never in the meeting page.
 
 ---
 
@@ -72,16 +74,18 @@ Existing assistant concepts frequently fail in one of three ways:
 - They invent or overstate candidate experience.
 - They obscure what is being captured and how data is used.
 
-Vren AI addresses the problem with structured candidate context, question-aware retrieval, compact guidance, clear capture controls, and a review loop that lets the candidate correct extracted information.
+Vren AI addresses the problem with structured candidate context, question-aware retrieval, a ready-to-say answer for each question, clear capture controls, and a review loop that lets the candidate correct extracted information.
 
 ### 3.1 Product principles
 
 1. **Answer every tough question naturally, CV or not.** When candidate experience applies, weave it in accurately without inventing fake employment history. When a tough domain question or live task falls outside the CV, still answer it directly using clear, practical domain knowledge tailored to the role.
-2. **Spoken human clarity over AI polish.** Never generate robotic paragraphs, textbook definitions, or corporate clichés. Suggestions must be crisp, conversational, direct, and easy to say out loud.
+2. **Spoken human clarity over AI polish.** Never generate robotic paragraphs, textbook definitions, or corporate clichés. Answers must be crisp, conversational, direct, and easy to say out loud.
 3. **Explicit control over convenience.** Capture starts only after an intentional user action and remains visibly controllable.
-4. **Short guidance over long essays.** The assistant supplies concise talking points (3-5 short bullets by default); it never speaks for the candidate.
+4. **Short answers over long essays.** Each answer is a few sentences the candidate can say aloud as written (about 20–45 seconds of speech by default), with an optional key-points strip. The product proposes the words; the candidate chooses what to say and remains responsible for it. The product never speaks on the candidate's behalf.
 5. **One product, two surfaces.** The dashboard and extension share identity, context, preferences, and session history.
 6. **Privacy by default.** Raw audio is not retained by default. Transcript and note retention require clear user choice.
+7. **Thin extension, heavy web app.** Account, CV, jobs, session control, AI generation, history and review live in the web app and backend. The extension only relays tab audio on a user action and displays answers.
+8. **Private view, honest product.** Answers appear only in the user's own panel, never in the meeting page. The product never hides itself from, or evades, screen sharing, proctoring or monitoring, and it never markets itself as invisible or undetectable.
 
 ---
 
@@ -97,11 +101,11 @@ A job seeker with one or more active applications who wants to prepare with thei
 
 A candidate transitioning into a new industry or facing tough role-specific tasks outside their written resume. They need direct help answering unfamiliar practical, strategic, or domain questions cleanly while bridging transferable wins from their real history without faking past titles.
 
-**Needs:** direct domain-authentic answers to tough questions, transferable-skill framing, configurable response style, role-agnostic guidance across creative, marketing, commercial, and operational loops.
+**Needs:** direct domain-authentic answers to tough questions, transferable-skill framing, configurable response style, role-agnostic ready-to-say answers across creative, marketing, commercial, and operational loops.
 
 ### 4.3 Tertiary persona: Specialist & hands-on practitioner (Creative, Marketing, Technical, Ops)
 
-A digital marketer, 3D artist, designer, operator, analyst, or engineer attending portfolio deep-dives, live case prompts, campaign audits, or technical rounds who needs compact, straightforward talking points on approach, trade-offs, tools, and clarifying questions.
+A digital marketer, 3D artist, designer, operator, analyst, or engineer attending portfolio deep-dives, live case prompts, campaign audits, or technical rounds who needs ready-to-say answers on approach, trade-offs, tools, and clarifying questions.
 
 **Needs:** technical interview mode, coding/problem-solving structure, domain terminology support, longer context window, no automatic code execution in MVP.
 
@@ -126,10 +130,13 @@ The product must support keyboard navigation, reduced motion, screen-reader labe
 - Optional microphone capture through a separate permission and state.
 - Backend WebSocket session with bounded audio streaming.
 - Streaming transcript display and question detection.
-- Concise contextual suggestions with source evidence labels.
+- A ready-to-say answer for each interviewer question, with source evidence labels.
+- Pairing-code handoff from the web session to the extension (no sign-in inside the panel).
+- Private view: answers shown only in the paired Side Panel, never injected into the meeting page.
+- Interview-rules acknowledgement before each live session.
 - Pause, resume, stop, reconnect, and safe session termination.
 - Consent-based transcript and notes storage.
-- Session review with questions, suggestions, strengths, improvement areas, and feedback.
+- Session review with questions, answers, strengths, improvement areas, and feedback.
 - Operational metrics that avoid retaining unnecessary raw content.
 
 ### 5.2 Phase 2 scope
@@ -167,15 +174,16 @@ MVP support is limited to Chrome desktop versions selected during release qualif
 |---|---:|---|---|
 | Authentication | P0 | Access the same account from web and extension | Include |
 | Candidate profile and CV extraction | P0 | Avoid re-entering background information | Include |
-| Job descriptions | P0 | Tailor guidance to a specific role | Include |
+| Job descriptions | P0 | Tailor answers to a specific role | Include |
 | Preparation configuration | P0 | Control answer style and length | Include |
-| Extension Side Panel | P0 | Keep guidance beside the meeting tab | Include |
+| Extension Side Panel (Private view) | P0 | See answers beside the meeting tab without leaving it | Include |
+| Pairing-code handoff | P0 | Connect the extension to a web session without signing in inside the panel | Include |
 | Explicit capture controls | P0 | Understand and control data capture | Include |
 | Tab audio capture | P0 | Hear interviewer audio on supported tabs | Include, subject to compatibility |
 | Optional microphone capture | P0 | Add candidate audio when desired | Include as separate permission |
 | Streaming transcription | P0 | Turn live audio into usable text | Include |
 | Question detection | P0 | Avoid reacting to ordinary conversation | Include |
-| Contextual suggestions | P0 | Organise a relevant answer quickly | Include |
+| Ready-to-say answers | P0 | Get a speakable answer to each question | Include |
 | Reconnect and safe stop | P0 | Avoid silent session loss | Include |
 | Transcript retention controls | P0 | Decide what remains after the session | Include |
 | Post-session feedback | P1 | Learn from the interview | Include in lightweight form |
@@ -213,7 +221,7 @@ For every P0 feature, a release build requires a happy-path acceptance test and 
 3. The file is stored in a private Supabase Storage path owned by the user.
 4. A background job extracts text and converts it into structured fields: contact details, summary, roles, employers, dates, skills, projects, education, certifications, and evidence snippets.
 5. The system marks each field with extraction confidence and source location where available.
-6. The dashboard shows a review screen. The user can edit, delete, or add information before it becomes eligible for AI suggestions.
+6. The dashboard shows a review screen. The user can edit, delete, or add information before it becomes eligible for AI answers.
 7. The system distinguishes **verified by user**, **extracted**, and **missing** information.
 8. If extraction fails, the document remains available for deletion or replacement and the user can enter context manually.
 9. The system stores the structured representation separately from the original document so it does not resend the raw CV on every live request.
@@ -238,7 +246,7 @@ The user selects:
 - Interview type: behavioural, technical, case, system design, general, or custom.
 - Response language.
 - Preferred answer length: brief, standard, or detailed.
-- Response style: direct, conversational, structured, or coaching.
+- Response style: direct, conversational, or structured.
 - Answer framework: STAR, problem/approach/trade-off, situation/decision/result, or none.
 - Transcript retention choice and note preference.
 
@@ -246,20 +254,18 @@ The system produces a preparation summary showing the selected inputs, missing c
 
 ### 7.5 Starting a live interview
 
-1. The user opens a supported browser meeting tab.
-2. The user manually opens the Vren AI extension from the toolbar or Side Panel.
-3. The extension verifies the authenticated session and shows the active preparation context.
-4. The extension explains: what tab audio is captured, whether microphone audio is enabled, where audio is sent, whether transcript storage is enabled, and how to stop.
-5. The user selects tab audio, microphone, or both. These are separate controls and separate permission outcomes.
-6. The user selects **Start session**. This click is the capture initiation gesture.
-7. The extension requests or uses the required Chrome permission. If denied, the session remains stopped and explains the missing permission.
-8. The extension establishes a backend WebSocket using a short-lived session token.
-9. The extension sends a session configuration and waits for `session.ready`.
-10. Audio frames begin only after the UI shows **Listening** and a visible stop control.
-11. Transcript deltas appear in a compact live transcript area.
-12. Completed turns are evaluated for question likelihood and type.
-13. Relevant candidate/job evidence is retrieved and a concise suggestion is generated.
-14. The extension shows the latest suggestion, confidence/coverage state, and evidence references such as “From your experience: project X.”
+1. On the web dashboard the user selects the profile, job and interview type and clicks **Start live session**. The web app creates the session.
+2. The web page shows the capture disclosure and controls: tab audio, microphone (separate), transcript retention, and the interview-rules acknowledgement (FR-14). All consent choices are made here, not in the extension.
+3. The web page shows a 6-digit pairing code (valid 10 minutes, single use) and a link to open or install the extension.
+4. The user opens a supported browser meeting tab and opens the Vren Side Panel from the toolbar. The panel asks only for the pairing code; it never asks for a password.
+5. Redeeming the code gives the panel a session-scoped token (capture and display for this one session). The panel shows a read-only session summary and a recap of what is captured, where it is sent, and how to stop.
+6. The user clicks **Start capture** in the panel. This click is the capture initiation gesture. If microphone is enabled it is a separate permission prompt. If any permission is denied the session stays stopped and explains why.
+7. The extension opens the backend WebSocket as the capture and display client and waits for `session.ready`.
+8. Audio frames begin only after the panel shows **Listening** and a visible stop control.
+9. The backend transcribes, detects questions, retrieves relevant candidate and job evidence, and generates the answer. None of this runs in the extension.
+10. The answer streams into the Side Panel as it is generated. If the web live page is open, it shows the same feed and transcript.
+11. The panel shows the answer as ready-to-say text, an optional key-points strip, and a source label such as “From your experience: project X” or “Direct answer for this role”.
+12. Pause, resume and stop are available from both the panel and the web page. Either one ends the session for both.
 
 ### 7.6 During the interview
 
@@ -275,12 +281,12 @@ The processing pipeline is:
 8. Run question detection only on stable transcript windows or completed turns, with a debounce and duplicate fingerprint.
 9. Classify the question as behavioural, technical, case, clarification, follow-up, or unknown.
 10. Retrieve only relevant structured candidate/job context.
-11. Generate a response object with an answer outline, evidence, caveat, framework, and short follow-up.
+11. Generate a response object with a ready-to-say answer, key points, evidence, caveat, and framework.
 12. Apply safety validation: unsupported claims are removed or marked as unsupported.
-13. Stream the suggestion to the extension without blocking transcript rendering.
+13. Stream the answer to every paired display client without blocking transcript rendering.
 14. Preserve session state and event IDs for reconnect and idempotency.
 
-The system must not generate a new suggestion for every partial transcript change. A new generation requires a completed or sufficiently stable question, a material text change, and no duplicate fingerprint within the configured window.
+The system must not generate a new answer for every partial transcript change. A new generation requires a completed or sufficiently stable question, a material text change, and no duplicate fingerprint within the configured window.
 
 ### 7.7 Pausing and stopping
 
@@ -297,7 +303,7 @@ The system must not generate a new suggestion for every partial transcript chang
 3. The backend finalises transcript segments and queues post-session analysis.
 4. Raw audio is discarded unless a separately approved and consented feature requires retention. MVP does not retain raw audio by default.
 5. If transcript retention was enabled, the transcript is stored with the session's retention metadata. Otherwise, the live transcript is discarded after processing except for minimal operational metrics.
-6. The user can add private notes and mark suggestions as useful, not useful, or incorrect.
+6. The user can add private notes and mark answers as useful, not useful, or incorrect.
 7. The review page shows key questions, relevant candidate evidence, missed evidence opportunities, strengths, improvement areas, and recommendations.
 8. The system labels generated feedback as coaching, not an objective hiring assessment.
 9. The user can export or delete the session according to enabled policy.
@@ -318,7 +324,7 @@ The system must not generate a new suggestion for every partial transcript chang
 **Description:** Maintain structured, editable evidence about the candidate.  
 **Rules:** each evidence item has origin and status; AI may use only active profile content.  
 **Error states:** unsupported file, extraction failure, ambiguous date, oversized file, malware rejection.  
-**Acceptance criteria:** a user can correct every extracted field, save, and see the corrected value used in a test suggestion.
+**Acceptance criteria:** a user can correct every extracted field, save, and see the corrected value used in a test answer.
 
 ### FR-3 Job context
 
@@ -330,10 +336,11 @@ The system must not generate a new suggestion for every partial transcript chang
 **Description:** Create a session-ready configuration from profile, job, interview type, language, length, style, and framework.  
 **Acceptance criteria:** configuration is validated before live start and snapshotted into the session.
 
-### FR-5 Extension connection
+### FR-5 Extension connection (pairing)
 
-**Description:** Connect an authenticated extension to the account.  
-**Acceptance criteria:** extension shows account identity, active preparation contexts, extension version, and connection status without exposing private provider credentials.
+**Description:** Pair the extension to a web-created session using a short-lived, single-use pairing code. The extension never receives the user's password or a full account token.  
+**Rules:** code is 6 digits, bound to one session and user, expires in 10 minutes, is stored hashed, is revoked when the session ends, and failed redemptions are throttled per IP. Redemption returns a session-scoped token that cannot read the CV, profile or other sessions.  
+**Acceptance criteria:** the panel shows the paired session, extension version and connection status without exposing provider credentials; expired, reused and wrong codes produce deterministic errors; the user can revoke the pairing from the web page.
 
 ### FR-6 Explicit capture
 
@@ -353,16 +360,16 @@ The system must not generate a new suggestion for every partial transcript chang
 **Rules:** use debounce, duplicate fingerprint, transcript stability threshold, and question confidence.  
 **Acceptance criteria:** benchmark covers direct questions, statements, incomplete sentences, follow-ups, interruptions, and repeated questions.
 
-### FR-9 Contextual & direct interview guidance
+### FR-9 Ready-to-say answers
 
-**Description:** Generate concise, natural-sounding answer guidance for tough questions and tasks across any profession, grounded in active CV context when available and direct role/domain expertise when a question goes outside the CV.  
-**Rules:** output schema is validated; past employers/dates are never fabricated onto the candidate's CV; anti-buzzword conversational tone is enforced; suggestion length follows preference.  
-**Acceptance criteria:** every question receives a usable, concise spoken-style outline (either linked to CV evidence or answered directly for the target role), without generic AI filler.
+**Description:** For each interviewer question or task, generate a short first-person answer the candidate can say aloud as written, across any profession. Use the active CV context when it fits, and direct role or domain expertise when the question goes outside the CV.  
+**Rules:** output schema is validated; the answer is the answer itself, never advice about how to answer (no “Start with…”, “You should…”, “Mention…”); length follows the Brief, Standard or Detailed preference; employers, titles, dates and metrics are never fabricated and unsupported claims are removed or marked; anti-buzzword conversational tone is enforced; the source label reflects what was actually used; when no AI provider is available the panel shows an explicit “Answer unavailable” state and never canned placeholder text.  
+**Acceptance criteria:** every detected question receives a usable answer or an explicit unavailable state; p95 time to first words ≤ 4 seconds after a stable question; the unsupported-claim rate in the evaluation set meets the threshold in §25.2.
 
 ### FR-10 Session review
 
 **Description:** Review session outputs subject to consent.  
-**Acceptance criteria:** user can view stored transcript only when retention was enabled, add notes, give suggestion feedback, and delete the session.
+**Acceptance criteria:** user can view stored transcript only when retention was enabled, add notes, give answer feedback, and delete the session.
 
 ### FR-11 Data controls
 
@@ -374,6 +381,20 @@ The system must not generate a new suggestion for every partial transcript chang
 **Description:** Bound usage and detect failures.  
 **Acceptance criteria:** rate limits, session duration caps, per-user quotas, provider timeouts, structured logs, health checks, and alerts are active before production release.
 
+### FR-13 Private view
+
+**Description:** By default answers are shown only in the paired Side Panel (and optionally the web live page), outside the meeting page. The user may switch on an **on-page overlay** (below).  
+**Rules:** nothing is injected into any page unless the user turns the overlay on for that tab; no content script is registered for any site (the manifest has no `content_scripts` and no site host permissions; only `activeTab`, `scripting` and `tabCapture`); answers are cleared from the panel when the session stops; the extension's name, icon and store description honestly identify Vren AI; the product does not hide the extension, mask Chrome's capture indicators, or detect, evade or interfere with screen sharing, proctoring, focus or tab-switch monitoring.  
+**On-page overlay (opt-in):** a floating panel injected on request into the one tab the user chose, using `activeTab`. It is labelled “Vren AI · on-page overlay”, has a draggable top bar, text-size and transparency controls and a close button, and its text area is click-through (`pointer-events: none`) so stray clicks reach the page. Text is set only with `textContent`. Because it lives inside the web page it appears in a tab share and the page's own scripts can see it; the panel states this when the user turns it on. It does not survive navigation or a reload of that tab, and the user turns it on again.  
+**Sharing hint:** before capture starts the product states that the Side Panel is part of the browser window, that sharing a single tab does not include it, and that sharing the whole screen or browser window may show it, so the user should check what is being shared.  
+**Acceptance criteria:** code review and automated checks confirm no content script writes answer text to page DOM and no code references capture-exclusion or detection-evasion APIs; the sharing hint appears in the disclosure on web and panel.
+
+### FR-14 Interview-rules acknowledgement
+
+**Description:** Before each live session the user confirms that assistive tools are permitted in this interview or accepts responsibility for using them.  
+**Rules:** the product does not verify interviewer or employer rules; the acknowledgement is stored with the session; wording is plain and not hidden behind a link.  
+**Acceptance criteria:** a session cannot start without the acknowledgement; the stored acknowledgement is visible in session history.
+
 ---
 
 ## 9. Non-Functional Requirements
@@ -381,7 +402,7 @@ The system must not generate a new suggestion for every partial transcript chang
 | Area | Requirement | Proposed target or rule |
 |---|---|---|
 | Availability | Dashboard | 99.5% monthly target for MVP, excluding planned maintenance |
-| Live latency | First useful suggestion | Product target: p95 ≤ 4 seconds after a stable question; benchmark before launch |
+| Live latency | First useful answer | Product target: p95 ≤ 4 seconds after a stable question; benchmark before launch |
 | Transcription | Partial update | Product target: first partial within 2 seconds under normal network; verify on target audio |
 | API | Read/write request | p95 ≤ 500 ms excluding document processing and AI calls |
 | WebSocket | Recovery | Reconnect attempt within 3 seconds; session recovery within 10 seconds when backend state exists |
@@ -426,13 +447,17 @@ List of active and archived jobs with title, company, last updated, and context 
 
 A focused setup screen with selected profile, job, interview type, response controls, answer framework, transcript retention, and a preflight checklist. Primary action: **Open live assistant**. The screen must warn if candidate evidence or job requirements are incomplete.
 
+### 10.7a Live session page
+
+Created when the user clicks **Start live session**. Shows the disclosure and consent controls, the interview-rules acknowledgement, the pairing code with countdown, pairing status, and capture status. Once live it shows the same answer feed and transcript as the panel, with pause, resume, stop and **Revoke pairing**. The page can be closed or hidden without ending the session. A simulate-a-question box is available for testing without audio.
+
 ### 10.8 Session history
 
 List with date, job, duration, completion state, transcript-retention state, and review status. Interrupted sessions are labelled **Interrupted — review available** rather than silently hidden.
 
 ### 10.9 Session review
 
-Sections: Session summary, Questions, Suggestions, Transcript if retained, Notes, Feedback, Delete session. Suggestions show evidence used and allow **Useful**, **Not useful**, or **Incorrect evidence** feedback.
+Sections: Session summary, Questions, Answers, Transcript if retained, Notes, Feedback, Delete session. Answers show evidence used and allow **Useful**, **Not useful**, or **Incorrect evidence** feedback.
 
 ### 10.10 Settings and privacy
 
@@ -444,7 +469,7 @@ Account, extension access, response defaults, data retention, consent history, e
 
 ### 11.1 Welcome / signed-out panel
 
-Shows Vren AI identity, short explanation, **Connect account**, privacy link, and supported browser note. No capture occurs.
+Shows Vren AI identity, short explanation, **Enter pairing code**, privacy link, and supported browser note. No capture occurs.
 
 ### 11.2 Context selection panel
 
@@ -467,11 +492,11 @@ Shows supported-tab result, permission status, network check, selected context, 
 
 ### 11.5 Live panel
 
-Header: Vren AI, session status, elapsed time, stop control. Main region: latest suggestion, evidence line, framework label, and compact transcript. Footer: pause/resume, microphone state, tab-audio state, connection state, settings.
+Header: Vren AI, session status, elapsed time, stop control. Main region: the current answer as large, ready-to-say text that streams in as it is generated, a key-points strip, a source label, and the question that triggered it; earlier answers are one tap away; a compact transcript is collapsible. Footer: pause/resume, microphone state, tab-audio state, connection state, text size, settings.
 
 ### 11.6 Degraded state panel
 
-Explains one issue at a time: “Connection lost. We are trying to reconnect.” Provides **Stop session** and, after timeout, **Continue without live guidance** if the user wants to keep the meeting without assistance.
+Explains one issue at a time: “Connection lost. We are trying to reconnect.” Provides **Stop session** and, after timeout, **Continue without live answers** if the user wants to keep the meeting without assistance.
 
 ### 11.7 Ended panel
 
@@ -509,7 +534,7 @@ Use **IBM Plex Sans** for interface and editorial text and **IBM Plex Mono** for
 
 ### 12.4 Components
 
-The shared component system includes navigation, sidebar, header, buttons, inputs, selects, tabs, status indicators, suggestion blocks, transcript rows, audio controls, modals, tooltips, loading states, empty states, error states, confirmation dialogs, and toast feedback.
+The shared component system includes navigation, sidebar, header, buttons, inputs, selects, tabs, status indicators, answer blocks, transcript rows, audio controls, modals, tooltips, loading states, empty states, error states, confirmation dialogs, and toast feedback.
 
 The extension reuses tokens and components but not the full desktop navigation. It favours one primary action per state, compact vertical rhythm, visible status, and no modal that obscures the stop control.
 
@@ -531,7 +556,7 @@ The extension reuses tokens and components but not the full desktop navigation. 
 |---|---|---|---|
 | Web | React + TypeScript + Vite | Small, explicit SPA architecture with shared types | Next.js is not required for MVP unless SEO or server rendering becomes a requirement |
 | Web state | TanStack Query + typed API client | Clear server-state caching and invalidation | Avoid global state for server data |
-| Extension | WXT + React + TypeScript + MV3 | Practical build structure for extension entrypoints and shared code | Keep browser APIs behind adapters |
+| Extension | WXT + TypeScript + MV3 (no UI framework) | Practical build structure for extension entrypoints and shared code; the panel is small enough for plain DOM | Keep browser APIs behind adapters |
 | UI | Tailwind CSS + custom tokens | Fast consistent implementation with deliberate visual system | No generic component library as the brand layer |
 | Backend | Python + FastAPI + Pydantic | Async HTTP/WebSocket support, typed validation, modular monolith | No microservices until measured need |
 | Database | Supabase PostgreSQL | Relational model, migrations, RLS, operational simplicity | Keep domain access behind backend for sensitive operations |
@@ -560,9 +585,11 @@ FastAPI supports WebSocket routes, dependency-based authorisation, disconnection
 
 ```mermaid
 flowchart LR
-  W[Web dashboard\nReact + TypeScript] -->|HTTPS + JWT| API[FastAPI modular monolith]
-  E[Chrome extension\nWXT + MV3 Side Panel] -->|HTTPS + short-lived session token| API
-  E -->|WSS audio + events| LIVE[Live session module]
+  W[Web dashboard\nReact + TypeScript\nsession control, live page, review] -->|HTTPS + JWT| API[FastAPI modular monolith]
+  W -. pairing code, shown to user .-> E
+  E[Chrome extension\ncapture relay + Side Panel display] -->|HTTPS pairing redeem| API
+  E -->|WSS audio up, answers down\nsession-scoped token| LIVE[Live session module]
+  W -->|WSS events, optional live page| LIVE
   API --> AUTH[Supabase Auth]
   API --> DB[(Supabase PostgreSQL)]
   API --> STORE[(Private Supabase Storage)]
@@ -572,7 +599,7 @@ flowchart LR
   Q --> CTX[Context retrieval]
   CTX --> LLM[LLM provider adapter]
   LLM --> LIVE
-  LIVE -->|suggestions + transcript events| E
+  LIVE -->|answer + transcript events| E
   JOBS --> DB
   JOBS --> STORE
 ```
@@ -585,6 +612,8 @@ flowchart LR
 - Provider credentials exist only in backend secret storage.
 - User-owned records are isolated by `user_id` and database RLS.
 - Raw audio is transient and should not cross into persistent storage by default.
+- A pairing token is scoped to one session and one user and grants capture and display only; it cannot read profile, CV, other sessions or settings.
+- The extension holds no provider keys, no CV data and no business logic; it renders what the backend sends.
 
 ### 14.2 Request flow
 
@@ -600,35 +629,41 @@ The primary tab-audio path uses `chrome.tabCapture`. Chrome documents that the A
 
 The optional microphone path uses a separate `getUserMedia({audio: true})` request. The system must label the source, permission, mute state, and health independently.
 
+**Roles on a session.** A live session has at most one **capture** client (the extension by default) and up to two **display** clients (the Side Panel and the web live page). The extension holds both roles. A web-only fallback may capture a shared tab through `getDisplayMedia`, which requires the user to pick the tab and tick “share tab audio” each time; it exists for browsers where the extension is not installed.
+
 ### 15.2 Audio pipeline
 
 ```mermaid
 sequenceDiagram
   participant U as User
-  participant X as Extension Side Panel
-  participant SW as MV3 service worker/offscreen document
+  participant W as Web app (live page)
+  participant X as Extension (capture relay + Side Panel)
   participant B as FastAPI live session
   participant S as STT provider
   participant Q as Question detector
   participant L as LLM adapter
 
-  U->>X: Open extension and review disclosure
-  U->>X: Select tab audio/microphone and click Start
-  X->>SW: Request user-invoked capture
-  SW-->>X: Capture state + source streams
-  X->>B: WSS connect with short-lived session token
+  U->>W: Start live session, confirm disclosure and rules
+  W->>B: Create session, request pairing code
+  B-->>W: Pairing code (10 min, single use)
+  U->>X: Open Side Panel, enter pairing code
+  X->>B: Redeem code
+  B-->>X: Session-scoped token
+  U->>X: Click Start capture
+  X->>B: WSS connect (capture + display)
   B-->>X: session.ready
+  B-->>W: capture.state (if live page open)
   X->>B: audio.frame(source, seq, timestamp, pcm)
   B->>S: Stream provider-format audio
-  S-->>B: transcript.delta
-  B-->>X: transcript.delta
-  S-->>B: transcript.completed(item_id)
+  S-->>B: transcript.delta / completed
+  B-->>X: transcript events
   B->>Q: Stable turn + recent context
   Q-->>B: question.detected(type, fingerprint)
-  B->>L: Structured question + retrieved evidence
-  L-->>B: suggestion object
-  B-->>X: suggestion.ready
-  U->>X: Click Pause or Stop
+  B->>L: Question + retrieved evidence
+  L-->>B: streamed answer
+  B-->>X: answer.delta, answer.ready
+  B-->>W: answer.delta, answer.ready
+  U->>X: Pause or Stop (or on web page)
   X->>B: session.pause or session.stop
   B->>S: Commit/terminate provider stream
   B-->>X: session.finalized or session.interrupted
@@ -654,27 +689,23 @@ Question detection uses:
 - minimum material text change;
 - interruption cancellation for in-flight generation.
 
-The generator receives the candidate profile, target role context, and question. When CV evidence fits, it anchors the answer in verified background; when the question asks for a domain task, concept, or scenario outside the CV, it answers directly with natural, concise, role-authentic talking points and optional transferable framing. It returns:
+The generator receives the candidate profile, target role context, recent turns, and the question. It writes the answer itself in the first person. When CV evidence fits, it anchors the answer in verified background; when the question asks for a domain task, concept, or scenario outside the CV, it answers directly in natural, concise, role-authentic wording. It returns:
 
 ```json
 {
   "question_id": "q_123",
-  "question_type": "domain_task",
-  "answer_framework": "Direct",
-  "headline": "Lead with the goal, audience, and how you'd validate early results.",
-  "talking_points": [
-    "Start with one clear goal: define what success looks like in the first 30 days.",
-    "Pick two focused tests first instead of spreading budget across five channels.",
-    "Track early drop-off daily and cut anything that misses baseline after week one."
-  ],
+  "question_type": "behavioral",
+  "answer_framework": "STAR",
+  "answer": "At my last role our reporting took two days every month. I rebuilt it as one shared template and cut it to a couple of hours, and the team kept using it after I moved on.",
+  "key_points": ["Two-day monthly report", "One shared template", "Hours, not days"],
   "evidence_refs": ["experience_4"],
+  "source_label": "From your experience: Operations analyst",
   "unsupported_claims": [],
-  "follow_up": "Mention how you align stakeholders around early experiments.",
-  "confidence": "grounded_or_direct"
+  "confidence": "grounded"
 }
 ```
 
-It never fabricates fake past jobs on the candidate's CV, and never leaves a tough question unanswered just because a keyword is missing from the CV.
+The `answer` field streams to display clients as `answer.delta` events and is final in `answer.ready`. Evidence is ranked by relevance to the question, not by CV order. A post-generation check removes or flags employers, titles, dates and numbers that are not in the candidate's verified context. The system never fabricates past jobs on the candidate's CV, never returns canned placeholder answers when the AI provider is unavailable, and never leaves a tough question unanswered just because a keyword is missing from the CV.
 
 ---
 
@@ -692,7 +723,7 @@ The MVP is a modular monolith with clear module boundaries:
 - **Transcription:** provider adapter, event reconciliation, retry policy.
 - **Question detection:** stable-window classifier and duplicate suppression.
 - **Context retrieval:** evidence filtering and relevance ranking.
-- **Suggestion generation:** schema validation, grounding checks, length policy.
+- **Answer generation:** schema validation, grounding checks, length policy.
 - **Review:** notes, feedback, summary, retention and deletion.
 - **Analytics:** privacy-minimised event counts and latency metrics.
 
@@ -720,7 +751,8 @@ Background jobs are appropriate for document extraction and post-session analysi
 | `interview_preferences` | Reusable defaults | FK `user_id`; one current default plus versioning if needed |
 | `interview_sessions` | Session snapshot and lifecycle | FK `user_id`, optional `job_id`; index `(user_id, started_at desc)` |
 | `transcript_segments` | Consent-retained final transcript rows | FK `session_id`, `user_id`; index `(session_id, sequence)` |
-| `generated_suggestions` | Generated guidance and evidence refs | FK `session_id`, `user_id`; index `(session_id, created_at)` |
+| `generated_answers` | Generated answers and evidence refs. The table is still named `generated_suggestions` in the current schema; renaming it is a later migration | FK `session_id`, `user_id`; index `(session_id, created_at)` |
+| `pairing_codes` | Hashed single-use pairing codes | FK `session_id`, `user_id`; `expires_at`, `redeemed_at`; index on `code_hash` |
 | `session_notes` | User-authored notes | FK `session_id`, `user_id` |
 | `user_consents` | Versioned capture/retention consent events | FK `user_id`; index `(user_id, consent_type, created_at desc)` |
 | `extension_connections` | Revocable extension connection metadata | FK `user_id`; index `(user_id, revoked_at)` |
@@ -740,7 +772,7 @@ erDiagram
   profiles ||--o{ extension_connections : connects
   interview_sessions }o--|| job_descriptions : uses
   interview_sessions ||--o{ transcript_segments : contains
-  interview_sessions ||--o{ generated_suggestions : produces
+  interview_sessions ||--o{ generated_answers : produces
   interview_sessions ||--o{ session_notes : has
   candidate_documents ||--o{ candidate_experiences : sources
 ```
@@ -775,7 +807,8 @@ All endpoints are under `/v1`. JSON errors use:
 | Method | Endpoint | Purpose |
 |---|---|---|
 | `GET` | `/v1/me` | Return current user and profile summary |
-| `POST` | `/v1/extensions/exchange` | Exchange authenticated extension flow for scoped connection |
+| `POST` | `/v1/sessions/{id}/pairing-code` | Web only: issue a 6-digit, 10-minute, single-use pairing code |
+| `POST` | `/v1/pairing/redeem` | Extension: exchange a valid code for a session-scoped capture and display token |
 | `POST` | `/v1/extensions/{id}/revoke` | Revoke extension access |
 | `GET` | `/v1/extensions` | List active extension connections |
 
@@ -806,14 +839,14 @@ All endpoints are under `/v1`. JSON errors use:
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| `POST` | `/v1/sessions` | Create session from selected context |
+| `POST` | `/v1/sessions` | Create session from selected context. `rules_acknowledged: true` records the interview-rules acknowledgement |
 | `GET` | `/v1/sessions/{id}` | Get session state |
 | `POST` | `/v1/sessions/{id}/token` | Issue short-lived WebSocket token |
 | `POST` | `/v1/sessions/{id}/stop` | Request server-side stop/finalisation |
 | `GET` | `/v1/sessions/{id}/transcript` | Retrieve retained transcript only |
-| `GET` | `/v1/sessions/{id}/suggestions` | Retrieve generated suggestions |
+| `GET` | `/v1/sessions/{id}/answers` | Retrieve generated answers (`/suggestions` kept as an alias for one release) |
 | `POST` | `/v1/sessions/{id}/notes` | Create or update notes |
-| `POST` | `/v1/sessions/{id}/feedback` | Submit suggestion/session feedback |
+| `POST` | `/v1/sessions/{id}/feedback` | Submit answer/session feedback |
 | `DELETE` | `/v1/sessions/{id}` | Delete session and retained derivatives |
 
 ### 18.5 Validation and limits
@@ -821,8 +854,9 @@ All endpoints are under `/v1`. JSON errors use:
 - IDs are UUIDs or opaque server IDs; clients cannot set ownership fields.
 - Uploads have configured size/page/type limits and are scanned before parsing.
 - Session creation requires an active profile and job unless the user explicitly chooses general interview mode.
-- WebSocket tokens expire quickly and are scoped to one session and one user.
-- Rate limits apply to sign-in, upload, session creation, suggestion generation, and deletion requests.
+- WebSocket tokens expire quickly and are scoped to one session and one user. They are rejected by every REST endpoint.
+- Issuing a WebSocket token or a pairing code for a session without a recorded interview-rules acknowledgement returns `412 RULES_ACK_REQUIRED`.
+- Rate limits apply to sign-in, upload, session creation, answer generation and pairing-code redemption, and deletion requests.
 
 ---
 
@@ -833,7 +867,8 @@ Endpoint: `wss://api.vren.ai/v1/live/{session_id}`. The client authenticates wit
 ### 19.1 Client events
 
 ```json
-{"type":"session.configure","session_id":"s_123","sources":["tab","microphone"],"client_version":"1.0.0"}
+{"type":"session.configure","session_id":"s_123","role":"capture","sources":["tab","microphone"],"client_version":"1.0.0"}
+{"type":"session.attach","session_id":"s_123","role":"display"}
 {"type":"audio.frame","source":"tab","sequence":42,"captured_at":"2026-11-10T10:00:01.000Z","sample_rate":24000,"channels":1,"payload":"base64_pcm"}
 {"type":"session.pause","reason":"user"}
 {"type":"session.resume"}
@@ -849,8 +884,9 @@ Endpoint: `wss://api.vren.ai/v1/live/{session_id}`. The client authenticates wit
 {"type":"transcript.delta","item_id":"p_9","source":"tab","text":"Tell me about"}
 {"type":"transcript.completed","item_id":"p_9","sequence":91,"text":"Tell me about a process you improved."}
 {"type":"question.detected","question_id":"q_1","kind":"behavioral","text":"Tell me about a process you improved."}
-{"type":"suggestion.started","question_id":"q_1"}
-{"type":"suggestion.ready","question_id":"q_1","suggestion":{}}
+{"type":"answer.started","question_id":"q_1","question_text":"Tell me about a process you improved."}
+{"type":"answer.delta","question_id":"q_1","delta":"At my last role our reporting took "}
+{"type":"answer.ready","question_id":"q_1","answer":{}}
 {"type":"session.degraded","code":"STT_TIMEOUT","message":"Live transcription is delayed. You can stop safely."}
 {"type":"session.finalized","session_id":"s_123","retained_transcript":false}
 {"type":"session.interrupted","session_id":"s_123","reason":"connection_lost","recoverable_until":"2026-11-10T10:15:00Z"}
@@ -865,6 +901,12 @@ Endpoint: `wss://api.vren.ai/v1/live/{session_id}`. The client authenticates wit
 - Server never replays private transcript data to a different user or session.
 - Provider errors are mapped to stable application error codes.
 - The server closes idle or over-quota sessions with a final explanatory event.
+- A session accepts at most one capture client and up to two display clients; a second capture client is refused with a stable error code.
+- Display clients receive transcript and answer events only for their own session and never receive other clients' tokens.
+- Live events use `answer.started`, `answer.delta`, `answer.ready` and `answer.unavailable`. The old `suggestion.*` names are not emitted. The REST path `/v1/sessions/{id}/suggestions` remains as an alias of `/answers`.
+- A token carries a role, `capture` or `display`. `POST /v1/sessions/{id}/token?role=display` issues a display token. Display clients may only send heartbeat, pause, resume, stop and `transcript.simulate`.
+- A client that reconnects passes `last_event_id` in the query string and the server replays the replayable events it missed (transcript, question, answer and capture-state events), held in memory for the life of the session.
+- The server closes with code 4408 when a session has passed its maximum duration, 4409 for an ended session or a second capture client, and 4403 when pairing is revoked.
 
 ---
 
@@ -882,19 +924,26 @@ WebSocket authorisation verifies:
 
 A valid user token must not grant access to another user's session ID. Session IDs are opaque, but opacity is not treated as authorisation.
 
+### 20.1 Pairing codes and display tokens
+
+- The code is 6 digits, generated only for an authenticated web session, bound to one session and one user, valid for 10 minutes and usable once.
+- Codes are stored as keyed hashes. A new code replaces any unredeemed code for the same session. Failed redemptions are throttled per IP address (8 failures per 10 minutes) and redemption is rate limited.
+- Redemption returns a session-scoped token for the capture and display roles. It cannot call profile, document, job or settings endpoints.
+- The token is kept in extension session storage and cleared when the session ends or the user revokes pairing from the web page.
+
 ---
 
 ## 21. Security and Privacy
 
 ### 21.1 Data classification
 
-- **Highly sensitive:** CVs, audio, transcripts, notes, generated suggestions containing personal context.
+- **Highly sensitive:** CVs, audio, transcripts, notes, generated answers containing personal context.
 - **Sensitive:** job descriptions, profile fields, session metadata.
 - **Operational:** latency, error codes, feature flags, aggregate usage.
 
 ### 21.2 Capture disclosure and consent
 
-Before capture, the extension must state what is captured, why, where it is sent, whether microphone input is included, and whether transcript storage is enabled. The user must actively start capture and have a persistent stop control. No feature may bypass browser permissions or disguise capture activity.
+Before capture, the web page and the extension panel must state what is captured, why, where it is sent, whether microphone input is included, whether transcript storage is enabled, and the sharing hint in FR-13. The user must actively start capture and have a persistent stop control. No feature may bypass browser permissions or disguise capture activity, and Chrome's own tab-capture indicator is never suppressed.
 
 ### 21.3 Storage and retention defaults
 
@@ -902,7 +951,7 @@ Before capture, the extension must state what is captured, why, where it is sent
 - Transcript: not persisted unless the user enables transcript retention for the session or a product-owner-approved default applies after legal review.
 - Notes: retained while the session exists until user deletion.
 - CV and job data: retained until user deletes them or account deletion policy applies.
-- Operational logs: exclude transcript text, CV content, audio payloads, and full suggestions.
+- Operational logs: exclude transcript text, CV content, audio payloads, and full answers.
 
 Retention periods must be configurable by policy and disclosed to users. The account deletion flow must trigger deletion of records, storage objects, derived embeddings/indexes if introduced later, and pending jobs.
 
@@ -929,6 +978,16 @@ Chrome's Limited Use policy requires collection and transmission to be limited t
 
 Before launch, the product owner must decide intended markets, controller/processor roles, cross-border provider processing, consent basis for audio/transcript processing, deletion obligations, and whether regional hosting is required. The PRD does not assume one law applies globally. Legal review is a launch dependency, not a post-launch enhancement.
 
+### 21.7 Private view and interview rules
+
+Private view is a focus and privacy feature: answers appear only in the user's own panel and are not placed in the meeting page. It is not a guarantee that nobody else can see them. The Side Panel is part of the browser window; sharing a whole screen or browser window can show it, and employers or interviewers may use monitoring that the product does not control.
+
+- The product does not verify whether an interviewer or employer permits assistive tools. The user confirms this before each live session (FR-14) and remains responsible for it.
+- The product never advertises itself as invisible, undetectable or unblockable. Marketing copy, the store listing and in-product text are reviewed against this rule.
+- The extension's name, icon and description state plainly that it is Vren AI. It is never renamed or restyled to look like a system or meeting component.
+- No code path uses OS or browser APIs to exclude the product from screen capture, to hide a window from capture, or to alter focus or tab-visibility signals. This is enforced by code review and an automated dependency and API check in CI.
+- The Chrome Web Store listing describes the audio-capture functionality, the data sent, and the Private view behavior accurately, in line with the store's policies on deceptive behavior and narrow permissions. [2]
+
 ---
 
 ## 22. Infrastructure and Deployment
@@ -946,7 +1005,7 @@ CI runs formatting, type checks, unit tests, API tests, WebSocket tests, extensi
 
 ### 22.3 Monitoring
 
-Track uptime, API latency, WebSocket connection count, reconnect rate, audio frame drops, STT latency, question-detection latency, suggestion latency, provider errors, quota rejections, and cost per session. Dashboards use aggregate metrics and correlation IDs, not transcript contents.
+Track uptime, API latency, WebSocket connection count, reconnect rate, audio frame drops, STT latency, question-detection latency, answer latency, provider errors, quota rejections, and cost per session. Dashboards use aggregate metrics and correlation IDs, not transcript contents.
 
 ### 22.4 Backup and recovery
 
@@ -965,8 +1024,8 @@ Use a representative audio evaluation set with varied microphones, accents, back
 - partial transcript latency;
 - final transcript latency;
 - question detection precision/recall;
-- first useful suggestion latency;
-- irrelevant suggestion rate;
+- first useful answer latency;
+- irrelevant answer rate;
 - unsupported-claim rate;
 - reconnect success;
 - provider failure rate;
@@ -994,8 +1053,8 @@ Do not introduce Kubernetes, sharding, multi-region routing, or microservices wi
 | Internet loss | Show reconnecting; pause new generation | Reconnect with last event/sequence; otherwise safe stop |
 | WebSocket disconnect | Do not silently mark complete | Retry with bounded exponential backoff, then interrupted state |
 | STT unavailable | Show transcription degraded | Retry provider adapter; allow safe stop |
-| LLM timeout | Keep transcript; show “No guidance for this question” | Retry once if question still current; avoid duplicate output |
-| Invalid transcript | Do not generate suggestion | Wait for stable/final text or ask user to continue manually |
+| LLM timeout | Keep transcript; show “No answer available for this question — try again or continue” | Retry once if question still current; avoid duplicate output |
+| Invalid transcript | Do not generate an answer | Wait for stable/final text or ask user to continue manually |
 | Expired auth | Stop new processing safely | Reauthenticate; do not expose transcript in signed-out state |
 | Quota exceeded | Stop new AI work and explain limit | User can end session or upgrade/renew according to business model |
 | Extension closes | Backend timeout and final state | Reopen extension to recover within grace period where possible |
@@ -1027,8 +1086,8 @@ AI quality gates:
 - no fabricated candidate experience;
 - relevant evidence selection;
 - answer framework correctness;
-- no duplicate suggestions for one question;
-- acceptable time to first useful suggestion;
+- no duplicate answers for one question;
+- acceptable time to first useful answer;
 - correct handling of unsupported evidence;
 - concise output at each preference setting.
 
@@ -1055,14 +1114,14 @@ Collect only metrics needed to improve reliability and product value:
 - audio frame loss rate;
 - STT failure rate;
 - question detection precision/recall from consented evaluation data;
-- first useful suggestion latency;
-- suggestion feedback distribution;
+- first useful answer latency;
+- answer feedback distribution;
 - unsupported-claim rejection count;
 - average session duration;
 - provider cost per session;
 - retention and repeat preparation use.
 
-Do not log raw audio, full CVs, transcript text, or complete generated suggestions in product analytics. Evaluation datasets require separate consent, access control, and retention policy.
+Do not log raw audio, full CVs, transcript text, or complete generated answers in product analytics. Evaluation datasets require separate consent, access control, and retention policy.
 
 ---
 
@@ -1075,9 +1134,16 @@ Do not log raw audio, full CVs, transcript text, or complete generated suggestio
 **Acceptance:** a user can create a verified structured profile, correct extracted values, create multiple jobs, and see ownership isolation.  
 **Complete when:** core web workflows pass end-to-end and deletion tests pass.
 
+### Phase 1b — Answer quality and web live page
+
+**Deliverables:** relevance-ranked evidence, answer schema with source labels, post-generation claim check, removal of placeholder answers, pairing-code endpoints, multi-client live room (capture and display roles), web live page with simulate-a-question input.  
+**Dependencies:** web auth and session APIs.  
+**Acceptance:** a simulated question produces a streamed answer on the web live page without any audio or extension; no canned text is ever shown.  
+**Complete when:** claim-check and multi-client room tests pass.
+
 ### Phase 2 — Extension foundation
 
-**Deliverables:** WXT/MV3 build, Side Panel, connection flow, context selection, supported-tab detection, disclosure and permission states.  
+**Deliverables:** WXT/MV3 build, Side Panel, pairing-code connection, display-only Side Panel (Private view), capture relay, supported-tab detection, disclosure and permission states.  
 **Dependencies:** web auth and session APIs.  
 **Acceptance:** extension can authenticate, show preparation context, and handle permission denial without capture.  
 **Complete when:** service-worker restart and Side Panel compatibility tests pass.
@@ -1091,7 +1157,7 @@ Do not log raw audio, full CVs, transcript text, or complete generated suggestio
 
 ### Phase 4 — AI intelligence
 
-**Deliverables:** question detection, context retrieval, structured suggestion generation, grounding checks, concise UI.  
+**Deliverables:** question detection, context retrieval, structured answer generation, grounding checks, concise UI.  
 **Dependencies:** stable transcript pipeline and structured profile/job data.  
 **Acceptance:** evaluation set meets relevance and unsupported-claim thresholds.  
 **Complete when:** duplicate suppression, follow-ups, interruptions, and slow-provider states behave correctly.
@@ -1123,6 +1189,10 @@ Do not log raw audio, full CVs, transcript text, or complete generated suggestio
 - Provider latency and cost may make a session uneconomical.
 - Audio and transcript processing may trigger different legal requirements by market.
 - Users may expect the product to work with native desktop meetings, which is out of MVP scope.
+- The user may use the product in interviews or assessments that prohibit assistive tools; consequences fall on the user and on the product's reputation, which is why FR-14, honest copy and the sharing hint exist.
+- Users or reviewers may expect the product to be undetectable; the product does not promise this and the store listing must not imply it.
+- Chrome Web Store review may reject an audio-capture extension that is unclear about its behavior or permissions.
+- A thin extension depends on the backend being reachable; a degraded state and a clean stop are required when it is not.
 
 ### Dependencies
 
@@ -1152,8 +1222,11 @@ Do not log raw audio, full CVs, transcript text, or complete generated suggestio
 6. Whether identity-provider login is needed for MVP.
 7. Maximum session duration and free usage quota.
 8. Pricing and upgrade behaviour when quota is exceeded.
-9. Whether technical interview guidance may include code snippets in MVP.
+9. Whether technical interview answers may include code snippets in MVP.
 10. Whether any provider may process data outside the user's launch region.
+11. Whether the web-only `getDisplayMedia` fallback ships in the first release or after the extension is validated.
+12. Whether the optional visible desktop overlay in Appendix C is built at all, and on which operating systems.
+13. Exact wording of the interview-rules acknowledgement and sharing hint after legal review.
 
 ---
 
@@ -1172,7 +1245,10 @@ Do not log raw audio, full CVs, transcript text, or complete generated suggestio
 - Live audio reaches the backend only after session start and stops on user stop.
 - Partial and final transcripts render and reconcile without duplicate final rows.
 - Question detection suppresses ordinary conversation and duplicate questions within the configured window.
-- Suggestions are concise, natural, human-sounding, and usable across any industry or role, answering tough questions even outside the CV while anchoring in profile/job context when relevant.
+- Answers are concise, natural, human-sounding, written in first person, and usable across any industry or role, answering tough questions even outside the CV while anchoring in profile/job context when relevant.
+- The extension pairs only through a valid single-use code, contains no CV data or AI keys, and writes no answer text into meeting pages.
+- A session cannot start without the interview-rules acknowledgement, and the sharing hint is shown on the web page and in the panel.
+- When no AI provider is available the user sees an explicit “Answer unavailable” state, never placeholder text.
 - The system never invents fake past employers or titles onto the candidate's CV in acceptance tests, and never sounds generic or robotic.
 - WebSocket disconnects produce reconnecting or interrupted states, never a silent success state.
 - Raw audio is not retained by default.
@@ -1217,7 +1293,7 @@ A feature is done only when its UI, API, data model, ownership rules, error stat
 - **Capture disclosure heading:** “Choose what Vren AI can hear.”
 - **Capture disclosure body:** “Vren AI can process audio from this Chrome tab and, if enabled, your microphone. Capture starts only when you select Start session. Raw audio is not retained by default.”
 - **Ready state:** “Ready when you are.”
-- **Listening state:** “Listening — guidance will appear here.”
+- **Listening state:** “Listening — answers will appear here.”
 - **Paused state:** “Paused — no audio is being sent.”
 - **Unsupported tab:** “This tab cannot be captured by Vren AI. Open the interview in a supported Chrome tab.”
 - **Role-direct note (outside CV):** “No direct match on your CV for this topic. Suggested approach above uses practical role knowledge and natural bridging.”
@@ -1226,4 +1302,22 @@ A feature is done only when its UI, API, data model, ownership rules, error stat
 
 ## Appendix B — Product boundary statement
 
-Vren AI is a user-controlled interview preparation and assistance tool. It does not guarantee interview outcomes, replace candidate judgement, determine hiring decisions, or authorise the user to violate an interviewer's rules. The product must present capture and processing honestly and must not claim to be invisible, undetectable, or universally compatible.
+Vren AI is a user-controlled interview preparation and assistance tool. It does not guarantee interview outcomes, replace candidate judgement, determine hiring decisions, or authorise the user to violate an interviewer's rules. The product must present capture and processing honestly and must not claim to be invisible, undetectable, or universally compatible. Private view keeps answers in the user's own panel; it is a focus and privacy feature and is not a guarantee against being seen or detected.
+
+
+---
+
+## Appendix C — Optional visible desktop overlay (deferred idea)
+
+**Status:** not in MVP. Recorded for a later decision (open decision 12).
+
+A lightweight desktop client (for example a small Tauri app) could show answers as floating text for users who cannot or do not want to use the browser Side Panel. It follows the same thin-client rules as the extension:
+
+- **Web app is the brain.** Sign-up, billing, CV, jobs, session control and AI stay in the web app and backend. The client has no login screen of its own.
+- **Pairing handoff.** The web page shows the same 6-digit pairing code, or a deep link (`vren://session/<id>`) that opens the client with a one-time code. The client redeems it for a session-scoped display token.
+- **Display only.** The client attaches as a display client to the live room and renders `answer.delta` and `answer.ready` events. Audio capture stays in the extension or web fallback.
+- **Ergonomics.** A frameless, always-on-top, transparent window with a drag handle to position it and an optional lock-in-place (click-through) mode that the user can switch off with a visible control or hotkey.
+- **Honest identity.** The window title, process name, installer and signing identify Vren AI. Distribution needs code signing so operating-system warnings are not misleading.
+- **Out of scope by rule.** The client does not call operating-system APIs that exclude it from screen capture or sharing, does not use a disguised title or process name, and does not interfere with focus, window-visibility or monitoring signals. Where the window is shown on the screen, it can appear in a screen share, and the same sharing hint applies.
+
+Reusable pieces from the design notes: the thin-client split, the pairing code handoff, token streaming into a minimal display, and the draggable reposition-then-lock interaction. These are already part of the extension plan above.
