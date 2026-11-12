@@ -357,7 +357,7 @@ The system must not generate a new answer for every partial transcript change. A
 ### FR-8 Question detection
 
 **Description:** Identify meaningful interviewer questions and classify them.  
-**Rules:** use debounce, duplicate fingerprint, transcript stability threshold, and question confidence.  
+**Rules:** use debounce, duplicate fingerprint, transcript stability threshold, and question confidence. Clear questions (a question mark or a cue such as “tell me about”) are accepted by fast heuristics with no model call. Only unclear interviewer turns are sent to an LLM, which decides whether the candidate now has something to answer and returns the question as one self-contained sentence, merging a question split across turns. The model call has a short timeout and a per-minute budget, its output is validated, the transcript is treated as untrusted data, and any failure counts as “not a question” so an outage never produces a false answer. Model-detected questions go through the same duplicate window.  
 **Acceptance criteria:** benchmark covers direct questions, statements, incomplete sentences, follow-ups, interruptions, and repeated questions.
 
 ### FR-9 Ready-to-say answers
@@ -885,7 +885,7 @@ Endpoint: `wss://api.vren.ai/v1/live/{session_id}`. The client authenticates wit
 {"type":"capture.state","source":"tab","state":"listening"}
 {"type":"transcript.delta","item_id":"p_9","source":"tab","text":"Tell me about"}
 {"type":"transcript.completed","item_id":"p_9","sequence":91,"text":"Tell me about a process you improved."}
-{"type":"question.detected","question_id":"q_1","kind":"behavioral","text":"Tell me about a process you improved."}
+{"type":"question.detected","question_id":"q_1","kind":"Behavioral","text":"Tell me about a process you improved.","detection":"heuristic"}
 {"type":"answer.started","question_id":"q_1","question_text":"Tell me about a process you improved."}
 {"type":"answer.delta","question_id":"q_1","delta":"At my last role our reporting took "}
 {"type":"answer.ready","question_id":"q_1","answer":{}}
@@ -1334,7 +1334,7 @@ Source: the public feature page of a competing live-interview assistant, supplie
 
 | Competitor claim | Vren AI |
 |---|---|
-| Real-time answers; automatic question detection from live audio; streaming answers | Built (FR-7, FR-8, FR-9). Detection is heuristic; an LLM-assisted fallback is planned |
+| Real-time answers; automatic question detection from live audio; streaming answers | Built (FR-7, FR-8, FR-9). Detection is heuristic first, with an LLM-assisted check for unclear turns (indirect requests, missing punctuation, questions split across turns) |
 | Customisable answer length, style and framework (STAR, CAR, SOAR) | Length and style existed. **CAR and SOAR frameworks added**, with a short description of each given to the model |
 | Separate interview and answer languages; many languages | **Answer language added** (empty means same as interview language). Language list widened from 5 to 34. A speech-to-text language-code bug (names were cut to two letters, so German, Spanish and Portuguese failed) is fixed, and Deepgram switches to a multilingual model for non-English interviews |
 | Behavioural, technical, coding and system-design questions | Question types are classified; coding-specific answers and code snippets remain an open decision (§28, item 9) |

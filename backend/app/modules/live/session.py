@@ -37,6 +37,7 @@ from app.db.models import (
     TranscriptSegment,
 )
 from app.modules.live.question_detector import QuestionDetector
+from app.modules.live.question_llm import QuestionClassifier
 from app.modules.sessions.grounding import AnswerResult, stream_answer
 from app.modules.sessions.router import finalize_session_row
 
@@ -95,6 +96,7 @@ class LiveSession:
         self.user_id = user_id
         self.clients: dict[WebSocket, _Client] = {}
         self.detector = QuestionDetector()
+        self.classifier = QuestionClassifier()
         self.buffers = {"tab": AudioUtteranceBuffer(), "microphone": AudioUtteranceBuffer()}
         self.last_sequences = {"tab": 0, "microphone": 0}
         self.active_sources: list[str] = ["tab"]
@@ -460,7 +462,13 @@ class LiveSession:
             text=text,
         )
 
-        detected = self.detector.inspect(text, speaker=speaker)
+        # Earlier turns give the classifier context (the current turn is already the last entry).
+        earlier = self.recent_turns[:-1]
+        detected = await self.detector.detect(
+            text,
+            speaker=speaker,
+            classify=lambda t: self.classifier.classify(t, earlier),
+        )
         if not detected:
             return
 
@@ -471,6 +479,7 @@ class LiveSession:
             kind=detected.kind,
             text=detected.text,
             fingerprint=detected.fingerprint,
+            detection=detected.source,
         )
         await self.emit(
             "answer.started",
