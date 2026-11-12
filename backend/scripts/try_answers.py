@@ -4,8 +4,8 @@
     uv run python -m scripts.try_answers                 # sample candidate and questions
     uv run python -m scripts.try_answers "Why this role?"  # your own question
 
-Reads backend/.env (LLM_BASE_URL, LLM_API_KEY, LLM_MODEL). First checks that the key and model work and says
-what is wrong if not, then prints each answer with its length, speed and style check. Nothing is saved.
+Reads backend/.env. First tests every AI provider that has a key (LLM_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY) and says
+what is wrong with each one, then prints answers with their length, speed and style check. Nothing is saved.
 """
 
 import asyncio
@@ -14,6 +14,8 @@ import time
 
 import httpx
 
+from app.adapters.llm import LLMProviderAdapter
+from app.adapters.stt import get_stt_adapter
 from app.core.config import get_settings
 from app.db.models import CandidateExperience, CandidateSkill, InterviewPreferences, JobDescription
 from app.modules.sessions import answer_style
@@ -49,42 +51,62 @@ def sample_candidate() -> tuple[list[CandidateExperience], list[CandidateSkill],
     return exp, skills, job
 
 
-async def check_provider() -> bool:
+async def check_providers() -> bool:
+    """Tries every provider that has a key, in the order the app uses them. True if at least one works."""
     s = get_settings()
-    if not s.llm_api_key:
-        print("LLM_API_KEY is empty in backend/.env, so there is nothing to call.")
+    adapter = LLMProviderAdapter(s)
+    providers = adapter.providers()
+    if not providers:
+        print("No AI key is set in backend/.env. Add OPENAI_API_KEY and/or GEMINI_API_KEY (or LLM_API_KEY).")
         return False
-    base = s.llm_base_url.rstrip("/")
-    print(f"Provider: {base}   model: {s.llm_model}")
-    headers = {"Authorization": f"Bearer {s.llm_api_key}"}
+
+    print("AI providers, in the order they are tried:")
+    working = 0
+    for provider in providers:
+        if isinstance(provider, str):  # Gemini
+            result = await adapter._complete_gemini("Reply with JSON only.", 'Return {"ok": true}', 0, 50)
+            ok = isinstance(result, dict)
+            print(f"  gemini  (model {adapter._gemini_models()[0]}): " + ("works" if ok else "FAILED. Check GEMINI_API_KEY, or GEMINI_MODEL (try gemini-2.5-flash)."))
+        else:
+            ok, note = await check_compat(provider)
+            print(f"  {provider.name:<7} ({provider.base_url}, model {provider.model}): {note}")
+        working += int(ok)
+
+    if working == 0:
+        print("\nNone of them worked, so there are no answers yet. Fix the first message above and run this again.")
+        return False
+    stt = get_stt_adapter().active_provider
+    print(f"\nSpeech to text: {stt}" + ("  (no speech-to-text key: add DEEPGRAM_API_KEY, or reuse OPENAI_API_KEY / GEMINI_API_KEY)" if stt == "offline" else ""))
+    print()
+    return True
+
+
+async def check_compat(provider) -> tuple[bool, str]:
+    headers = {"Authorization": f"Bearer {provider.api_key}"}
+    base = provider.base_url.rstrip("/")
     async with httpx.AsyncClient(timeout=30) as client:
         try:
-            r = await client.get(f"{base}/models", headers=headers)
-            if r.status_code == 200:
-                ids = [m.get("id") for m in r.json().get("data", [])]
-                print(f"Key accepted. {len(ids)} models available." + ("" if s.llm_model in ids else f"  NOTE: '{s.llm_model}' is not in that list, set LLM_MODEL to one of: {', '.join(map(str, ids[:12]))}"))
-            else:
-                print(f"/models returned HTTP {r.status_code} (some gateways do not list models). Trying a real request next.")
             r = await client.post(
                 f"{base}/chat/completions", headers=headers,
-                json={"model": s.llm_model, "messages": [{"role": "user", "content": "Reply with the single word: ok"}], "max_tokens": 8},
+                json={"model": provider.model, "messages": [{"role": "user", "content": "Reply with the single word: ok"}], "max_tokens": 8},
             )
         except httpx.HTTPError as exc:
-            print(f"Could not reach {base}: {exc}. Check LLM_BASE_URL and your network.")
-            return False
+            return False, f"could not reach it ({exc}). Check the address and your network."
+    if r.status_code == 200:
+        return True, "works"
     if r.status_code == 401:
-        print("HTTP 401: the key was rejected. Check LLM_API_KEY (no quotes, no spaces) and that it belongs to this provider.")
-    elif r.status_code == 404:
-        print("HTTP 404: wrong LLM_BASE_URL (it should end in /v1) or an unknown model name.")
-    elif r.status_code != 200:
-        print(f"HTTP {r.status_code}: {r.text[:300]}")
-    else:
-        print("A test request worked.\n")
-    return r.status_code == 200
+        return False, "the key was rejected (401). Create a new key and paste it again, with no quotes or spaces."
+    if r.status_code == 403:
+        return False, "the key is not allowed to do this (403). Check the key's permissions or billing."
+    if r.status_code == 404:
+        return False, f"not found (404). Check the model name '{provider.model}' and that the address ends in /v1."
+    if r.status_code == 429:
+        return False, "rate limited or out of credit (429). Check billing."
+    return False, f"HTTP {r.status_code}: {r.text[:200]}"
 
 
 async def main() -> None:
-    if not await check_provider():
+    if not await check_providers():
         sys.exit(1)
     exp, skills, job = sample_candidate()
     questions = [("General", " ".join(sys.argv[1:]))] if len(sys.argv) > 1 else SAMPLE_QUESTIONS

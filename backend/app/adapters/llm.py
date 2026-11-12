@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -35,6 +36,28 @@ def _extract_json_object(raw: str) -> dict[str, Any] | None:
             except json.JSONDecodeError:
                 return None
     return None
+
+
+# A provider whose key was rejected (401/403) is skipped for a while, so one bad key does not slow every answer.
+_AUTH_BAN_SECONDS = 600
+_banned_until: dict[str, float] = {}
+
+
+def mark_provider_rejected(name: str) -> None:
+    if _banned_until.get(name, 0) < time.monotonic():
+        logger.error("LLM provider %s rejected its key (401/403). Skipping it for %d minutes. Check the key in backend/.env.", name, _AUTH_BAN_SECONDS // 60)
+    _banned_until[name] = time.monotonic() + _AUTH_BAN_SECONDS
+
+
+def reset_rejected_providers() -> None:
+    _banned_until.clear()
+
+
+def _is_auth_failure(exc: Exception) -> bool:
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in (401, 403)
+    text = str(exc).upper()
+    return any(m in text for m in ("API_KEY_INVALID", "API KEY NOT VALID", "PERMISSION_DENIED", "UNAUTHENTICATED", " 401", " 403"))
 
 
 @dataclass(frozen=True)
@@ -72,7 +95,8 @@ class LLMProviderAdapter:
             compat.append(CompatProvider("openai", s.openai_base_url, s.openai_api_key, s.openai_model))
         gemini: list[str | CompatProvider] = ["gemini"] if s.gemini_api_key else []
         chain = [*gemini, *compat] if s.llm_provider == "gemini" else [*compat, *gemini]
-        return chain
+        now = time.monotonic()
+        return [p for p in chain if _banned_until.get(p if isinstance(p, str) else p.name, 0) <= now]
 
     def provider_names(self) -> list[str]:
         return [p if isinstance(p, str) else p.name for p in self.providers()]
@@ -176,6 +200,8 @@ class LLMProviderAdapter:
                 content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
             return _extract_json_object(str(content))
         except Exception as exc:
+            if _is_auth_failure(exc):
+                mark_provider_rejected(provider.name)
             logger.warning("LLM provider %s image request failed cleanly: %s", provider.name, exc)
             return None
 
@@ -246,6 +272,8 @@ class LLMProviderAdapter:
                         if delta:
                             yield str(delta)
         except Exception as exc:
+            if _is_auth_failure(exc):
+                mark_provider_rejected(provider.name)
             logger.warning("LLM provider %s stream failed cleanly: %s", provider.name, exc)
 
     async def _complete_compat(
@@ -280,6 +308,8 @@ class LLMProviderAdapter:
                 content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
             return _extract_json_object(str(content))
         except Exception as exc:
+            if _is_auth_failure(exc):
+                mark_provider_rejected(provider.name)
             logger.warning("LLM provider %s request failed cleanly: %s", provider.name, exc)
             return None
 
@@ -317,6 +347,8 @@ class LLMProviderAdapter:
                 if text:
                     yield str(text)
         except Exception as exc:
+            if _is_auth_failure(exc):
+                mark_provider_rejected("gemini")
             logger.warning("Gemini LLM stream failed cleanly: %s", exc)
 
     async def _complete_gemini(
@@ -347,6 +379,9 @@ class LLMProviderAdapter:
                     if parsed is not None:
                         return parsed
                 except Exception as inner_exc:
+                    if _is_auth_failure(inner_exc):
+                        mark_provider_rejected("gemini")
+                        return None
                     logger.warning("Gemini LLM model=%s failed: %s", model, inner_exc)
             return None
         except Exception as exc:

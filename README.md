@@ -13,7 +13,7 @@ It is honest by design: answers use only facts from your CV, you decide what to 
 - **Review.** After each interview: what was asked, which job skills came up, how much of your CV was used, and an AI coaching summary on request.
 - **Many languages.** 34 interview languages, with a separate language for the answers.
 - **Three ways to listen.** The web app, a Chrome extension for browser tabs, and a desktop app for Zoom, Teams and other apps. Phone and in-person interviews use your microphone.
-- **Keeps working.** If one AI provider fails the next is tried (AgentRouter, then OpenAI, then Gemini). If none works you are told plainly; nothing is faked.
+- **Keeps working.** If one AI provider fails the next is tried (your own gateway if set, then OpenAI, then Gemini). If none works you are told plainly; nothing is faked.
 
 ## How the pieces fit
 
@@ -61,13 +61,16 @@ For a quick start without Postgres, set `DATABASE_URL=sqlite+aiosqlite:///./stor
 
 ### Keys (`backend/.env`)
 
+The easiest setup needs only an OpenAI key and/or a Gemini key:
+
 | You want | Set |
 |---|---|
-| Answers | `LLM_API_KEY` (AgentRouter or any OpenAI-compatible API) |
-| A backup if that fails | `OPENAI_API_KEY`, then `GEMINI_API_KEY` (tried in that order, both optional) |
-| Speech to text | `STT_PROVIDER=deepgram` and `DEEPGRAM_API_KEY` |
+| Answers | `OPENAI_API_KEY` and/or `GEMINI_API_KEY`. They are tried in that order, so if one fails the other answers. (`LLM_API_KEY` is for AgentRouter or any other OpenAI-compatible service and is tried first if set.) |
+| Speech to text | Nothing extra. The OpenAI key is reused for Whisper, or the Gemini key if there is no OpenAI key. For the fastest transcription add `STT_PROVIDER=deepgram` and `DEEPGRAM_API_KEY`. |
 
-Keys stay on the server and are never sent to the browser. See what the server can use at `http://localhost:8000/v1/health` (the `ai` section). To try the answers with your own key before an interview: `uv --directory backend run python -m scripts.try_answers`.
+A key that is rejected (401) is skipped for ten minutes, so one bad key does not slow every answer. Keys stay on the server and are never sent to the browser.
+
+Check your keys before an interview: `uv --directory backend run python -m scripts.try_answers`. It tests each provider, says what is wrong with any that fail, and prints sample answers. You can also see what the server can use at `http://localhost:8000/v1/health` (the `ai` section).
 
 ### Use it
 

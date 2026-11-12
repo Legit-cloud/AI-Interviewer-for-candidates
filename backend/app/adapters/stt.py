@@ -203,21 +203,34 @@ class STTProviderAdapter:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
 
+    def _whisper_key(self) -> str | None:
+        """The key for OpenAI-style transcription. STT_API_KEY wins; for OpenAI itself the OpenAI key is reused."""
+        s = self.settings
+        if s.stt_api_key:
+            return s.stt_api_key
+        if s.openai_api_key and s.stt_base_url.startswith("https://api.openai.com"):
+            return s.openai_api_key
+        return None
+
     @property
     def active_provider(self) -> str:
         if "PYTEST_CURRENT_TEST" in os.environ or self.settings.env == "test":
             return "offline"
-        if self.settings.stt_provider == "deepgram" and self.settings.deepgram_api_key:
+        s = self.settings
+        if s.stt_provider == "deepgram" and s.deepgram_api_key:
             return "deepgram"
-        if self.settings.deepgram_api_key and self.settings.stt_provider == "offline":
-            return "deepgram"
-        if self.settings.stt_provider == "gemini":
-            return "gemini" if self.settings.gemini_api_key else "offline"
-        if self.settings.stt_provider == "openai_compatible":
-            if self.settings.stt_api_key:
+        if s.stt_provider == "gemini":
+            return "gemini" if s.gemini_api_key else "offline"
+        if s.stt_provider == "openai_compatible":
+            if self._whisper_key():
                 return "openai_compatible"
-            return "gemini" if self.settings.gemini_api_key else "offline"
-        if self.settings.gemini_api_key:
+            return "gemini" if s.gemini_api_key else "offline"
+        # Nothing chosen: use the best key that is there. Deepgram streams (fastest), then OpenAI Whisper, then Gemini.
+        if s.deepgram_api_key:
+            return "deepgram"
+        if self._whisper_key():
+            return "openai_compatible"
+        if s.gemini_api_key:
             return "gemini"
         return "offline"
 
@@ -235,7 +248,7 @@ class STTProviderAdapter:
 
     async def _transcribe_openai_compatible(self, wav_bytes: bytes, language: str) -> str | None:
         url = f"{self.settings.stt_base_url.rstrip('/')}/audio/transcriptions"
-        headers = {"Authorization": f"Bearer {self.settings.stt_api_key}"}
+        headers = {"Authorization": f"Bearer {self._whisper_key()}"}
         lang_code = language_code(language)
         try:
             async with httpx.AsyncClient(timeout=20.0) as client:
@@ -258,13 +271,8 @@ class STTProviderAdapter:
             from google.genai import types
 
             client = genai.Client(api_key=self.settings.gemini_api_key)
-            for model in (
-                "gemini-3.5-flash-lite",
-                "gemini-3.5-flash",
-                "gemini-3.8-flash",
-                "gemini-3.7-flash",
-                "gemini-3.1-flash-lite",
-            ):
+            models = [self.settings.gemini_model, "gemini-2.5-flash", "gemini-2.0-flash"]
+            for model in dict.fromkeys(m for m in models if m):
                 try:
                     response = await client.aio.models.generate_content(
                         model=model,
