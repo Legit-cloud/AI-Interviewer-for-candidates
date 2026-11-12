@@ -60,6 +60,14 @@ class FakeLLM:
 
 
 @pytest.fixture(autouse=True)
+async def fresh_rate_limits() -> None:
+    """The limiter is in memory and shared by the whole run; without this, a long run starts refusing signups."""
+    from app.core.rate_limit import rate_limiter
+
+    await rate_limiter.reset()
+
+
+@pytest.fixture(autouse=True)
 def fake_llm(monkeypatch) -> FakeLLMState:
     state = FakeLLMState()
     monkeypatch.setattr("app.modules.sessions.grounding.get_llm_adapter", lambda: FakeLLM(state))

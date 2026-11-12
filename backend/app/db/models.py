@@ -259,6 +259,27 @@ class PairingCode(UUIDPrimaryKeyMixin, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
+class MockInterview(UUIDPrimaryKeyMixin, Base):
+    """A practice interview: questions Vren asks, the user's answers, and the coaching on each."""
+
+    __tablename__ = "mock_interviews"
+    __table_args__ = (Index("ix_mock_interviews_user_created", "user_id", "created_at"),)
+
+    user_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    job_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("job_descriptions.id", ondelete="SET NULL"), nullable=True
+    )
+    interview_type: Mapped[str] = mapped_column(String(60), default="Behavioural", nullable=False)
+    title: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    state: Mapped[str] = mapped_column(String(16), default="active", nullable=False)  # active | finished
+    turns: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, default=list, nullable=False)
+    summary: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class SessionNote(Base):
     __tablename__ = "session_notes"
 

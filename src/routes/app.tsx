@@ -10,6 +10,7 @@ import { BriefcaseIcon } from "@phosphor-icons/react/Briefcase";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { BroadcastIcon } from "@phosphor-icons/react/Broadcast";
 import { GearIcon } from "@phosphor-icons/react/Gear";
+import { MicrophoneIcon } from "@phosphor-icons/react/Microphone";
 import { PlayCircleIcon } from "@phosphor-icons/react/PlayCircle";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { SignOutIcon } from "@phosphor-icons/react/SignOut";
@@ -41,6 +42,7 @@ const nav = [
   { to: "/app", label: "Dashboard", icon: SquaresFourIcon, exact: true },
   { to: "/app/profile", label: "Profile", icon: UserIcon },
   { to: "/app/jobs", label: "Jobs", icon: BriefcaseIcon },
+  { to: "/app/mock", label: "Practice", icon: MicrophoneIcon },
   { to: "/app/live", label: "Live interview", icon: BroadcastIcon },
   { to: "/app/sessions", label: "Sessions", icon: ClockCounterClockwiseIcon },
   { to: "/app/settings", label: "Settings", icon: GearIcon },

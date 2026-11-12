@@ -30,6 +30,7 @@ from app.db.models import (
     UserConsent,
 )
 from app.modules.sessions.grounding import generate_answer
+from app.modules.sessions.review import build_review
 from app.modules.sessions.retention import purge_expired_transcripts
 from app.modules.sessions.schemas import (
     CleanupExpiredOut,
@@ -507,6 +508,45 @@ async def create_session_suggestion(
         code=suggestion.code or "",
         feedback=suggestion.feedback,  # type: ignore[arg-type]
     )
+
+
+@router.post(
+    "/{session_id}/review",
+    response_model=SessionOut,
+    dependencies=[Depends(rate_limit("session_review", 20, 3600))],
+)
+async def write_session_review(
+    session_id: UUID,
+    user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionOut:
+    """Builds (or rebuilds) the review: always the numbers, and the coaching summary when the AI is available."""
+    row = await _get_owned_session(session_id, user.id, db)
+    suggestions = (
+        await db.execute(
+            select(GeneratedSuggestion).where(GeneratedSuggestion.session_id == row.id).order_by(GeneratedSuggestion.created_at.asc())
+        )
+    ).scalars().all()
+    segments = (
+        await db.execute(select(TranscriptSegment).where(TranscriptSegment.session_id == row.id))
+    ).scalars().all()
+    job = await db.get(JobDescription, row.job_id) if row.job_id else None
+    experiences = (
+        await db.execute(select(CandidateExperience).where(CandidateExperience.user_id == user.id))
+    ).scalars().all()
+
+    review = await build_review(row, suggestions, segments, job, experiences)
+    row.snapshot = {**(row.snapshot or {}), "review": review}
+    ai = review.get("ai")
+    if ai:
+        row.strengths = ai["strengths"] or list(row.strengths or [])
+        row.improvements = ai["improvements"] or list(row.improvements or [])
+    gaps = review["stats"]["skills_not_covered"]
+    if gaps:
+        row.missed_evidence = [f"“{g}” never came up" for g in gaps[:5]]
+    await db.commit()
+    await db.refresh(row)
+    return await _build_session_out(row, db)
 
 
 @router.patch("/{session_id}", response_model=SessionOut)

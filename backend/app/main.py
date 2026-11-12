@@ -19,6 +19,7 @@ from app.modules.auth.router import router as auth_router
 from app.modules.documents.router import router as documents_router
 from app.modules.jobs.router import router as jobs_router
 from app.modules.live.router import router as live_router
+from app.modules.mock.router import router as mock_router
 from app.modules.pairing.router import router as pairing_router
 from app.modules.preparation.router import router as preparation_router
 from app.modules.profile.router import router as profile_router
@@ -97,6 +98,7 @@ app.include_router(sessions_router)
 app.include_router(export_router)
 app.include_router(live_router)
 app.include_router(pairing_router)
+app.include_router(mock_router)
 
 
 @app.get("/v1/health", tags=["system"])

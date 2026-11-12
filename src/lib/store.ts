@@ -157,6 +157,7 @@ export interface PrepConfig {
 }
 export type SuggestionFeedback = "useful" | "not_useful" | "incorrect";
 export interface SessionQuestion {
+  code?: string | undefined;
   id: string;
   q: string;
   type: string;
@@ -172,7 +173,31 @@ export interface TranscriptLine {
   speaker: "Interviewer" | "You";
   text: string;
 }
+export interface SessionReview {
+  generatedAt: string;
+  aiAvailable: boolean;
+  usedTranscript: boolean;
+  stats: {
+    questions: number;
+    byType: Record<string, number>;
+    answersFromCv: number;
+    answersDirect: number;
+    requiredSkills: string[];
+    skillsCovered: string[];
+    skillsNotCovered: string[];
+    cvNotUsed: string[];
+  };
+  ai: {
+    summary: string;
+    strengths: string[];
+    improvements: string[];
+    perQuestion: { index: number; note: string }[];
+    nextSteps: string[];
+  } | null;
+}
+
 export interface Session {
+  review?: SessionReview | undefined;
   id: string;
   date: string;
   jobId: string;
@@ -455,6 +480,51 @@ function mapJobDto(j: BackendJobDto): Job {
   };
 }
 
+function mapReview(raw: unknown): SessionReview | undefined {
+  const r = raw as
+    | {
+        generated_at?: string;
+        ai_available?: boolean;
+        used_transcript?: boolean;
+        stats?: Record<string, unknown>;
+        ai?: {
+          summary: string;
+          strengths: string[];
+          improvements: string[];
+          per_question: { index: number; note: string }[];
+          next_steps: string[];
+        } | null;
+      }
+    | undefined;
+  if (!r || !r.stats) return undefined;
+  const st = r.stats as Record<string, never>;
+  const list = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : []);
+  return {
+    generatedAt: r.generated_at ?? "",
+    aiAvailable: r.ai_available === true,
+    usedTranscript: r.used_transcript === true,
+    stats: {
+      questions: Number(st["questions"] ?? 0),
+      byType: (st["by_type"] as unknown as Record<string, number>) ?? {},
+      answersFromCv: Number(st["answers_from_cv"] ?? 0),
+      answersDirect: Number(st["answers_direct"] ?? 0),
+      requiredSkills: list(st["required_skills"]),
+      skillsCovered: list(st["skills_covered"]),
+      skillsNotCovered: list(st["skills_not_covered"]),
+      cvNotUsed: list(st["cv_not_used"]),
+    },
+    ai: r.ai
+      ? {
+          summary: r.ai.summary,
+          strengths: r.ai.strengths ?? [],
+          improvements: r.ai.improvements ?? [],
+          perQuestion: r.ai.per_question ?? [],
+          nextSteps: r.ai.next_steps ?? [],
+        }
+      : null,
+  };
+}
+
 function mapSessionDto(s: BackendSessionDto): Session {
   const snap = s.snapshot || {};
   return {
@@ -488,6 +558,7 @@ function mapSessionDto(s: BackendSessionDto): Session {
       outline: q.outline,
       evidence: q.evidence_ref || null,
       caveat: q.caveat || undefined,
+      code: q.code || undefined,
       feedback: mapFeedbackFromBackend(q.feedback),
     })),
     transcript: s.transcript.map((t) => ({
@@ -498,6 +569,7 @@ function mapSessionDto(s: BackendSessionDto): Session {
     strengths: s.strengths,
     improvements: s.improvements,
     missedEvidence: s.missed_evidence,
+    review: mapReview(snap["review"]),
     notes: s.note || "",
   };
 }
@@ -1174,6 +1246,66 @@ export interface PairingCode {
 }
 
 export type LiveConnection = "connecting" | "connected" | "reconnecting" | "closed";
+
+/* ------------------------------------------------------------------ */
+/* Mock interviews                                                     */
+/* ------------------------------------------------------------------ */
+
+export interface MockFeedback {
+  score: number;
+  did_well: string[];
+  improve: string[];
+  stronger_answer: string;
+  removed_claims: number;
+}
+export interface MockTurn {
+  index: number;
+  question: string;
+  kind: string;
+  answer: string | null;
+  feedback: MockFeedback | null;
+}
+export interface MockSummary {
+  overall: string;
+  strengths: string[];
+  fixes: string[];
+  practise: string[];
+  average_score: number;
+  answered: number;
+  asked: number;
+}
+export interface MockInterview {
+  id: string;
+  job_id: string | null;
+  title: string;
+  interview_type: string;
+  state: "active" | "finished";
+  turns: MockTurn[];
+  summary: MockSummary | null;
+  created_at: string;
+}
+
+export const mockApi = {
+  list: () => apiFetch<MockInterview[]>("/v1/mock"),
+  create: (jobId: string | null, interviewType: string, count: number) =>
+    apiFetch<MockInterview>("/v1/mock", {
+      method: "POST",
+      body: JSON.stringify({ job_id: jobId, interview_type: interviewType, count }),
+    }),
+  answer: (id: string, index: number, answer: string) =>
+    apiFetch<MockInterview>(`/v1/mock/${id}/turns/${index}/answer`, {
+      method: "POST",
+      body: JSON.stringify({ answer }),
+    }),
+  finish: (id: string) => apiFetch<MockInterview>(`/v1/mock/${id}/finish`, { method: "POST" }),
+  remove: (id: string) => apiFetch<void>(`/v1/mock/${id}`, { method: "DELETE" }),
+};
+
+/** Writes the review: always the numbers, and the coaching summary when the AI is available. */
+export async function writeSessionReview(sessionId: string): Promise<void> {
+  await apiFetch(`/v1/sessions/${sessionId}/review`, { method: "POST" });
+  await hydrateFromBackend();
+}
 
 /** Ends a session from outside the live page (for example one left running in another tab). */
 export async function endSessionById(sessionId: string): Promise<void> {
