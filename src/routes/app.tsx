@@ -41,8 +41,7 @@ const nav = [
   { to: "/app", label: "Dashboard", icon: SquaresFourIcon, exact: true },
   { to: "/app/profile", label: "Profile", icon: UserIcon },
   { to: "/app/jobs", label: "Jobs", icon: BriefcaseIcon },
-  { to: "/app/prepare", label: "Prepare", icon: PlayCircleIcon },
-  { to: "/app/live", label: "Live", icon: BroadcastIcon },
+  { to: "/app/live", label: "Live interview", icon: BroadcastIcon },
   { to: "/app/sessions", label: "Sessions", icon: ClockCounterClockwiseIcon },
   { to: "/app/settings", label: "Settings", icon: GearIcon },
 ] as const;
@@ -64,9 +63,9 @@ function AppLayout() {
           <Logo />
           <div className="flex items-center gap-1.5 md:hidden">
             <Button size="sm" variant="outline" asChild className="h-9 px-2.5 text-xs">
-              <Link to="/app/prepare">
+              <Link to="/app/live">
                 <PlusIcon className="size-3.5" aria-hidden="true" />
-                Prepare
+                Go live
               </Link>
             </Button>
             <Button
@@ -83,9 +82,9 @@ function AppLayout() {
 
         <div className="hidden px-4 pb-4 md:block">
           <Button className="w-full justify-start" size="sm" asChild>
-            <Link to="/app/prepare">
+            <Link to="/app/live">
               <PlayCircleIcon className="size-4" aria-hidden="true" />
-              Prepare interview
+              Go live
             </Link>
           </Button>
         </div>

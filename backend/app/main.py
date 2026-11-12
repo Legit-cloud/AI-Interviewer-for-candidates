@@ -110,6 +110,7 @@ async def health(db: AsyncSession = Depends(get_db)) -> dict[str, Any]:
         # Which AI pieces the server can actually use. Never includes keys.
         "ai": {
             "answers": get_llm_adapter().is_configured,
+            "providers": get_llm_adapter().provider_names(),
             "transcription": get_stt_adapter().active_provider,
         },
     }

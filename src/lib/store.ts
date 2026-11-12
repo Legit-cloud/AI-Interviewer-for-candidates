@@ -1,5 +1,4 @@
 // Frontend store synchronized with the FastAPI + PostgreSQL backend (/v1/*).
-// Demo mode (unauthenticated sample workspace) remains available for local preview.
 import { useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import {
@@ -225,7 +224,7 @@ export interface AppState {
 }
 
 /* ------------------------------------------------------------------ */
-/* Seed data (Demo Workspace)                                          */
+/* Local state                                                         */
 /* ------------------------------------------------------------------ */
 
 const KEY = "vren-state-v2";
@@ -245,95 +244,6 @@ export const defaultPreferences: Preferences = {
   productEmails: false,
 };
 
-export const sampleProfile = (name: string): Profile => ({
-  name,
-  headline: "Senior Product Designer",
-  summary:
-    "Product designer with six years across fintech and health products. Focused on onboarding, design systems, and research-led decisions.",
-  location: "Lagos, Nigeria",
-  language: "English",
-  roleFocus: "Product design",
-  experience: [
-    {
-      id: "e1",
-      role: "Senior Product Designer",
-      employer: "Paystack",
-      dates: "2022 - Present",
-      summary:
-        "Led the redesign of merchant onboarding; cut drop-off from 41% to 23% in one quarter after 12 merchant interviews.",
-      origin: "extracted",
-      confidence: 0.92,
-      source: "Page 1 - Experience",
-    },
-    {
-      id: "e2",
-      role: "Product Designer",
-      employer: "Helium Health",
-      dates: "2019 - 2022",
-      summary:
-        "Designed a clinician scheduling tool now used by 300+ clinics across three countries.",
-      origin: "extracted",
-      confidence: 0.81,
-      source: "Page 1 - Experience",
-    },
-    {
-      id: "e3",
-      role: "Design Intern",
-      employer: "Andela",
-      dates: "2018 - 2019",
-      summary: "",
-      origin: "missing",
-      confidence: 0.44,
-      source: "Page 2 - Experience",
-    },
-  ],
-  education: [
-    {
-      id: "ed1",
-      school: "University of Lagos",
-      degree: "B.Sc. Computer Science",
-      dates: "2014 - 2018",
-      origin: "extracted",
-      confidence: 0.95,
-    },
-  ],
-  projects: [
-    {
-      id: "p1",
-      name: "Merchant design system",
-      summary: "Built and documented 60+ components adopted by four product squads.",
-      origin: "extracted",
-    },
-  ],
-  certifications: [
-    {
-      id: "c1",
-      name: "Google UX Design Certificate",
-      issuer: "Google",
-      year: "2020",
-      origin: "extracted",
-    },
-  ],
-  skills: [
-    { name: "Figma", origin: "extracted" },
-    { name: "User research", origin: "extracted" },
-    { name: "Design systems", origin: "extracted" },
-    { name: "Prototyping", origin: "extracted" },
-    { name: "Stakeholder leadership", origin: "verified" },
-    { name: "SQL", origin: "missing" },
-  ],
-  documents: [
-    {
-      id: "d1",
-      name: "CV_2026.pdf",
-      uploadedAt: now(),
-      status: "processed",
-      sizeKb: 184,
-      pages: 2,
-    },
-  ],
-});
-
 const emptyProfile = (name: string, language: string, roleFocus: string): Profile => ({
   name,
   headline: "",
@@ -348,193 +258,6 @@ const emptyProfile = (name: string, language: string, roleFocus: string): Profil
   skills: [],
   documents: [],
 });
-
-const seedJobs = (): Job[] => [
-  {
-    id: "j1",
-    title: "Lead Product Designer",
-    company: "Flutterwave",
-    updatedAt: daysAgo(1),
-    archived: false,
-    source: "paste",
-    seniority: "Lead",
-    description:
-      "Lead design for merchant payments. Own the design system and partner with PMs on discovery across onboarding and checkout.",
-    responsibilities: [
-      "Own the merchant payments design system",
-      "Partner with product managers on discovery",
-      "Mentor a team of four designers",
-    ],
-    required: ["Design systems", "User research", "Fintech experience", "Stakeholder leadership"],
-    preferred: ["SQL", "Mentoring"],
-    themes: ["Leadership", "Onboarding funnels", "Cross-team alignment"],
-  },
-  {
-    id: "j2",
-    title: "Senior Product Designer, Growth",
-    company: "Moniepoint",
-    updatedAt: daysAgo(4),
-    archived: false,
-    source: "upload",
-    seniority: "Senior",
-    description: "Drive activation and retention experiments for the business banking app.",
-    responsibilities: ["Design and ship growth experiments", "Work with data on funnel analysis"],
-    required: ["Prototyping", "Experimentation", "Figma"],
-    preferred: ["SQL"],
-    themes: ["Experiment design", "Activation metrics"],
-  },
-  {
-    id: "j3",
-    title: "Product Designer",
-    company: "Kuda",
-    updatedAt: daysAgo(40),
-    archived: true,
-    source: "paste",
-    seniority: "Mid",
-    description: "Design savings and budgeting features.",
-    responsibilities: ["Design savings features"],
-    required: ["Figma", "User research"],
-    preferred: [],
-    themes: ["Consumer finance"],
-  },
-];
-
-const baseSnapshot = {
-  interviewType: "Behavioural",
-  language: "English",
-  length: "Brief",
-  style: "Structured",
-  framework: "STAR",
-  retainTranscript: true,
-  notes: true,
-};
-
-const seedSessions = (): Session[] => [
-  {
-    id: "s1",
-    date: daysAgo(2),
-    jobId: "j1",
-    durationMin: 42,
-    state: "completed",
-    transcriptRetained: true,
-    reviewed: false,
-    snapshot: baseSnapshot,
-    notes: "",
-    questions: [
-      {
-        id: "q1",
-        q: "Tell me about a time you improved a key product metric.",
-        type: "Behavioural",
-        askedAt: "04:12",
-        framework: "STAR",
-        outline: [
-          "Situation: merchant onboarding drop-off sat at 41%",
-          "Action: ran 12 merchant interviews and rebuilt the flow",
-          "Result: drop-off fell to 23% within one quarter",
-        ],
-        evidence: "Paystack - merchant onboarding redesign",
-      },
-      {
-        id: "q2",
-        q: "How do you keep a design system adopted across teams?",
-        type: "Technical",
-        askedAt: "11:47",
-        framework: "Problem / approach / trade-off",
-        outline: [
-          "Problem: components drift when squads ship fast",
-          "Approach: contribution model with clear owners and office hours",
-          "Trade-off: slower first release, far less rework",
-        ],
-        evidence: "Merchant design system - 60+ components, four squads",
-        caveat: "Adoption numbers are not in your profile. Do not quote a figure.",
-      },
-      {
-        id: "q3",
-        q: "Have you written SQL to analyse funnels yourself?",
-        type: "Technical",
-        askedAt: "23:05",
-        framework: "Direct",
-        outline: [
-          "Answer the approach first: group step events by user_id and session timestamp to spot the biggest drop-off step",
-          "Tie to your workflow: explain how you already define funnel events with analysts and iterate on onboarding flows",
-          "Close clearly: mention you're comfortable reading/editing queries when needed to move fast",
-        ],
-        evidence: null,
-      },
-    ],
-    transcript: [
-      {
-        t: "04:12",
-        speaker: "Interviewer",
-        text: "Tell me about a time you improved a key product metric.",
-      },
-      {
-        t: "04:20",
-        speaker: "You",
-        text: "At Paystack, merchant onboarding had a 41% drop-off. I ran twelve interviews with merchants...",
-      },
-      {
-        t: "11:47",
-        speaker: "Interviewer",
-        text: "How do you keep a design system adopted across teams?",
-      },
-      {
-        t: "11:55",
-        speaker: "You",
-        text: "We set up a contribution model where each squad had an owner...",
-      },
-      {
-        t: "23:05",
-        speaker: "Interviewer",
-        text: "Have you written SQL to analyse funnels yourself?",
-      },
-    ],
-    strengths: [
-      "Quantified the onboarding result clearly",
-      "Answered the SQL question honestly instead of overstating",
-    ],
-    improvements: ["Lead with the outcome before the context", "Name the stakeholders you aligned"],
-    missedEvidence: [
-      "Helium Health scheduling tool (300+ clinics) fits the scale question at 31:10",
-    ],
-  },
-  {
-    id: "s2",
-    date: daysAgo(6),
-    jobId: "j2",
-    durationMin: 11,
-    state: "interrupted",
-    transcriptRetained: false,
-    reviewed: false,
-    snapshot: { ...baseSnapshot, retainTranscript: false, interviewType: "General" },
-    notes: "",
-    questions: [
-      {
-        id: "q4",
-        q: "Walk me through your portfolio.",
-        type: "General",
-        askedAt: "02:30",
-        framework: "None",
-        outline: ["Open with the Paystack onboarding case", "Close with the design system"],
-        evidence: "Paystack - merchant onboarding redesign",
-      },
-    ],
-    transcript: [],
-    strengths: [],
-    improvements: [],
-    missedEvidence: [],
-  },
-];
-
-const seedConsents = (): ConsentEvent[] => [
-  { id: "c1", at: daysAgo(14), label: "Terms and privacy accepted", detail: "Version 1.0" },
-  {
-    id: "c2",
-    at: daysAgo(14),
-    label: "Transcript retention off by default",
-    detail: "Default setting",
-  },
-];
 
 const empty: AppState = {
   user: null,
@@ -1012,22 +735,6 @@ export const auth = {
   verify() {
     setState((s) => (s.user ? { ...s, user: { ...s.user, verified: true } } : s));
   },
-  /** Demo sign-in loads a populated sample workspace without backend auth tokens. */
-  signIn(email: string) {
-    setStoredTokens(null);
-    setState((s) =>
-      s.user?.email === email
-        ? s
-        : {
-            ...empty,
-            user: { email, verified: true, onboarded: true, createdAt: daysAgo(14) },
-            profile: sampleProfile(titleCase(email.split("@")[0] ?? "Candidate")),
-            jobs: seedJobs(),
-            sessions: seedSessions(),
-            consents: seedConsents(),
-          },
-    );
-  },
   /** Changes the password. The server signs out other sessions and returns fresh tokens for this one. */
   async changePassword(currentPassword: string, newPassword: string): Promise<void> {
     const tokens = await apiFetch<AuthTokens>("/v1/auth/change-password", {
@@ -1067,10 +774,7 @@ export async function completeOnboarding(
   setState((s) => ({
     ...s,
     user: s.user ? { ...s.user, onboarded: true } : s.user,
-    profile:
-      withCv && !hasAuthSession()
-        ? { ...sampleProfile(name), language, roleFocus }
-        : emptyProfile(name, language, roleFocus),
+    profile: emptyProfile(name, language, roleFocus),
     preferences: { ...s.preferences, language },
   }));
 
@@ -1264,35 +968,19 @@ export async function addDocument(file: {
     }
   }
 
-  // Fallback simulation for demo workspace without backend tokens
-  setTimeout(() => {
-    setState((s) => {
-      if (!s.profile) return s;
-      const sample = sampleProfile(s.profile.name);
-      const isEmpty = s.profile.experience.length === 0;
-      return {
-        ...s,
-        profile: {
-          ...(isEmpty
-            ? {
-                ...s.profile,
-                headline: s.profile.headline || sample.headline,
-                summary: s.profile.summary || sample.summary,
-                experience: sample.experience,
-                education: sample.education,
-                projects: sample.projects,
-                certifications: sample.certifications,
-                skills: sample.skills,
-              }
-            : s.profile),
-          documents: s.profile.documents.map((d) =>
-            d.id === tempId ? { ...d, status: "processed" as const, pages: 2 } : d,
-          ),
-        },
-      };
-    });
-  }, 1500);
-  return tempId;
+  // Without a signed-in session nothing can be uploaded. Remove the placeholder instead of pretending.
+  setState((st) =>
+    st.profile
+      ? {
+          ...st,
+          profile: {
+            ...st.profile,
+            documents: st.profile.documents.filter((d) => d.id !== tempId),
+          },
+        }
+      : st,
+  );
+  throw new Error("Sign in again to upload your CV.");
 }
 
 export function deleteDocument(id: string) {
@@ -1457,113 +1145,6 @@ export function jobCompleteness(job: Job) {
 /* Preparation & sessions                                              */
 /* ------------------------------------------------------------------ */
 
-export function savePrep(cfg: PrepConfig) {
-  setState((s) => ({ ...s, prep: { ...cfg, savedAt: now() } }));
-  if (hasAuthSession()) {
-    void writeThrough("/v1/preparation/preferences", {
-      method: "PATCH",
-      body: JSON.stringify({
-        language: cfg.language,
-        length: cfg.length,
-        style: cfg.style,
-        framework: cfg.framework,
-        retain_transcript_default: cfg.retainTranscript,
-        notes_default: cfg.notes,
-      }),
-    });
-  }
-}
-
-export async function createPracticeSessionAsync(job: Job, cfg: PrepConfig): Promise<string> {
-  if (hasAuthSession()) {
-    const created = await apiFetch<BackendSessionDto>("/v1/sessions", {
-      method: "POST",
-      body: JSON.stringify({
-        job_id: job.id,
-        state: "listening",
-        transcript_retained: cfg.retainTranscript,
-      }),
-    });
-    await apiFetch(`/v1/sessions/${created.id}/suggest`, {
-      method: "POST",
-      body: JSON.stringify({
-        question_text: `Walk me through a project relevant to ${job.title}.`,
-        question_type: cfg.interviewType,
-        asked_at: "03:18",
-      }),
-    });
-    await apiFetch(`/v1/sessions/${created.id}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        state: "ended",
-        duration_min: 18,
-      }),
-    });
-    await hydrateFromBackend();
-    return created.id;
-  }
-
-  const id = uid();
-  const firstExp = getState().profile?.experience[0];
-  setState((s) => ({
-    ...s,
-    sessions: [
-      {
-        id,
-        date: now(),
-        jobId: job.id,
-        durationMin: 18,
-        state: "completed",
-        transcriptRetained: cfg.retainTranscript,
-        reviewed: false,
-        snapshot: {
-          interviewType: cfg.interviewType,
-          language: cfg.language,
-          length: cfg.length,
-          style: cfg.style,
-          framework: cfg.framework,
-          retainTranscript: cfg.retainTranscript,
-          notes: cfg.notes,
-        },
-        questions: [
-          {
-            id: uid(),
-            q: `Walk me through a project relevant to ${job.title}.`,
-            type: cfg.interviewType,
-            askedAt: "03:18",
-            framework: cfg.framework,
-            outline: firstExp?.summary
-              ? [
-                  `Context: ${firstExp.role} at ${firstExp.employer}`,
-                  `Action & outcome: ${firstExp.summary}`,
-                ]
-              : [
-                  "Describe a project directly from your experience",
-                  "Focus on measurable outcomes",
-                ],
-            evidence: firstExp ? `${firstExp.employer} - ${firstExp.role}` : null,
-          },
-        ],
-        transcript: cfg.retainTranscript
-          ? [
-              {
-                t: "03:18",
-                speaker: "Interviewer",
-                text: `Walk me through a project relevant to ${job.title}.`,
-              },
-            ]
-          : [],
-        strengths: ["Grounded answer in verified background"],
-        improvements: ["Keep opening context under 20 seconds"],
-        missedEvidence: [],
-        notes: "",
-      },
-      ...s.sessions,
-    ],
-  }));
-  return id;
-}
-
 export interface LiveServerEvent {
   event_id: string;
   session_id: string;
@@ -1621,7 +1202,12 @@ const LIVE_MAX_RECONNECTS = 6;
  * If the socket drops it reconnects and asks the server to replay what it missed.
  */
 export async function startLiveSession(
-  opts: { jobId: string | null; retainTranscript: boolean; resumeSessionId?: string },
+  opts: {
+    jobId: string | null;
+    retainTranscript: boolean;
+    interviewType?: string;
+    resumeSessionId?: string;
+  },
   onEvent: (event: LiveServerEvent) => void,
   onConnection: (state: LiveConnection) => void,
 ): Promise<LiveSessionHandle> {
@@ -1635,6 +1221,7 @@ export async function startLiveSession(
         job_id: opts.jobId,
         state: "ready",
         transcript_retained: opts.retainTranscript,
+        interview_type: opts.interviewType,
         rules_acknowledged: true,
       }),
     });

@@ -646,7 +646,7 @@ function Landing() {
               </Button>
               <Button size="lg" variant="outline" asChild>
                 <Link to="/auth" search={{ mode: "signin" }}>
-                  Try demo workspace
+                  Sign in
                 </Link>
               </Button>
             </div>

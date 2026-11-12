@@ -7,9 +7,15 @@ import { PageTransition } from "@/components/motion";
 import { apiFetch } from "@/lib/api";
 import { PageHeader, Status } from "@/components/vren";
 import {
+  ANSWER_LENGTHS,
   endSessionById,
+  FRAMEWORKS,
   hydrateFromBackend,
+  INTERVIEW_TYPES,
+  matchJob,
+  RESPONSE_STYLES,
   startLiveSession,
+  updatePreferences,
   useAppState,
   type LiveAnswer,
   type LiveConnection,
@@ -19,6 +25,9 @@ import {
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/app/live")({
+  validateSearch: (s: Record<string, unknown>): { job?: string | undefined } => ({
+    job: typeof s["job"] === "string" ? (s["job"] as string) : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Live session | Vren AI" },
@@ -59,12 +68,50 @@ function useCountdown(expiresAt: string | undefined): number {
   return left;
 }
 
+function Segmented({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  options: readonly string[];
+  onChange: (v: string) => void;
+}) {
+  return (
+    <fieldset className="space-y-1.5">
+      <legend className="text-sm font-medium">{label}</legend>
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((o) => (
+          <button
+            key={o}
+            type="button"
+            aria-pressed={value === o}
+            onClick={() => onChange(o)}
+            className={cn(
+              "rounded-lg border px-3 py-1.5 text-sm transition-colors",
+              value === o
+                ? "border-primary bg-primary-soft/80 font-medium text-primary"
+                : "bg-card text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+            )}
+          >
+            {o}
+          </button>
+        ))}
+      </div>
+    </fieldset>
+  );
+}
+
 function LiveSessionPage() {
-  const { jobs, preferences, sessions } = useAppState();
+  const { jobs, preferences, sessions, profile } = useAppState();
+  const { job: jobParam } = Route.useSearch();
   const activeJobs = jobs.filter((j) => !j.archived);
 
   const [phase, setPhase] = useState<Phase>("setup");
-  const [jobId, setJobId] = useState<string>("");
+  const [jobId, setJobId] = useState<string>(jobParam ?? "");
+  const [interviewType, setInterviewType] = useState<string>(INTERVIEW_TYPES[0]);
   const [retain, setRetain] = useState(preferences.retainTranscriptDefault);
   const [ackRules, setAckRules] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -194,6 +241,7 @@ function LiveSessionPage() {
         {
           jobId: jobId || null,
           retainTranscript: retain,
+          interviewType,
           ...(resumeSessionId ? { resumeSessionId } : {}),
         },
         onEvent,
@@ -315,6 +363,73 @@ function LiveSessionPage() {
                 ))}
               </select>
             </label>
+
+            {(() => {
+              const job = jobs.find((j) => j.id === jobId);
+              const gaps = job ? matchJob(job, profile).filter((m) => m.state === "gap").length : 0;
+              const checks = [
+                {
+                  ok: (profile?.experience.length ?? 0) > 0,
+                  text: "Your CV is added",
+                  fix: "Add your experience so answers use your real background.",
+                },
+                {
+                  ok: !!job && job.required.length > 0,
+                  text: "A job is chosen",
+                  fix: "Pick a job so answers fit the role.",
+                },
+              ];
+              return (
+                <ul className="space-y-1 text-sm" aria-label="Before you start">
+                  {checks.map((c) => (
+                    <li key={c.text} className={c.ok ? "text-muted-foreground" : "text-copper"}>
+                      {c.ok ? "✓ " : "• "}
+                      {c.ok ? c.text : c.fix}
+                    </li>
+                  ))}
+                  {gaps > 0 && job && (
+                    <li className="text-muted-foreground">
+                      {gaps} job {gaps === 1 ? "requirement is" : "requirements are"} not in your
+                      CV.{" "}
+                      <Link
+                        to="/app/jobs/$jobId"
+                        params={{ jobId: job.id }}
+                        className="font-medium text-primary hover:underline"
+                      >
+                        See which
+                      </Link>
+                    </li>
+                  )}
+                </ul>
+              );
+            })()}
+
+            <div className="space-y-4">
+              <Segmented
+                label="Interview type"
+                value={interviewType}
+                options={INTERVIEW_TYPES}
+                onChange={setInterviewType}
+              />
+              <Segmented
+                label="Answer length"
+                value={preferences.length}
+                options={ANSWER_LENGTHS}
+                onChange={(v) => updatePreferences({ length: v })}
+              />
+              <Segmented
+                label="Answer style"
+                value={preferences.style}
+                options={RESPONSE_STYLES}
+                onChange={(v) => updatePreferences({ style: v })}
+              />
+              <Segmented
+                label="Story format"
+                value={preferences.framework}
+                options={FRAMEWORKS}
+                onChange={(v) => updatePreferences({ framework: v })}
+              />
+            </div>
 
             <div className="space-y-3 rounded-lg border bg-background p-4 text-sm">
               <p className="font-medium">What gets captured</p>

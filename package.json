@@ -14,7 +14,12 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "ext:install": "npm --prefix extension install",
+    "ext:build": "npm --prefix extension run build",
+    "test:api": "uv --directory backend run pytest -q",
+    "test:ext": "npm --prefix extension test",
+    "test:all": "npm test && npm run test:api && npm run test:ext"
   },
   "overrides": {
     "rolldown": "1.2.1"

@@ -72,8 +72,8 @@ function Dashboard() {
         description="Review your verified context, check job gaps, and configure preparation before opening the live companion."
         actions={
           <Button asChild>
-            <Link to="/app/prepare">
-              Prepare an interview
+            <Link to="/app/live">
+              Start a live interview
               <ArrowRightIcon className="size-4" aria-hidden="true" />
             </Link>
           </Button>
@@ -83,7 +83,7 @@ function Dashboard() {
       {!hasContent && (
         <EmptyState
           icon={<FileTextIcon className="size-5" aria-hidden="true" />}
-          title="Add a CV or create a job description to prepare your first session."
+          title="Add a CV or create a job description to start your first session."
           description="Your profile stays private and reusable across every application."
         >
           <Button size="sm" variant="outline" asChild>
@@ -227,10 +227,10 @@ function Dashboard() {
               </Link>
             ) : (
               <Link
-                to="/app/prepare"
+                to="/app/live"
                 className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
               >
-                Prepare now
+                Start now
                 <ArrowRightIcon className="size-3.5" aria-hidden="true" />
               </Link>
             )}
