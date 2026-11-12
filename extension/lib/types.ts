@@ -115,7 +115,13 @@ export interface OffscreenControlMessage {
   target: "offscreen";
   type: "OFFSCREEN_PAUSE" | "OFFSCREEN_RESUME" | "OFFSCREEN_STOP" | "OFFSCREEN_SNAPSHOT";
 }
-export type OffscreenMessage = OffscreenStartMessage | OffscreenControlMessage;
+export interface OffscreenImageMessage {
+  target: "offscreen";
+  type: "OFFSCREEN_IMAGE";
+  image: string;
+  mime: string;
+}
+export type OffscreenMessage = OffscreenStartMessage | OffscreenControlMessage | OffscreenImageMessage;
 
 export type PanelMessage =
   | { target: "panel"; type: "SERVER_EVENT"; event: ServerEvent }

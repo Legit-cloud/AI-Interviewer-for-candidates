@@ -40,6 +40,7 @@ KIND_GUIDANCE = {
     "Situational": "Say what you would do and why, in the order you would actually do it. Name the one trade-off or risk you would watch.",
     "Role task": "Give the approach straight away, then the reasoning that shows you know the craft: the specific tools, checks or measures a practitioner would name, and one trade-off.",
     "General": "Answer the question asked in the first sentence. Then add one concrete detail that backs it up.",
+    "Coding": "Say the idea in plain words first, then what it costs (time and space) in one sentence. Name one edge case you would check.",
 }
 
 
@@ -50,6 +51,28 @@ def kind_guidance(question_type: str, question_text: str) -> str:
     if any(p in lower for p in ("why do you want", "why this company", "why this role", "why are you interested")):
         return "Be specific about this company and role using the job details given, and connect them to something real from the background. No flattery."
     return KIND_GUIDANCE.get(question_type, KIND_GUIDANCE["General"])
+
+
+CODE_MARKER = "CODE:"
+
+
+def code_instructions() -> str:
+    return (
+        "\n\nThis is a coding question. First write the spoken part: how you would solve it, in plain sentences, "
+        "then the time and space cost. Then on its own line write exactly "
+        f"{CODE_MARKER} and after it only the code: a working solution of at most 25 lines, in the language the "
+        "interviewer used (or Python if none was named), with no markdown fences and no commentary outside short comments."
+    )
+
+
+def split_code(text: str) -> tuple[str, str]:
+    """Separates the spoken answer from the code block the model was asked to put after `CODE:`."""
+    if CODE_MARKER not in text:
+        return text, ""
+    spoken, _, code = text.partition(CODE_MARKER)
+    code = re.sub(r"^\s*```[a-zA-Z0-9_+-]*\n?", "", code)
+    code = re.sub(r"\n?```\s*$", "", code).strip("\n")
+    return spoken, "\n".join(code.splitlines()[:40])
 
 
 # Style contrasts only. They show how it should sound; the model is told never to reuse their facts.

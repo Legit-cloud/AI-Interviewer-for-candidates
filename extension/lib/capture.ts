@@ -131,6 +131,11 @@ export class CaptureEngine {
     if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify(payload));
   }
 
+  /** Sends a screenshot of a question; the server reads it and answers. */
+  sendImage(imageB64: string, mime: string): void {
+    this.send({ type: "image.ask", image: imageB64, mime });
+  }
+
   pause(): void {
     this.paused = true;
     this.queue.clear();

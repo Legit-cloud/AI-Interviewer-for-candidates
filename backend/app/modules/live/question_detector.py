@@ -37,6 +37,8 @@ _PROMPT_CUES = (
     "what trade-offs",
     "how have you",
     "have you ever",
+    # coding tasks are usually phrased as instructions, not questions
+    "write a function", "write a program", "write some code", "write code", "write a query", "implement ", "code a ",
 )
 
 _STOPWORDS = {"the", "a", "an", "to", "of", "in", "on", "for", "with", "you", "your", "and", "or", "it", "is", "are"}
@@ -57,7 +59,13 @@ class DetectedQuestion:
     source: str = "heuristic"  # "heuristic" or "llm"
 
 
-QUESTION_KINDS = ("Behavioral", "Situational", "Role task", "General")
+QUESTION_KINDS = ("Behavioral", "Situational", "Role task", "Coding", "General")
+
+_CODING_CUES = (
+    "write a function", "write a program", "write some code", "write code", "write a query", "sql query", "implement ",
+    "algorithm", "leetcode", "time complexity", "space complexity", "big o", "linked list", "binary tree", "binary search",
+    "data structure", "pseudocode", "write a regex", "reverse a ", "debug this", "what does this code", "code a ", "two sum",
+)
 # Openers of small talk that never needs the model (checked only when there is no question mark or cue).
 _CHATTY_PREFIXES = (
     "sounds good", "thanks for", "thank you", "great", "perfect", "awesome", "nice to meet", "welcome",
@@ -82,6 +90,8 @@ class QuestionDetector:
         }
 
     def _classify(self, lower: str) -> str:
+        if any(p in lower for p in _CODING_CUES):
+            return "Coding"
         if any(p in lower for p in ("tell me about a time", "describe a time", "conflict", "disagree", "failure", "mistake", "proud of")):
             return "Behavioral"
         if any(p in lower for p in ("imagine ", "what would you do", "suppose ", "how would you handle")):

@@ -41,6 +41,7 @@ class AnswerResult:
     caveat: str = ""
     unsupported_claims: list[str] = field(default_factory=list)
     reason: str = ""
+    code: str = ""  # a short solution, for coding questions
 
 
 def _tokens(text: str) -> set[str]:
@@ -245,11 +246,16 @@ async def stream_answer(
 
     framework = choose_framework(prefs, question_type, question_text)
     ranked = rank_experiences(question_text, experiences)
+    coding = question_type == "Coding"
     budget = answer_style.budget_for(prefs.length)
+    if coding:  # the code carries the detail, so keep the spoken part short
+        budget = answer_style.Budget(min(budget.sentences, 4), min(budget.max_words, 80), budget.spoken)
     system_prompt, user_prompt = _build_prompts(
         question_text, question_type, prefs, framework, ranked, skills, job, recent_turns, budget
     )
-    max_tokens = int(budget.max_words * 2.2) + 80
+    if coding:
+        system_prompt += answer_style.code_instructions()
+    max_tokens = int(budget.max_words * 2.2) + 80 + (700 if coding else 0)
 
     collected: list[str] = []
     try:
@@ -265,7 +271,8 @@ async def stream_answer(
         yield ("done", AnswerResult(available=False, reason="AI_PROVIDER_ERROR"))
         return
 
-    lines = answer_style.clean_lines(_parse_bullets("".join(collected), limit=budget.sentences + 3), budget)
+    spoken_text, code = answer_style.split_code("".join(collected)) if coding else ("".join(collected), "")
+    lines = answer_style.clean_lines(_parse_bullets(spoken_text, limit=budget.sentences + 3), budget)
 
     # If the draft reads like generic AI text or coaching, rewrite it once, silently. The client already has the
     # streamed draft; the final answer replaces it.
@@ -282,9 +289,10 @@ async def stream_answer(
                 retry.append(chunk)
         except Exception:
             retry = []
-        redo = answer_style.clean_lines(_parse_bullets("".join(retry), limit=budget.sentences + 3), budget)
+        redo_text, redo_code = answer_style.split_code("".join(retry)) if coding else ("".join(retry), "")
+        redo = answer_style.clean_lines(_parse_bullets(redo_text, limit=budget.sentences + 3), budget)
         if redo and len(answer_style.style_issues(redo, budget).severe) < len(report.severe):
-            lines = redo
+            lines, code = redo, (redo_code or code)
 
     if not lines:
         yield ("done", AnswerResult(available=False, reason="AI_PROVIDER_ERROR"))
@@ -314,6 +322,7 @@ async def stream_answer(
             source_label=_source_label(kept, ranked, job),
             caveat="Some unverified details were removed from this answer." if removed else "",
             unsupported_claims=[r[:200] for r in removed],
+            code=code,
         ),
     )
 

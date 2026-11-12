@@ -40,12 +40,14 @@ from app.db.models import (
 from app.modules.live.question_detector import QuestionDetector
 from app.modules.live.question_llm import QuestionClassifier
 from app.modules.sessions.grounding import AnswerResult, stream_answer
+from app.modules.sessions.image_question import read_question_from_image
 from app.modules.sessions.router import finalize_session_row
 
 logger = logging.getLogger(__name__)
 
 DISPLAY_ALLOWED = {
     "client.heartbeat",
+    "image.ask",
     "session.pause",
     "session.resume",
     "session.stop",
@@ -115,6 +117,7 @@ class LiveSession:
         self._capture_db: AsyncSession | None = None
         self._answer_task: asyncio.Task[None] | None = None
         self._answer_qid = ""
+        self._image_task: asyncio.Task[None] | None = None
         # Detection and answering run in the background so audio and controls are never held up by the model.
         self._queue: asyncio.Queue[tuple[str, str, str, list[str]]] = asyncio.Queue(maxsize=20)
         self._worker: asyncio.Task[None] | None = None
@@ -270,6 +273,8 @@ class LiveSession:
             await self._set_paused(db, False)
         elif msg_type == "audio.frame":
             await self._audio_frame(db, msg)
+        elif msg_type == "image.ask":
+            self.ask_image(str(msg.get("image") or ""), str(msg.get("mime") or "image/png"))
         elif msg_type in ("audio.flush", "utterance.commit", "transcript.simulate"):
             await self._commit_or_flush(db, msg)
         elif msg_type == "session.stop":
@@ -527,11 +532,43 @@ class LiveSession:
                 return
             await self._generate_answer(sdb, row, question_id, text, kind, ts_label, started)
 
+    # ------------------------------------------------------------------ asking directly (screenshot, typed)
+    def ask_image(self, image_b64: str, mime: str) -> None:
+        """Reads a screenshot of a question or problem and answers it. Runs in the background."""
+        if self.stopped:
+            return
+        self._image_task = asyncio.create_task(self._read_image_and_ask(image_b64, mime))
+
+    async def _read_image_and_ask(self, image_b64: str, mime: str) -> None:
+        question = await read_question_from_image(image_b64, mime)
+        if question is None:
+            await self.emit(
+                "answer.unavailable",
+                question_id="",
+                reason="IMAGE_UNREADABLE",
+                message="Could not read that screenshot. Try a clearer one.",
+            )
+            return
+        await self.ask(question.text, question.kind, source="screenshot")
+
+    async def ask(self, text: str, kind: str, source: str = "typed") -> None:
+        """Answers a question that did not come from the audio. A newer question interrupts an older answer."""
+        if self.stopped:
+            return
+        question_id = f"q_{uuid4().hex[:10]}"
+        await self.emit("question.detected", question_id=question_id, kind=kind, text=text, fingerprint="", detection=source)
+        if self._answer_task and not self._answer_task.done():
+            self._answer_task.cancel()
+            await self.emit("answer.cancelled", question_id=self._answer_qid)
+        self._answer_qid = question_id
+        ts_label = _elapsed_label(datetime.now(timezone.utc))
+        self._answer_task = asyncio.create_task(self._answer_job(question_id, text, kind, ts_label))
+
     async def _cancel_tasks(self) -> None:
-        for task in (self._worker, self._answer_task):
+        for task in (self._worker, self._answer_task, self._image_task):
             if task and not task.done():
                 task.cancel()
-        for task in (self._worker, self._answer_task):
+        for task in (self._worker, self._answer_task, self._image_task):
             if task:
                 try:
                     await task
@@ -611,6 +648,7 @@ class LiveSession:
             outline=result.lines,
             evidence_ref=result.source_label,
             caveat=result.caveat,
+            code=result.code,
             feedback="none",
         )
         db.add(suggestion)
@@ -640,6 +678,7 @@ class LiveSession:
                 "key_points": list(result.key_points),
                 "source_label": result.source_label,
                 "caveat": result.caveat,
+                "code": result.code,
                 "timing": timing,
             },
         )

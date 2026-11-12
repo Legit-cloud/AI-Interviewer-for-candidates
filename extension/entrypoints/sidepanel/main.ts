@@ -129,6 +129,25 @@ async function start(): Promise<void> {
   render();
 }
 
+/** Takes a picture of the meeting tab so Vren can read a question or problem shown on screen. */
+async function readScreen(): Promise<void> {
+  await refreshTab();
+  if (!invokedIsActive()) {
+    error = "Click the Vren icon on that tab first, then try again.";
+    render();
+    return;
+  }
+  try {
+    const dataUrl = await chrome.tabs.captureVisibleTab({ format: "jpeg", quality: 70 });
+    const [, image = ""] = dataUrl.split(",");
+    await chrome.runtime.sendMessage({ target: "offscreen", type: "OFFSCREEN_IMAGE", image, mime: "image/jpeg" });
+    error = "";
+  } catch {
+    error = "Could not take a picture of the tab.";
+  }
+  render();
+}
+
 function control(type: "PAUSE" | "RESUME" | "STOP"): void {
   void chrome.runtime.sendMessage({ target: "background", type });
 }
@@ -238,6 +257,7 @@ function viewLive(): HTMLElement[] {
   if (state.transcript.length) {
     out.push(el("details", {}, [el("summary", { text: "What was said" }), el("ul", { class: "transcript" }, state.transcript.map((t) => el("li", { text: `${t.speaker}: ${t.text}` })))]));
   }
+  out.push(button("Read the question on screen", "link", () => void readScreen()));
   out.push(button(overlayOn ? "Hide answers on the page" : "Show answers on the page", "link", () => void (overlayOn ? turnOverlayOff() : turnOverlayOn()).then(render)));
   if (error) out.push(el("p", { class: "error", text: error, attrs: { role: "alert" } }));
   return compact(out);

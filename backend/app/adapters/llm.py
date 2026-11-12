@@ -127,6 +127,80 @@ class LLMProviderAdapter:
                 return
             logger.warning("LLM provider %s streamed nothing; trying the next one", provider if isinstance(provider, str) else provider.name)
 
+    async def complete_json_with_image(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        image_b64: str,
+        mime: str,
+        max_tokens: int = 700,
+    ) -> dict[str, Any] | None:
+        """Like complete_json, but with one image (for example a screenshot of a question)."""
+        if not self.is_configured:
+            return None
+        for provider in self.providers():
+            if isinstance(provider, str):
+                result = await self._image_gemini(system_prompt, user_prompt, image_b64, mime, max_tokens)
+            else:
+                result = await self._image_compat(provider, system_prompt, user_prompt, image_b64, mime, max_tokens)
+            if result is not None:
+                return result
+        return None
+
+    async def _image_compat(
+        self, provider: CompatProvider, system_prompt: str, user_prompt: str, image_b64: str, mime: str, max_tokens: int
+    ) -> dict[str, Any] | None:
+        url = f"{provider.base_url.rstrip('/')}/chat/completions"
+        headers = {"Authorization": f"Bearer {provider.api_key}", "Content-Type": "application/json"}
+        payload = {
+            "model": provider.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": user_prompt},
+                        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_b64}"}},
+                    ],
+                },
+            ],
+            "temperature": 0,
+            "max_tokens": max_tokens,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=40.0) as client:
+                response = await client.post(url, headers=headers, json=payload)
+                response.raise_for_status()
+                content = (response.json().get("choices") or [{}])[0].get("message", {}).get("content", "")
+            if isinstance(content, list):
+                content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
+            return _extract_json_object(str(content))
+        except Exception as exc:
+            logger.warning("LLM provider %s image request failed cleanly: %s", provider.name, exc)
+            return None
+
+    async def _image_gemini(
+        self, system_prompt: str, user_prompt: str, image_b64: str, mime: str, max_tokens: int
+    ) -> dict[str, Any] | None:
+        try:
+            import base64
+
+            from google import genai
+            from google.genai import types
+
+            client = genai.Client(api_key=self.settings.gemini_api_key)
+            response = await client.aio.models.generate_content(
+                model=self._gemini_models()[0],
+                contents=[types.Part.from_bytes(data=base64.b64decode(image_b64), mime_type=mime), user_prompt],
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt, temperature=0, max_output_tokens=max_tokens, response_mime_type="application/json"
+                ),
+            )
+            return _extract_json_object(response.text or "")
+        except Exception as exc:
+            logger.warning("Gemini image request failed cleanly: %s", exc)
+            return None
+
     # ------------------------------------------------------------------ OpenAI-compatible
     async def _stream_compat(
         self,

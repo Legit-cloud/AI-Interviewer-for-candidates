@@ -356,6 +356,7 @@ interface BackendSessionDto {
 }
 
 interface BackendQuestionDto {
+  code?: string;
   id: string;
   question_text: string;
   question_type: string;
@@ -1163,6 +1164,8 @@ export interface LiveAnswer {
   key_points: string[];
   source_label: string;
   caveat: string;
+  /** A short solution, for coding questions. */
+  code?: string;
 }
 
 export interface PairingCode {
@@ -1187,6 +1190,8 @@ export interface LiveSessionHandle {
   revokePairing: () => Promise<void>;
   /** Types a question as if the interviewer had asked it, to test the flow without audio. */
   simulate: (text: string) => void;
+  /** Sends a screenshot of a question or problem. Vren reads it and answers. */
+  askImage: (image: Blob) => Promise<void>;
   pause: () => void;
   resume: () => void;
   stop: () => void;
@@ -1259,6 +1264,7 @@ export async function startLiveSession(
           key_points: [],
           source_label: q.evidence_ref || "",
           caveat: q.caveat || "",
+          code: q.code || "",
         }))
         .reverse();
     }
@@ -1331,6 +1337,13 @@ export async function startLiveSession(
       await apiFetch(`/v1/sessions/${sessionId}/pairing/revoke`, { method: "POST" });
     },
     simulate: (text: string) => send({ type: "transcript.simulate", source: "tab", text }),
+    askImage: async (image: Blob) => {
+      const bytes = new Uint8Array(await image.arrayBuffer());
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += 0x8000)
+        binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      send({ type: "image.ask", image: btoa(binary), mime: image.type || "image/png" });
+    },
     pause: () => send({ type: "session.pause" }),
     resume: () => send({ type: "session.resume" }),
     stop: () => send({ type: "session.stop" }),

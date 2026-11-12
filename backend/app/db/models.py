@@ -236,6 +236,7 @@ class GeneratedSuggestion(UUIDPrimaryKeyMixin, Base):
     outline: Mapped[list[str]] = mapped_column(JSONType, default=list, nullable=False)
     evidence_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
     caveat: Mapped[str | None] = mapped_column(Text, nullable=True)
+    code: Mapped[str | None] = mapped_column(Text, nullable=True)  # a short solution, for coding questions
     feedback: Mapped[str | None] = mapped_column(String(24), nullable=True)  # useful | not_useful | incorrect
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 

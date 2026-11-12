@@ -132,6 +132,23 @@ function LiveSessionPage() {
 
   useEffect(() => () => handle.current?.close(), []);
 
+  // Pasting an image while a session is live sends it as a question.
+  useEffect(() => {
+    if (phase !== "live") return;
+    const onPaste = (e: ClipboardEvent) => {
+      const item = Array.from(e.clipboardData?.items ?? []).find((i) =>
+        i.type.startsWith("image/"),
+      );
+      const file = item?.getAsFile();
+      if (file) {
+        e.preventDefault();
+        void handle.current?.askImage(file);
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, [phase]);
+
   // Pre-flight: tell the user up front if the server has no AI or speech-to-text keys.
   useEffect(() => {
     apiFetch<{ ai?: { answers: boolean; transcription: string } }>(
@@ -658,6 +675,25 @@ function LiveSessionPage() {
 
         <aside className="space-y-4">
           {phase === "live" && (
+            <div className="space-y-2 rounded-xl border bg-card p-4">
+              <p className="text-sm font-medium">Question on screen?</p>
+              <p className="text-sm text-muted-foreground">
+                Paste a screenshot (Ctrl or Cmd + V) or choose a file. Vren reads it and answers.
+              </p>
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                aria-label="Choose a screenshot"
+                className="text-sm"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void handle.current?.askImage(file);
+                  e.target.value = "";
+                }}
+              />
+            </div>
+          )}
+          {phase === "live" && (
             <form
               className="space-y-2 rounded-xl border bg-card p-4"
               onSubmit={(e) => {
@@ -728,6 +764,11 @@ function AnswerCard({ answer, featured = false }: { answer: LiveAnswer; featured
             </li>
           ))}
         </ul>
+      )}
+      {answer.code && (
+        <pre className="mt-3 overflow-x-auto rounded-lg border bg-background p-3 font-mono text-xs leading-relaxed">
+          {answer.code}
+        </pre>
       )}
       <p className="mt-3 font-mono text-[11px] text-muted-foreground">
         {answer.source_label}

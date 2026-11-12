@@ -401,6 +401,7 @@ async def list_session_suggestions(
             outline=list(s.outline or []),
             evidence_ref=s.evidence_ref,
             caveat=s.caveat,
+            code=s.code or "",
             feedback=s.feedback,  # type: ignore[arg-type]
         )
         for s in suggestions
@@ -488,6 +489,7 @@ async def create_session_suggestion(
         outline=outline,
         evidence_ref=evidence_ref,
         caveat=caveat,
+        code=answer.code,
         feedback="none",
     )
     db.add(suggestion)
@@ -502,6 +504,7 @@ async def create_session_suggestion(
         outline=list(suggestion.outline or []),
         evidence_ref=suggestion.evidence_ref,
         caveat=suggestion.caveat,
+        code=suggestion.code or "",
         feedback=suggestion.feedback,  # type: ignore[arg-type]
     )
 
@@ -576,6 +579,7 @@ async def set_suggestion_feedback(
         outline=list(suggestion.outline or []),
         evidence_ref=suggestion.evidence_ref,
         caveat=suggestion.caveat,
+        code=suggestion.code or "",
         feedback=suggestion.feedback,  # type: ignore[arg-type]
     )
 

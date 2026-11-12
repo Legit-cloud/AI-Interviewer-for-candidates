@@ -89,6 +89,10 @@ chrome.runtime.onMessage.addListener((raw: OffscreenMessage, _sender, sendRespon
       engine?.stop();
       sendResponse({ ok: true });
       return false;
+    case "OFFSCREEN_IMAGE":
+      engine?.sendImage(raw.image, raw.mime);
+      sendResponse({ ok: engine !== null });
+      return false;
     case "OFFSCREEN_SNAPSHOT":
       sendResponse({ ok: true, active: engine !== null, state });
       return false;
