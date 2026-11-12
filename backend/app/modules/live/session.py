@@ -25,7 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.llm import get_llm_adapter
-from app.adapters.stt import AudioUtteranceBuffer, DeepgramStreamingChannel, get_stt_adapter
+from app.adapters.stt import AudioUtteranceBuffer, DeepgramStreamingChannel, get_stt_adapter, pcm16_rms
 from app.core.config import get_settings
 from app.core.languages import language_code
 from app.db.models import (
@@ -37,6 +37,8 @@ from app.db.models import (
     JobDescription,
     TranscriptSegment,
 )
+from app.modules.ai.explain import explain_unavailable
+from app.modules.live.audio_stats import SourceStats
 from app.modules.live.question_detector import QuestionDetector
 from app.modules.live.question_llm import QuestionClassifier
 from app.modules.sessions.grounding import AnswerResult, stream_answer
@@ -106,6 +108,8 @@ class LiveSession:
         self.active_sources: list[str] = ["tab"]
         # Phone or in-person interviews: the microphone is hearing the interviewer, not the candidate.
         self.room_mode = False
+        self.stats = {"tab": SourceStats(), "microphone": SourceStats()}
+        self._stats_sent_at = 0.0
         self.segment_seq = 0
         self.paused = False
         self.stopped = False
@@ -318,9 +322,23 @@ class LiveSession:
         for src in self.active_sources:
             await self.emit("capture.state", source=src, state="listening")
 
+    async def _maybe_send_stats(self) -> None:
+        """Once a second, tell every screen whether sound is arriving and being read."""
+        now = time.monotonic()
+        if now - self._stats_sent_at < 1.0:
+            return
+        self._stats_sent_at = now
+        stt_ready = get_stt_adapter().is_configured
+        await self.emit(
+            "audio.stats",
+            stt_ready=stt_ready,
+            sources={name: st.report(now, stt_ready) for name, st in self.stats.items() if name in self.active_sources},
+        )
+
     async def _on_deepgram(self, src: str, text: str, is_final: bool) -> None:
         if self.paused or self.stopped:
             return
+        self.stats[src].on_text(time.monotonic())
         if not is_final:
             await self.emit("transcript.delta", item_id=f"live_{src}", source=src, text=text)
             return
@@ -365,6 +383,11 @@ class LiveSession:
         payload_b64 = str(msg.get("payload") or "")
         sample_rate = int(msg.get("sample_rate") or 16000)
         channels = int(msg.get("channels") or 1)
+        try:
+            self.stats[src].on_frame(time.monotonic(), pcm16_rms(base64.b64decode(payload_b64, validate=True)))
+        except Exception:
+            pass  # a bad frame is handled below; it must not stop the level meter code
+        await self._maybe_send_stats()
 
         if src in self.dg_channels:
             try:
@@ -449,6 +472,8 @@ class LiveSession:
 
         # Per-channel attribution: tab audio is the interviewer, microphone is the candidate.
         speaker = "You" if source == "microphone" and not self.room_mode else "Interviewer"
+        if source in self.stats:
+            self.stats[source].on_text(time.monotonic())
         ts_label = _elapsed_label(row.started_at)
         self.segment_seq += 1
         self.recent_turns.append(f"{speaker}: {text[:220]}")
@@ -634,7 +659,7 @@ class LiveSession:
                 "answer.unavailable",
                 question_id=question_id,
                 reason=(result.reason if result else "AI_PROVIDER_ERROR"),
-                message="Answer unavailable for this question. You can continue or stop safely.",
+                message=explain_unavailable(result.reason if result else "AI_PROVIDER_ERROR"),
             )
             return
 

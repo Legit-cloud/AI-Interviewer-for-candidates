@@ -15,6 +15,7 @@ from app.core.errors import register_exception_handlers
 from app.adapters.llm import get_llm_adapter
 from app.adapters.stt import get_stt_adapter
 from app.core.schema_check import schema_status
+from app.modules.ai.router import router as ai_router
 from app.modules.auth.router import router as auth_router
 from app.modules.documents.router import router as documents_router
 from app.modules.jobs.router import router as jobs_router
@@ -99,6 +100,7 @@ app.include_router(export_router)
 app.include_router(live_router)
 app.include_router(pairing_router)
 app.include_router(mock_router)
+app.include_router(ai_router)
 
 
 @app.get("/v1/health", tags=["system"])

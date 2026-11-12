@@ -53,6 +53,81 @@ def reset_rejected_providers() -> None:
     _banned_until.clear()
 
 
+_LABELS = {"primary": "Your AI service", "openai": "OpenAI", "gemini": "Gemini"}
+_last_problem: dict[str, str] = {}
+
+
+def provider_label(name: str) -> str:
+    return _LABELS.get(name, name)
+
+
+def plain_problem(name: str, status: int | None, detail: str = "") -> str:
+    """A short sentence a person can act on."""
+    who = provider_label(name)
+    if status == 401:
+        return f"{who} rejected the key. Create a new key and paste it again, with no quotes or spaces."
+    if status == 403:
+        return f"{who} will not let this key do that. Check the key's permissions and that billing is set up."
+    if status == 404:
+        return f"{who} does not know that model. Set the model name in backend/.env (for example OPENAI_MODEL or GEMINI_MODEL)."
+    if status == 429:
+        return f"{who} says you are out of credit or going too fast. Check billing and try again."
+    if status is not None and status >= 500:
+        return f"{who} is having trouble right now. Try again in a minute."
+    if status == 400:
+        return f"{who} did not accept the request ({detail[:120].strip() or 'bad request'})."
+    return f"Could not reach {who}. Check your internet connection."
+
+
+def last_problems() -> list[str]:
+    return list(_last_problem.values())
+
+
+def reset_problems() -> None:
+    _last_problem.clear()
+
+
+def _remember_failure(name: str, exc: Exception) -> None:
+    if isinstance(exc, httpx.HTTPStatusError):
+        try:
+            detail = exc.response.text
+        except Exception:  # streaming responses may not be read yet
+            detail = ""
+        _last_problem[name] = plain_problem(name, exc.response.status_code, detail)
+    elif _is_auth_failure(exc):
+        _last_problem[name] = plain_problem(name, 401)
+    else:
+        _last_problem[name] = plain_problem(name, None)
+
+
+def _uses_new_params(model: str) -> bool:
+    """Newer OpenAI models want `max_completion_tokens` and only the default temperature."""
+    return bool(re.match(r"^(o\d|gpt-5)", model.lower()))
+
+
+def _chat_payload(provider: "CompatProvider", messages: list, temperature: float, max_tokens: int, *, stream: bool = False, flip: bool = False) -> dict[str, Any]:
+    new_style = _uses_new_params(provider.model) != flip
+    payload: dict[str, Any] = {"model": provider.model, "messages": messages}
+    if new_style:
+        payload["max_completion_tokens"] = max_tokens
+    else:
+        payload["max_tokens"] = max_tokens
+        payload["temperature"] = temperature
+    if stream:
+        payload["stream"] = True
+    return payload
+
+
+def _wants_other_params(exc: Exception) -> bool:
+    if not isinstance(exc, httpx.HTTPStatusError) or exc.response.status_code != 400:
+        return False
+    try:
+        text = exc.response.text.lower()
+    except Exception:
+        return False
+    return any(k in text for k in ("max_tokens", "max_completion_tokens", "temperature"))
+
+
 def _is_auth_failure(exc: Exception) -> bool:
     if isinstance(exc, httpx.HTTPStatusError):
         return exc.response.status_code in (401, 403)
@@ -176,34 +251,35 @@ class LLMProviderAdapter:
     ) -> dict[str, Any] | None:
         url = f"{provider.base_url.rstrip('/')}/chat/completions"
         headers = {"Authorization": f"Bearer {provider.api_key}", "Content-Type": "application/json"}
-        payload = {
-            "model": provider.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": user_prompt},
-                        {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_b64}"}},
-                    ],
-                },
-            ],
-            "temperature": 0,
-            "max_tokens": max_tokens,
-        }
-        try:
-            async with httpx.AsyncClient(timeout=40.0) as client:
-                response = await client.post(url, headers=headers, json=payload)
-                response.raise_for_status()
-                content = (response.json().get("choices") or [{}])[0].get("message", {}).get("content", "")
-            if isinstance(content, list):
-                content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
-            return _extract_json_object(str(content))
-        except Exception as exc:
-            if _is_auth_failure(exc):
-                mark_provider_rejected(provider.name)
-            logger.warning("LLM provider %s image request failed cleanly: %s", provider.name, exc)
-            return None
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": user_prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{image_b64}"}},
+                ],
+            },
+        ]
+        for flip in (False, True):
+            try:
+                async with httpx.AsyncClient(timeout=40.0) as client:
+                    response = await client.post(url, headers=headers, json=_chat_payload(provider, messages, 0, max_tokens, flip=flip))
+                    response.raise_for_status()
+                    content = (response.json().get("choices") or [{}])[0].get("message", {}).get("content", "")
+                if isinstance(content, list):
+                    content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
+                _last_problem.pop(provider.name, None)
+                return _extract_json_object(str(content))
+            except Exception as exc:
+                if not flip and _wants_other_params(exc):
+                    continue
+                if _is_auth_failure(exc):
+                    mark_provider_rejected(provider.name)
+                _remember_failure(provider.name, exc)
+                logger.warning("LLM provider %s image request failed cleanly: %s", provider.name, exc)
+                return None
+        return None
 
     async def _image_gemini(
         self, system_prompt: str, user_prompt: str, image_b64: str, mime: str, max_tokens: int
@@ -238,43 +314,46 @@ class LLMProviderAdapter:
     ) -> AsyncIterator[str]:
         url = f"{provider.base_url.rstrip('/')}/chat/completions"
         headers = {"Authorization": f"Bearer {provider.api_key}", "Content-Type": "application/json"}
-        payload = {
-            "model": provider.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-            "stream": True,
-        }
-        try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
-                async with client.stream("POST", url, headers=headers, json=payload) as response:
-                    response.raise_for_status()
-                    async for raw_line in response.aiter_lines():
-                        line = raw_line.strip()
-                        if not line or not line.startswith("data:"):
-                            continue
-                        data_part = line[5:].strip()
-                        if data_part == "[DONE]":
-                            break
-                        try:
-                            event = json.loads(data_part)
-                        except json.JSONDecodeError:
-                            continue
-                        choices = event.get("choices") or []
-                        if not choices:
-                            continue
-                        delta = choices[0].get("delta", {}).get("content", "")
-                        if isinstance(delta, list):
-                            delta = "".join(part.get("text", "") for part in delta if isinstance(part, dict))
-                        if delta:
-                            yield str(delta)
-        except Exception as exc:
-            if _is_auth_failure(exc):
-                mark_provider_rejected(provider.name)
-            logger.warning("LLM provider %s stream failed cleanly: %s", provider.name, exc)
+        messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
+        for flip in (False, True):
+            streamed = False
+            try:
+                payload = _chat_payload(provider, messages, temperature, max_tokens, stream=True, flip=flip)
+                async with httpx.AsyncClient(timeout=20.0) as client:
+                    async with client.stream("POST", url, headers=headers, json=payload) as response:
+                        if response.status_code >= 400:
+                            await response.aread()  # so the error text is available
+                        response.raise_for_status()
+                        async for raw_line in response.aiter_lines():
+                            line = raw_line.strip()
+                            if not line or not line.startswith("data:"):
+                                continue
+                            data_part = line[5:].strip()
+                            if data_part == "[DONE]":
+                                break
+                            try:
+                                event = json.loads(data_part)
+                            except json.JSONDecodeError:
+                                continue
+                            choices = event.get("choices") or []
+                            if not choices:
+                                continue
+                            delta = choices[0].get("delta", {}).get("content", "")
+                            if isinstance(delta, list):
+                                delta = "".join(part.get("text", "") for part in delta if isinstance(part, dict))
+                            if delta:
+                                streamed = True
+                                _last_problem.pop(provider.name, None)
+                                yield str(delta)
+                return
+            except Exception as exc:
+                if not flip and not streamed and _wants_other_params(exc):
+                    continue  # the model wants the other parameter style
+                if _is_auth_failure(exc):
+                    mark_provider_rejected(provider.name)
+                _remember_failure(provider.name, exc)
+                logger.warning("LLM provider %s stream failed cleanly: %s", provider.name, exc)
+                return
 
     async def _complete_compat(
         self,
@@ -286,32 +365,43 @@ class LLMProviderAdapter:
     ) -> dict[str, Any] | None:
         url = f"{provider.base_url.rstrip('/')}/chat/completions"
         headers = {"Authorization": f"Bearer {provider.api_key}", "Content-Type": "application/json"}
-        payload = {
-            "model": provider.model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(url, headers=headers, json=payload)
-                response.raise_for_status()
-                data = response.json()
-            choices = data.get("choices") or []
-            if not choices:
+        messages = [{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}]
+        for flip in (False, True):
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.post(url, headers=headers, json=_chat_payload(provider, messages, temperature, max_tokens, flip=flip))
+                    response.raise_for_status()
+                    data = response.json()
+                choices = data.get("choices") or []
+                if not choices:
+                    return None
+                content = choices[0].get("message", {}).get("content", "")
+                if isinstance(content, list):
+                    content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
+                _last_problem.pop(provider.name, None)
+                return _extract_json_object(str(content))
+            except Exception as exc:
+                if not flip and _wants_other_params(exc):
+                    continue
+                if _is_auth_failure(exc):
+                    mark_provider_rejected(provider.name)
+                _remember_failure(provider.name, exc)
+                logger.warning("LLM provider %s request failed cleanly: %s", provider.name, exc)
                 return None
-            content = choices[0].get("message", {}).get("content", "")
-            if isinstance(content, list):
-                content = "".join(part.get("text", "") for part in content if isinstance(part, dict))
-            return _extract_json_object(str(content))
-        except Exception as exc:
-            if _is_auth_failure(exc):
-                mark_provider_rejected(provider.name)
-            logger.warning("LLM provider %s request failed cleanly: %s", provider.name, exc)
-            return None
+        return None
+
+    async def check_provider(self, provider: "str | CompatProvider") -> tuple[bool, str]:
+        """A tiny real request to one provider. Returns (works, a sentence the person can act on)."""
+        name = provider if isinstance(provider, str) else provider.name
+        _last_problem.pop(name, None)
+        if isinstance(provider, str):
+            result = await self._complete_gemini("Reply with JSON only.", 'Return {"ok": true}', 0, 50)
+        else:
+            result = await self._complete_compat(provider, "Reply with JSON only.", 'Return {"ok": true}', 0, 50)
+        if isinstance(result, dict):
+            _banned_until.pop(name, None)
+            return True, "Works."
+        return False, _last_problem.get(name) or f"{provider_label(name)} did not give a usable answer."
 
     # ------------------------------------------------------------------ Gemini
     def _gemini_models(self) -> list[str]:
@@ -349,6 +439,7 @@ class LLMProviderAdapter:
         except Exception as exc:
             if _is_auth_failure(exc):
                 mark_provider_rejected("gemini")
+            _remember_failure("gemini", exc)
             logger.warning("Gemini LLM stream failed cleanly: %s", exc)
 
     async def _complete_gemini(
@@ -381,10 +472,13 @@ class LLMProviderAdapter:
                 except Exception as inner_exc:
                     if _is_auth_failure(inner_exc):
                         mark_provider_rejected("gemini")
+                        _remember_failure("gemini", inner_exc)
                         return None
+                    _last_problem["gemini"] = f"Gemini did not accept the model “{model}”. Set GEMINI_MODEL in backend/.env to one your key can use." if "404" in str(inner_exc) or "NOT_FOUND" in str(inner_exc).upper() else plain_problem("gemini", None)
                     logger.warning("Gemini LLM model=%s failed: %s", model, inner_exc)
             return None
         except Exception as exc:
+            _remember_failure("gemini", exc)
             logger.warning("Gemini LLM request failed cleanly: %s", exc)
             return None
 

@@ -19,6 +19,7 @@ from app.db.models import (
     MockInterview,
     User,
 )
+from app.modules.ai.explain import explain_unavailable
 from app.modules.mock import service
 
 router = APIRouter(prefix="/v1/mock", tags=["mock"])
@@ -56,7 +57,7 @@ def _out(row: MockInterview) -> MockOut:
 def _unavailable() -> AppError:
     return AppError(
         code="ANSWER_UNAVAILABLE",
-        message="The practice coach is not available right now. Check that an AI key is set up and try again.",
+        message=explain_unavailable("AI_PROVIDER_UNAVAILABLE"),
         status_code=503,
     )
 

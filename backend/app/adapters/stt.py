@@ -238,6 +238,31 @@ class STTProviderAdapter:
     def is_configured(self) -> bool:
         return self.active_provider != "offline"
 
+    async def check(self) -> tuple[str, bool, str]:
+        """(provider, works, a sentence the person can act on). Only checks the key, so it needs no audio."""
+        provider = self.active_provider
+        s = self.settings
+        if provider == "offline":
+            return provider, False, "No speech-to-text key. Add OPENAI_API_KEY, GEMINI_API_KEY or DEEPGRAM_API_KEY to backend/.env."
+        if provider == "gemini":
+            return provider, True, "Uses your Gemini key."
+        url, headers = (
+            ("https://api.deepgram.com/v1/projects", {"Authorization": f"Token {s.deepgram_api_key}"})
+            if provider == "deepgram"
+            else (f"{s.stt_base_url.rstrip('/')}/models", {"Authorization": f"Bearer {self._whisper_key()}"})
+        )
+        who = "Deepgram" if provider == "deepgram" else "OpenAI Whisper"
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                res = await client.get(url, headers=headers)
+        except httpx.HTTPError:
+            return provider, False, f"Could not reach {who}. Check your internet connection."
+        if res.status_code == 200:
+            return provider, True, f"{who} is ready."
+        if res.status_code in (401, 403):
+            return provider, False, f"{who} rejected the key. Create a new key and paste it again."
+        return provider, False, f"{who} answered with an error ({res.status_code})."
+
     async def transcribe_wav(self, wav_bytes: bytes, language: str = "en") -> str | None:
         provider = self.active_provider
         if not wav_bytes or provider == "offline":

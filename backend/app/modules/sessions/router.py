@@ -4,7 +4,7 @@ from uuid import UUID
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,12 +23,15 @@ from app.db.models import (
     InterviewPreferences,
     InterviewSession,
     JobDescription,
+    MockInterview,
     Profile,
     SessionNote,
     TranscriptSegment,
     User,
     UserConsent,
 )
+from app.modules.ai.explain import explain_unavailable
+from app.modules.export.report import build_report_pdf
 from app.modules.sessions.grounding import generate_answer
 from app.modules.sessions.review import build_review
 from app.modules.sessions.retention import purge_expired_transcripts
@@ -456,7 +459,7 @@ async def create_session_suggestion(
     if not answer.available:
         raise AppError(
             code="ANSWER_UNAVAILABLE",
-            message="An answer could not be generated right now.",
+            message=explain_unavailable(answer.reason),
             status_code=503,
             details={"reason": answer.reason},
         )
@@ -654,11 +657,7 @@ async def delete_all_sessions(
     return {"status": "deleted"}
 
 
-@export_router.get("/export")
-async def export_user_data(
-    user: User = Depends(get_verified_user),
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
+async def _collect_export(user: User, db: AsyncSession) -> dict[str, Any]:
     profile = await db.get(Profile, user.id)
     prefs = await db.get(InterviewPreferences, user.id)
     docs = (
@@ -756,5 +755,37 @@ async def export_user_data(
             for c in consents
         ],
         "sessions": [s.model_dump(mode="json") for s in exported_sessions],
+        "practice": [
+            {
+                "id": str(m.id), "title": m.title, "interview_type": m.interview_type, "state": m.state,
+                "created_at": m.created_at.isoformat(), "turns": list(m.turns or []), "summary": m.summary,
+            }
+            for m in (
+                await db.execute(select(MockInterview).where(MockInterview.user_id == user.id).order_by(MockInterview.created_at.asc()))
+            ).scalars().all()
+        ],
     }
+
+
+@export_router.get("/export")
+async def export_user_data(
+    user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """The same data as a machine-readable file."""
+    return await _collect_export(user, db)
+
+
+@export_router.get("/export.pdf")
+async def export_user_report(
+    user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """The same data as a readable PDF report."""
+    pdf = build_report_pdf(await _collect_export(user, db))
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="vren-ai-report.pdf"', "Cache-Control": "no-store"},
+    )
 
