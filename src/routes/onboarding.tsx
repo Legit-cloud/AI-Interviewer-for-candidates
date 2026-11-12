@@ -3,7 +3,6 @@ import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
-import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { UploadSimpleIcon } from "@phosphor-icons/react/UploadSimple";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useState } from "react";
@@ -24,9 +23,9 @@ export const Route = createFileRoute("/onboarding")({
   head: () => ({
     meta: [
       { title: "Get started | Vren AI" },
-      { name: "description", content: "Set up your Vren AI profile in three short steps." },
+      { name: "description", content: "Set up your Vren AI profile in two short steps." },
       { property: "og:title", content: "Get started | Vren AI" },
-      { property: "og:description", content: "Profile basics, CV upload and extension connection." },
+      { property: "og:description", content: "Profile basics and CV upload." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
@@ -34,7 +33,7 @@ export const Route = createFileRoute("/onboarding")({
   component: Onboarding,
 });
 
-const steps = ["Profile basics", "Add a CV", "Connect extension"];
+const steps = ["Profile basics", "Add a CV"];
 const MAX_BYTES = 5 * 1024 * 1024;
 
 function Onboarding() {
@@ -63,11 +62,17 @@ function Onboarding() {
     setCv(file);
   };
 
-  const finish = async (connect: boolean) => {
+  const finish = async (withCvFile: File | null) => {
     setSubmitting(true);
     try {
-      await completeOnboarding(name.trim() || "Candidate", language, roleFocus.trim(), !!cv, cv, connect);
-      navigate({ to: cv ? "/app/profile/review" : "/app" });
+      await completeOnboarding(
+        name.trim() || "Candidate",
+        language,
+        roleFocus.trim(),
+        !!withCvFile,
+        withCvFile,
+      );
+      navigate({ to: withCvFile ? "/app/profile/review" : "/app" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not complete onboarding.");
     } finally {
@@ -87,7 +92,7 @@ function Onboarding() {
       </header>
 
       <main className="mx-auto max-w-3xl px-6 py-12">
-        <ol className="mb-10 grid grid-cols-3 gap-3" aria-label="Onboarding progress">
+        <ol className="mb-10 grid grid-cols-2 gap-3" aria-label="Onboarding progress">
           {steps.map((s, i) => (
             <li key={s} className="space-y-2">
               <div className="h-1.5 overflow-hidden rounded-full bg-border">
@@ -260,59 +265,18 @@ function Onboarding() {
                     Back
                   </Button>
                   <div className="flex gap-2">
-                    <Button variant="outline" onClick={() => { setCv(null); setStep(2); }}>
+                    <Button
+                      variant="outline"
+                      disabled={submitting}
+                      onClick={() => {
+                        setCv(null);
+                        void finish(null);
+                      }}
+                    >
                       Continue without a CV
                     </Button>
-                    <Button onClick={() => setStep(2)} disabled={!cv}>
-                      Add a CV
-                    </Button>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {step === 2 && (
-              <section className="space-y-6">
-                <div>
-                  <p className="eyebrow mb-2">Step 03 · Companion extension</p>
-                  <h1 className="font-display text-3xl tracking-tight">
-                    Connect the Chrome extension
-                  </h1>
-                  <p className="mt-1.5 text-sm text-muted-foreground">
-                    The Side Panel runs alongside supported browser interviews and never starts
-                    capturing until you click Start.
-                  </p>
-                </div>
-
-                <div className="rounded-xl border bg-background p-5">
-                  <div className="flex gap-4">
-                    <div className="grid size-10 shrink-0 place-items-center rounded-lg border bg-primary-soft/60 text-primary">
-                      <PuzzlePieceIcon className="size-5" aria-hidden="true" />
-                    </div>
-                    <div className="space-y-1.5 text-sm">
-                      <p className="font-medium text-foreground">
-                        Install Vren AI from the Chrome Web Store, open it, then choose “Connect to
-                        Vren AI”.
-                      </p>
-                      <p className="text-muted-foreground">
-                        Uses a short-lived token exchange. We record only the connection timestamp
-                        and extension version, never your browsing history.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-5">
-                  <Button variant="ghost" onClick={() => setStep(1)}>
-                    <ArrowLeftIcon className="size-4" aria-hidden="true" />
-                    Back
-                  </Button>
-                  <div className="flex gap-2">
-                    <Button variant="outline" disabled={submitting} onClick={() => finish(false)}>
-                      Skip for now
-                    </Button>
-                    <Button disabled={submitting} onClick={() => finish(true)}>
-                      {submitting ? "Setting up..." : "Connect extension"}
+                    <Button disabled={!cv || submitting} onClick={() => void finish(cv)}>
+                      {submitting ? "Setting up..." : "Finish setup"}
                     </Button>
                   </div>
                 </div>

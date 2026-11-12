@@ -266,20 +266,6 @@ class UserConsent(UUIDPrimaryKeyMixin, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
-class ExtensionConnection(UUIDPrimaryKeyMixin, Base):
-    __tablename__ = "extension_connections"
-    __table_args__ = (Index("ix_extension_connections_user_revoked", "user_id", "revoked_at"),)
-
-    user_id: Mapped[UUID] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    token_hash: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
-    version: Mapped[str] = mapped_column(String(32), default="1.0.0", nullable=False)
-    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
-    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
-    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-
 class AuditEvent(UUIDPrimaryKeyMixin, Base):
     __tablename__ = "audit_events"
 

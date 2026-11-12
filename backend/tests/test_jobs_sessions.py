@@ -10,7 +10,7 @@ async def _verified_headers(client: AsyncClient, email: str = "jobuser@example.c
     return {"Authorization": f"Bearer {verify_res.json()['access_token']}"}
 
 
-async def test_jobs_gap_prep_sessions_extensions_and_export(client: AsyncClient) -> None:
+async def test_jobs_gap_prep_sessions_and_export(client: AsyncClient) -> None:
     headers = await _verified_headers(client)
 
     # Seed verified experience and skill
@@ -112,18 +112,7 @@ async def test_jobs_gap_prep_sessions_extensions_and_export(client: AsyncClient)
     assert ended.json()["note"] == "Good deep dive."
     assert len(ended.json()["transcript"]) == 1
 
-    # 6. Extension pair & revoke
-    pair = await client.post("/v1/extensions/pair", headers=headers, json={"version": "0.1.0"})
-    assert pair.status_code == 201
-    assert pair.json()["connected"] is True
-    assert pair.json()["pairing_token"].startswith("vren_ext_")
-
-    revoked = await client.post("/v1/extensions/revoke", headers=headers)
-    assert revoked.status_code == 200
-    ext_status = await client.get("/v1/extensions", headers=headers)
-    assert ext_status.json()["connected"] is False
-
-    # 7. Export & Delete all sessions
+    # 6. Export & Delete all sessions
     exported = await client.get("/v1/me/export", headers=headers)
     assert exported.status_code == 200
     assert len(exported.json()["sessions"]) == 1

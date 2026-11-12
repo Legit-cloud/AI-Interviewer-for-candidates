@@ -99,7 +99,7 @@ type SimStage = "disclosure" | "listening" | "paused" | "ended";
 function Prepare() {
   const { job: jobParam } = Route.useSearch();
   const navigate = useNavigate();
-  const { profile, jobs, prep, extension, preferences } = useAppState();
+  const { profile, jobs, prep, preferences } = useAppState();
   const activeJobs = jobs.filter((j) => !j.archived);
 
   const [cfg, setCfg] = useState<PrepConfig>(
@@ -142,11 +142,6 @@ function Prepare() {
       ok: !!job && job.required.length > 0,
       label: "Job requirements present",
       warn: "Choose a job with extracted requirements.",
-    },
-    {
-      ok: extension.connected,
-      label: "Chrome extension connected",
-      warn: "Connect the extension from your dashboard or settings.",
     },
   ];
 
@@ -329,13 +324,13 @@ function Prepare() {
         </aside>
       </div>
 
-      {/* Interactive Chrome Side Panel Preview (PRD §11) */}
+      {/* Interactive Companion Preview (PRD §11) */}
       <Dialog open={simOpen} onOpenChange={setSimOpen}>
         <DialogContent className="max-w-md overflow-hidden p-0">
           <div className="flex items-center justify-between border-b bg-sidebar px-5 py-3.5">
             <DialogHeader className="space-y-0 text-left">
               <DialogTitle className="text-sm font-semibold">
-                Chrome Side Panel Preview
+                Live Companion Preview
               </DialogTitle>
               <DialogDescription className="font-mono text-[11px]">
                 {job?.title} · {cfg.framework} · {cfg.length}
@@ -356,7 +351,7 @@ function Prepare() {
                   <div className="space-y-4">
                     <p className="eyebrow">Capture disclosure · PRD §11.3</p>
                     <ul className="space-y-2 rounded-lg border bg-muted/40 p-3.5 text-xs leading-relaxed text-muted-foreground">
-                      <li>• Tab audio: audio from the selected Chrome meeting tab.</li>
+                      <li>• System audio: audio from your selected meeting window or tab.</li>
                       <li>• Microphone: your microphone, only if enabled below.</li>
                       <li>• Audio is sent for live transcription while the session is running.</li>
                       <li>• Raw audio is not retained by default.</li>

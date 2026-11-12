@@ -35,10 +35,6 @@ export function PrivacyDialog({ trigger }: { trigger: ReactNode }) {
             Transcripts are off by default unless you enable retention for a session or in your
             workspace defaults.
           </p>
-          <p>
-            <strong className="font-medium text-foreground">No browsing history.</strong> Connecting
-            the Chrome extension records only the connection timestamp and extension version.
-          </p>
         </div>
       </DialogContent>
     </Dialog>

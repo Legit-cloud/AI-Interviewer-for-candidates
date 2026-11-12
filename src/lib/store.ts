@@ -167,19 +167,12 @@ export interface ConsentEvent {
   label: string;
   detail: string;
 }
-export interface ExtensionState {
-  connected: boolean;
-  version?: string | undefined;
-  connectedAt?: string | undefined;
-  lastSeenAt?: string | undefined;
-}
 export interface AppState {
   user: User | null;
   profile: Profile | null;
   jobs: Job[];
   sessions: Session[];
   prep: PrepConfig | null;
-  extension: ExtensionState;
   preferences: Preferences;
   consents: ConsentEvent[];
   checklistDismissed: boolean;
@@ -465,7 +458,6 @@ const empty: AppState = {
   jobs: [],
   sessions: [],
   prep: null,
-  extension: { connected: false },
   preferences: defaultPreferences,
   consents: [],
   checklistDismissed: false,
@@ -563,13 +555,6 @@ interface BackendSessionDto {
     caveat: string;
     feedback: string;
   }[];
-}
-
-interface BackendExtensionDto {
-  connected: boolean;
-  version?: string | null;
-  connected_at?: string | null;
-  last_seen_at?: string | null;
 }
 
 function mapFeedbackFromBackend(fb: string): SuggestionFeedback | undefined {
@@ -765,13 +750,12 @@ export async function hydrateFromBackend(): Promise<void> {
 
   hydratePromise = (async () => {
     try {
-      const [me, profileDto, jobsDto, prefsDto, sessionsDto, extDto] = await Promise.all([
+      const [me, profileDto, jobsDto, prefsDto, sessionsDto] = await Promise.all([
         apiFetch<{ user: User }>("/v1/me"),
         apiFetch<BackendProfileDto>("/v1/profile"),
         apiFetch<BackendJobDto[]>("/v1/jobs?include_archived=true"),
         apiFetch<BackendPreferencesDto>("/v1/preparation/preferences"),
         apiFetch<BackendSessionDto[]>("/v1/sessions"),
-        apiFetch<BackendExtensionDto>("/v1/extensions"),
       ]);
 
       const retention =
@@ -786,12 +770,6 @@ export async function hydrateFromBackend(): Promise<void> {
         checklistDismissed: profileDto.checklist_dismissed,
         jobs: jobsDto.map(mapJobDto),
         sessions: sessionsDto.map(mapSessionDto),
-        extension: {
-          connected: extDto.connected,
-          version: extDto.version ?? undefined,
-          connectedAt: extDto.connected_at ?? undefined,
-          lastSeenAt: extDto.last_seen_at ?? undefined,
-        },
         preferences: {
           language: prefsDto.language || "English",
           length: prefsDto.length || "Brief",
@@ -963,7 +941,6 @@ export async function completeOnboarding(
   roleFocus: string,
   withCv: boolean,
   cvFile?: File | null,
-  connectExt?: boolean,
 ) {
   setState((s) => ({
     ...s,
@@ -992,15 +969,6 @@ export async function completeOnboarding(
     const fd = new FormData();
     fd.append("file", cvFile);
     await apiFetch("/v1/documents", { method: "POST", body: fd });
-  }
-  if (connectExt) {
-    const paired = await apiFetch<{ pairing_token?: string }>("/v1/extensions/pair", {
-      method: "POST",
-      body: JSON.stringify({ version: "0.1.0" }),
-    });
-    if (paired.pairing_token) {
-      notifyExtensionBridge("VREN_PAIR_TOKEN", paired.pairing_token);
-    }
   }
   await hydrateFromBackend();
 }
@@ -1541,52 +1509,8 @@ export function deleteSession(id: string) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Extension, preferences, data controls                               */
+/* Preferences & data controls                                         */
 /* ------------------------------------------------------------------ */
-
-function notifyExtensionBridge(type: "VREN_PAIR_TOKEN" | "VREN_EXTENSION_REVOKE", token?: string) {
-  if (typeof window === "undefined") return;
-  window.postMessage(
-    {
-      source: "vren-webapp",
-      type,
-      ...(token ? { token } : {}),
-    },
-    window.location.origin,
-  );
-}
-
-export async function connectExtension(): Promise<{ pairingToken?: string | undefined }> {
-  setState((s) => ({
-    ...s,
-    extension: { connected: true, version: "0.1.0", connectedAt: now(), lastSeenAt: now() },
-    consents: [consent("Chrome extension connected", "Version 0.1.0"), ...s.consents],
-  }));
-  if (!hasAuthSession()) {
-    return {};
-  }
-  const paired = await apiFetch<{ pairing_token?: string }>("/v1/extensions/pair", {
-    method: "POST",
-    body: JSON.stringify({ version: "0.1.0" }),
-  });
-  if (paired.pairing_token) {
-    notifyExtensionBridge("VREN_PAIR_TOKEN", paired.pairing_token);
-  }
-  await hydrateFromBackend();
-  return { pairingToken: paired.pairing_token };
-}
-
-export function revokeExtension() {
-  setState((s) => ({
-    ...s,
-    extension: { connected: false },
-    consents: [consent("Extension access revoked", "All extension tokens invalidated"), ...s.consents],
-  }));
-  notifyExtensionBridge("VREN_EXTENSION_REVOKE");
-  if (hasAuthSession()) {
-    void apiFetch("/v1/extensions/revoke", { method: "POST" }).then(() => hydrateFromBackend());
-  }
-}
 
 export function updatePreferences(patch: Partial<Preferences>) {
   setState((s) => {

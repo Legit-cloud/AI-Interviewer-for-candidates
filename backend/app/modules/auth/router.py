@@ -22,7 +22,6 @@ from app.db.models import (
     AuditEvent,
     AuthToken,
     CandidateDocument,
-    ExtensionConnection,
     InterviewPreferences,
     Profile,
     User,
@@ -319,12 +318,6 @@ async def get_me(
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> MeResponse:
     profile = await db.scalar(select(Profile).where(Profile.user_id == user.id))
-    ext = await db.scalar(
-        select(ExtensionConnection).where(
-            ExtensionConnection.user_id == user.id,
-            ExtensionConnection.revoked_at.is_(None),
-        )
-    )
     return MeResponse(
         user=_user_summary(user),
         full_name=profile.full_name if profile else "",
@@ -332,7 +325,6 @@ async def get_me(
         language=profile.language if profile else "English",
         role_focus=profile.role_focus if profile else "",
         checklist_dismissed=profile.checklist_dismissed if profile else False,
-        extension_connected=ext is not None,
     )
 
 

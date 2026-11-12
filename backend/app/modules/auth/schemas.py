@@ -69,5 +69,4 @@ class MeResponse(BaseModel):
     language: str
     role_focus: str
     checklist_dismissed: bool
-    extension_connected: bool
 

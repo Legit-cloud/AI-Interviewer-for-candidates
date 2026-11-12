@@ -12,7 +12,6 @@ from app.core.database import AsyncSessionLocal, get_db
 from app.core.errors import register_exception_handlers
 from app.modules.auth.router import router as auth_router
 from app.modules.documents.router import router as documents_router
-from app.modules.extensions.router import router as extensions_router
 from app.modules.jobs.router import router as jobs_router
 from app.modules.live.router import router as live_router
 from app.modules.preparation.router import router as preparation_router
@@ -58,7 +57,6 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
-    allow_origin_regex=r"^chrome-extension://[a-z]{32}$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -82,7 +80,6 @@ app.include_router(jobs_router)
 app.include_router(preparation_router)
 app.include_router(sessions_router)
 app.include_router(export_router)
-app.include_router(extensions_router)
 app.include_router(live_router)
 
 

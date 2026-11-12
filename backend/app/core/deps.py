@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.errors import AppError
 from app.core.security import decode_access_token
-from app.db.models import ExtensionConnection, User
+from app.db.models import User
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -25,27 +25,6 @@ async def get_current_user(
         user_id = UUID(str(claims["sub"]))
     except ValueError as exc:
         raise AppError("INVALID_TOKEN", "Invalid subject claim.", 401) from exc
-
-    if claims.get("scope") == "extension":
-        try:
-            conn_id = UUID(str(claims.get("conn_id") or ""))
-        except ValueError as exc:
-            raise AppError("INVALID_TOKEN", "Invalid extension connection claim.", 401) from exc
-        conn = (
-            await db.execute(
-                select(ExtensionConnection).where(
-                    ExtensionConnection.id == conn_id,
-                    ExtensionConnection.user_id == user_id,
-                    ExtensionConnection.revoked_at.is_(None),
-                )
-            )
-        ).scalar_one_or_none()
-        if not conn:
-            raise AppError(
-                "EXTENSION_REVOKED",
-                "Extension access was revoked. Reconnect from Vren AI Settings.",
-                401,
-            )
 
     user = await db.scalar(select(User).where(User.id == user_id))
     if not user:

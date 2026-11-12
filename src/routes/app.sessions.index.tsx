@@ -81,7 +81,7 @@ function Sessions() {
         <EmptyState
           icon={<ClockCounterClockwiseIcon className="size-5" aria-hidden="true" />}
           title={sessions.length === 0 ? "No sessions yet." : "No sessions match this filter."}
-          description="Prepare an interview and open the companion preview or Chrome Side Panel to record a session."
+          description="Prepare an interview and run the companion preview to record a session."
         >
           <Button variant="outline" size="sm" asChild>
             <Link to="/app/prepare">Prepare an interview</Link>

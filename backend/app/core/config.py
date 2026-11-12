@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     max_upload_mb: int = 5
     max_cv_pages: int = 10
 
-    # Server-side AI provider configuration (never sent to browser or extension)
+    # Server-side AI provider configuration (never sent to browser)
     llm_provider: Literal["openai_compatible", "gemini", "offline"] = "openai_compatible"
     llm_base_url: str = "https://agentrouter.org/v1"
     llm_api_key: str | None = None

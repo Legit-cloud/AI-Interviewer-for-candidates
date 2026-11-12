@@ -5,7 +5,6 @@ import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { CircleIcon } from "@phosphor-icons/react/Circle";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
-import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { XIcon } from "@phosphor-icons/react/X";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -13,7 +12,6 @@ import { DashboardSkeleton } from "@/components/loading";
 import { PageTransition, Stagger, StaggerItem } from "@/components/motion";
 import { EmptyState, PageHeader, Status } from "@/components/vren";
 import {
-  connectExtension,
   dismissChecklist,
   jobCompleteness,
   profileCompleteness,
@@ -26,7 +24,7 @@ export const Route = createFileRoute("/app/")({
   head: () => ({
     meta: [
       { title: "Dashboard | Vren AI" },
-      { name: "description", content: "Your profile, jobs, extension status and recent sessions." },
+      { name: "description", content: "Your profile, jobs, and recent sessions." },
       { property: "og:title", content: "Dashboard | Vren AI" },
       { property: "og:description", content: "Your interview workspace overview." },
       { property: "og:type", content: "website" },
@@ -38,7 +36,7 @@ export const Route = createFileRoute("/app/")({
 });
 
 function Dashboard() {
-  const { profile, jobs, sessions, extension, checklistDismissed } = useAppState();
+  const { profile, jobs, sessions, checklistDismissed } = useAppState();
   const activeJobs = jobs.filter((j) => !j.archived);
   const pct = profileCompleteness(profile);
   const unverified = unverifiedCount(profile);
@@ -62,12 +60,6 @@ function Dashboard() {
       label: "Add a target job description",
       to: "/app/jobs" as const,
       cta: "Add job",
-    },
-    {
-      done: extension.connected,
-      label: "Connect the Chrome extension",
-      to: "/app/settings" as const,
-      cta: "Extension access",
     },
   ];
   const remainingSteps = checklist.filter((c) => !c.done).length;
@@ -238,40 +230,6 @@ function Dashboard() {
                 Prepare now
                 <ArrowRightIcon className="size-3.5" aria-hidden="true" />
               </Link>
-            )}
-          </div>
-        </StaggerItem>
-
-        <StaggerItem>
-          <div className="panel flex h-full flex-col justify-between p-5">
-            <div>
-              <div className="flex items-center justify-between">
-                <p className="eyebrow">Chrome extension</p>
-                <PuzzlePieceIcon className="size-4 text-muted-foreground" aria-hidden="true" />
-              </div>
-              <div className="mt-2.5">
-                <Status tone={extension.connected ? "success" : "neutral"}>
-                  {extension.connected ? "Connected" : "Not connected"}
-                </Status>
-              </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                {extension.connected
-                  ? `v${extension.version} · Connected ${format(new Date(extension.connectedAt ?? Date.now()), "d MMM")}`
-                  : "Connect from the Chrome Side Panel when you are ready for live interviews."}
-              </p>
-            </div>
-            {extension.connected ? (
-              <Link
-                to="/app/settings"
-                className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-              >
-                Manage access
-                <ArrowRightIcon className="size-3.5" aria-hidden="true" />
-              </Link>
-            ) : (
-              <Button size="sm" variant="outline" className="mt-4 w-fit" onClick={connectExtension}>
-                Connect extension
-              </Button>
             )}
           </div>
         </StaggerItem>

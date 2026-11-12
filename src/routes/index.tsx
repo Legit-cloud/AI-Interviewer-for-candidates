@@ -96,8 +96,8 @@ const workflow = [
   {
     step: "04",
     icon: ShieldCheckIcon,
-    title: "Open the Chrome side panel",
-    body: "Start tab audio or mic explicitly on your meeting tab. Short talking points appear beside the call; stop anytime.",
+    title: "Open the live companion",
+    body: "Start system audio or mic explicitly on your interview call. Short talking points appear beside the call; stop anytime.",
   },
 ];
 
@@ -302,7 +302,7 @@ function Landing() {
                       V
                     </span>
                     <span className="text-xs font-semibold tracking-tight">
-                      Vren AI · Chrome Side Panel
+                      Vren AI · Live Companion
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -453,8 +453,8 @@ function Landing() {
               Prepare calmly in the dashboard. Stay grounded in the call.
             </h2>
             <p className="mt-3 text-base text-muted-foreground">
-              Your structured profile, job match, and privacy preferences stay synced between the
-              web workspace and the Chrome Side Panel.
+              Your structured profile, job match, and privacy preferences stay synced with your
+              live interview companion.
             </p>
           </Reveal>
 
@@ -597,7 +597,7 @@ function Landing() {
               {
                 icon: SpeakerHighIcon,
                 title: "Tab audio vs. microphone",
-                body: "Chrome tab capture and your mic are separate switches with separate permission prompts.",
+                body: "System audio capture and your mic are separate switches with separate permission prompts.",
               },
               {
                 icon: LockKeyIcon,

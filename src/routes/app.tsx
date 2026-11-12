@@ -17,7 +17,7 @@ import { UserIcon } from "@phosphor-icons/react/User";
 import { Button } from "@/components/ui/button";
 import { WorkspaceLoadingShell } from "@/components/loading";
 import { motion } from "@/components/motion";
-import { Logo, Status } from "@/components/vren";
+import { Logo } from "@/components/vren";
 import { auth, getState, useAppState } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -43,7 +43,7 @@ const nav = [
 ] as const;
 
 function AppLayout() {
-  const { user, profile, extension } = useAppState();
+  const { user, profile } = useAppState();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
@@ -123,11 +123,6 @@ function AppLayout() {
         </nav>
 
         <div className="mt-auto hidden space-y-3 border-t p-4 md:block">
-          <Link to="/app/settings" className="block">
-            <Status tone={extension.connected ? "success" : "neutral"}>
-              {extension.connected ? `Extension · v${extension.version}` : "Extension not connected"}
-            </Status>
-          </Link>
           <div className="text-sm">
             <p className="truncate font-medium text-foreground">{profile?.name || "Candidate"}</p>
             <p className="truncate text-xs text-muted-foreground">{user?.email}</p>

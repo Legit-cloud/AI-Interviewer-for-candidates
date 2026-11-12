@@ -15,8 +15,7 @@ DECLARE
     'transcript_segments',
     'generated_suggestions',
     'session_notes',
-    'user_consents',
-    'extension_connections'
+    'user_consents'
   ];
 BEGIN
   FOREACH tbl IN ARRAY user_tables LOOP
