@@ -11,6 +11,10 @@ import {
 let engine: CaptureEngine | null = null;
 let state: PanelState = emptyState();
 
+function relayToOverlay(): void {
+  chrome.runtime.sendMessage({ target: "background", type: "OVERLAY_STATE", state }).catch(() => {});
+}
+
 function toPanel(msg: PanelMessage): void {
   chrome.runtime.sendMessage(msg).catch(() => {
     /* the panel may be closed; state is kept here for when it reopens */
@@ -30,6 +34,7 @@ async function start(streamId: string, wsUrl: string): Promise<void> {
     onEvent: (event: ServerEvent) => {
       state = reduceEvent(state, event);
       toPanel({ target: "panel", type: "SERVER_EVENT", event });
+      relayToOverlay();
     },
     onStatus: (status, detail) => {
       state = { ...state, connection: status };

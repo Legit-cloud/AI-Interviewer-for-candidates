@@ -10,8 +10,9 @@ export default defineConfig({
     short_name: "Vren AI",
     description:
       "Shows the answers from your Vren AI interview session in a side panel. When you press Start capture it streams the audio of the tab you chose to Vren AI for live transcription.",
-    // Panel + capture relay only. No content scripts, no access to the pages you browse.
-    permissions: ["sidePanel", "tabCapture", "offscreen", "activeTab", "storage"],
+    // The panel and capture relay need no page access. The optional on-page overlay is injected only into
+    // the tab you choose, on request (activeTab); nothing is registered for any site.
+    permissions: ["sidePanel", "tabCapture", "offscreen", "activeTab", "scripting", "storage"],
     host_permissions: [`${apiOrigin}/*`],
     action: { default_title: "Open Vren AI" },
     icons: { "16": "icon/16.png", "48": "icon/48.png", "128": "icon/128.png" },

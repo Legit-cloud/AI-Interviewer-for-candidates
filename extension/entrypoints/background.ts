@@ -1,6 +1,26 @@
-import type { BackgroundMessage, OffscreenMessage } from "../lib/types";
+import type { BackgroundMessage, OffscreenMessage, PanelState } from "../lib/types";
 
 const OFFSCREEN_URL = "offscreen.html";
+const OVERLAY_TAB_KEY = "vren-overlay-tab";
+
+async function overlayTab(): Promise<number | null> {
+  const out = await chrome.storage.session.get(OVERLAY_TAB_KEY);
+  return (out[OVERLAY_TAB_KEY] as number | undefined) ?? null;
+}
+
+async function pushOverlayState(state: PanelState): Promise<void> {
+  const tabId = await overlayTab();
+  if (tabId === null) return;
+  chrome.tabs.sendMessage(tabId, { target: "overlay", type: "STATE", state }).catch(() => {
+    void chrome.storage.session.remove(OVERLAY_TAB_KEY); // tab closed or navigated away
+  });
+}
+
+async function disableOverlay(): Promise<void> {
+  const tabId = await overlayTab();
+  await chrome.storage.session.remove(OVERLAY_TAB_KEY);
+  if (tabId !== null) chrome.tabs.sendMessage(tabId, { target: "overlay", type: "CLOSE" }).catch(() => {});
+}
 
 async function hasOffscreen(): Promise<boolean> {
   const contexts = await chrome.runtime.getContexts({
@@ -31,6 +51,29 @@ export default defineBackground(() => {
   chrome.runtime.onMessage.addListener((raw: BackgroundMessage, _sender, sendResponse) => {
     if (!raw || raw.target !== "background") return false;
 
+    if (raw.type === "OVERLAY_STATE") {
+      void pushOverlayState(raw.state);
+      return false;
+    }
+    if (raw.type === "OVERLAY_ENABLE") {
+      (async () => {
+        try {
+          // activeTab (granted by the user clicking the Vren icon on this tab) lets us inject here only.
+          await chrome.scripting.executeScript({ target: { tabId: raw.tabId }, files: ["/content-scripts/overlay.js"] });
+          await chrome.storage.session.set({ [OVERLAY_TAB_KEY]: raw.tabId });
+          sendResponse({ ok: true });
+        } catch (err) {
+          sendResponse({ ok: false, error: err instanceof Error ? err.message : "Could not show the overlay on this tab." });
+        }
+      })();
+      return true;
+    }
+    if (raw.type === "OVERLAY_DISABLE") {
+      void disableOverlay();
+      sendResponse({ ok: true });
+      return false;
+    }
+
     if (raw.type === "START") {
       (async () => {
         try {
@@ -48,6 +91,7 @@ export default defineBackground(() => {
       return true;
     }
 
+    if (raw.type !== "PAUSE" && raw.type !== "RESUME" && raw.type !== "STOP") return false;
     const map = { PAUSE: "OFFSCREEN_PAUSE", RESUME: "OFFSCREEN_RESUME", STOP: "OFFSCREEN_STOP" } as const;
     toOffscreen({ target: "offscreen", type: map[raw.type] })
       .then((res) => {

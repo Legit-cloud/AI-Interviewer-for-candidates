@@ -16,6 +16,7 @@ let tab: { id: number; eligibility: TabEligibility } | null = null;
 let error = "";
 let busy = false;
 let textSize = 17;
+let overlayOn = false;
 
 /* ------------------------------------------------------------ tiny DOM helpers (text only, never innerHTML) */
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -88,6 +89,33 @@ async function startCapture(): Promise<void> {
   render();
 }
 
+async function toggleOverlay(): Promise<void> {
+  if (overlayOn) {
+    await chrome.runtime.sendMessage({ target: "background", type: "OVERLAY_DISABLE" }).catch(() => null);
+    overlayOn = false;
+  } else if (tab) {
+    const res = (await chrome.runtime
+      .sendMessage({ target: "background", type: "OVERLAY_ENABLE", tabId: tab.id })
+      .catch(() => null)) as { ok: boolean; error?: string } | null;
+    overlayOn = res?.ok === true;
+    error = res?.ok ? "" : (res?.error ?? "Could not show the overlay on this tab.");
+  }
+  render();
+}
+
+function overlayControl(): HTMLElement {
+  return el("div", { class: "card" }, [
+    el("div", { class: "row" }, [
+      el("span", { text: "Show answers on the page" }),
+      button(overlayOn ? "Hide overlay" : "Show overlay", "", () => void toggleOverlay(), !tab && !overlayOn),
+    ]),
+    el("p", {
+      class: "muted",
+      text: "Optional. The overlay is drawn inside the web page, so it appears in a tab share and the page's own scripts can see it. The panel is the default and stays outside the page.",
+    }),
+  ]);
+}
+
 function control(type: "PAUSE" | "RESUME" | "STOP"): void {
   void chrome.runtime.sendMessage({ target: "background", type });
 }
@@ -147,7 +175,8 @@ function viewReady(): HTMLElement[] {
       el("p", { text: "What Start capture does" }),
       el("p", { class: "muted", text: "It streams the audio of the tab above to Vren AI for live transcription while the session runs. Raw audio is not kept. Chrome shows its own recording indicator on that tab, and you can stop at any time." }),
     ]),
-    el("div", { class: "hint", text: "Answers appear only in this panel. The panel is part of your browser window: sharing a single tab does not include it, but sharing your whole screen or browser window may show it. Check what you are sharing." }),
+    overlayControl(),
+    el("div", { class: "hint", text: "By default answers appear only in this panel. The panel is part of your browser window: sharing a single tab does not include it, but sharing your whole screen or browser window may show it. Check what you are sharing." }),
     error ? el("p", { class: "error", text: error, attrs: { role: "alert" } }) : null,
     el("div", { class: "row" }, [
       button(busy ? "Starting…" : "Start capture", "primary", () => void startCapture(), busy || !ok),
@@ -160,6 +189,7 @@ function viewLive(): HTMLElement[] {
   const latest = state.answers[0];
   const earlier = state.answers.slice(1);
   const out: (HTMLElement | null)[] = [];
+  out.push(overlayControl());
   if (state.notice) out.push(el("div", { class: "hint", text: state.notice, attrs: { role: "status" } }));
   if (state.pending) {
     out.push(

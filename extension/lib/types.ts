@@ -66,7 +66,26 @@ export interface ControlMessage {
   target: "background";
   type: "PAUSE" | "RESUME" | "STOP";
 }
-export type BackgroundMessage = StartCaptureMessage | ControlMessage;
+export interface OverlayEnableMessage {
+  target: "background";
+  type: "OVERLAY_ENABLE";
+  tabId: number;
+}
+export interface OverlayOtherMessage {
+  target: "background";
+  type: "OVERLAY_DISABLE";
+}
+export interface OverlayStateMessage {
+  target: "background";
+  type: "OVERLAY_STATE";
+  state: PanelState;
+}
+export type BackgroundMessage =
+  | StartCaptureMessage
+  | ControlMessage
+  | OverlayEnableMessage
+  | OverlayOtherMessage
+  | OverlayStateMessage;
 
 export interface OffscreenStartMessage {
   target: "offscreen";
