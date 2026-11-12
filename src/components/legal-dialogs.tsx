@@ -49,27 +49,28 @@ export function TermsDialog({ trigger }: { trigger: ReactNode }) {
         <DialogHeader>
           <DialogTitle className="font-display text-2xl">Terms & product boundaries</DialogTitle>
           <DialogDescription>
-            Coaching guidance only, never candidate impersonation or hiring assessment.
+            An assistive tool only: it never speaks for you and is not a hiring assessment.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 text-sm leading-relaxed text-muted-foreground">
           <p>
-            <strong className="font-medium text-foreground">Coaching, not an assessment.</strong>{" "}
-            Suggestions and post-session insights help you organise your own background and do not
-            constitute an objective hiring evaluation.
+            <strong className="font-medium text-foreground">Assistance, not an assessment.</strong>{" "}
+            Answers and post-session insights help you present your own background and do not
+            constitute an objective hiring evaluation. You choose what to say and remain responsible
+            for it.
           </p>
           <p>
-            <strong className="font-medium text-foreground">Natural, honest guidance.</strong> Vren
+            <strong className="font-medium text-foreground">Natural, honest answers.</strong> Vren
             AI draws on your verified background when it fits and answers tough role questions
             clearly without fabricating fake employers or qualifications on your CV.
           </p>
           <p>
             <strong className="font-medium text-foreground">Respect meeting rules.</strong> You are
-            responsible for ensuring interview coaching tools are permitted in your interview context.
+            responsible for ensuring assistive tools are permitted in your interview context. Vren
+            AI cannot check this for you and does not hide itself from screen sharing or monitoring.
           </p>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
-

@@ -45,9 +45,13 @@ export function useNetworkStatus(active = true, thresholdMs = 4000) {
  * Mounted inside __root.tsx.
  */
 export function NavigationProgress() {
-  const isNavigating = useRouterState({
+  const routerBusy = useRouterState({
     select: (s) => s.isLoading || s.status === "pending",
   });
+  // The server renders mid-navigation; only show the bar after mount so server and client markup match.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const isNavigating = mounted && routerBusy;
   const { slow, offline } = useNetworkStatus(isNavigating, 4000);
 
   return (
@@ -293,4 +297,3 @@ export function DetailSkeleton() {
     </div>
   );
 }
-

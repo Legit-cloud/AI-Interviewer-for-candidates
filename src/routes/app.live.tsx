@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { PageTransition } from "@/components/motion";
 import { PageHeader, Status } from "@/components/vren";
 import {
+  endSessionById,
+  hydrateFromBackend,
   startLiveSession,
   useAppState,
   type LiveAnswer,
@@ -57,7 +59,7 @@ function useCountdown(expiresAt: string | undefined): number {
 }
 
 function LiveSessionPage() {
-  const { jobs, preferences } = useAppState();
+  const { jobs, preferences, sessions } = useAppState();
   const activeJobs = jobs.filter((j) => !j.archived);
 
   const [phase, setPhase] = useState<Phase>("setup");
@@ -80,6 +82,25 @@ function LiveSessionPage() {
   const countdown = useCountdown(pairing?.expiresAt);
 
   useEffect(() => () => handle.current?.close(), []);
+
+  // Warn before closing the tab while a live session is running.
+  useEffect(() => {
+    if (phase !== "live") return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [phase]);
+
+  // A session left running (for example after closing this page) can be picked up again.
+  const resumable = useMemo(
+    () =>
+      sessions.find(
+        (s) =>
+          (s.state === "live" || s.state === "interrupted") &&
+          Date.now() - new Date(s.date).getTime() < 2 * 60 * 60 * 1000,
+      ),
+    [sessions],
+  );
 
   const onEvent = useCallback((evt: LiveServerEvent) => {
     switch (evt.type) {
@@ -136,6 +157,7 @@ function LiveSessionPage() {
       case "session.expired":
       case "session.finalized": {
         setPhase("ended");
+        void hydrateFromBackend(); // so the review page has the finished session
         break;
       }
       default:
@@ -143,22 +165,36 @@ function LiveSessionPage() {
     }
   }, []);
 
-  const start = async () => {
+  const start = async (resumeSessionId?: string) => {
     setStarting(true);
     try {
       const h = await startLiveSession(
-        { jobId: jobId || null, retainTranscript: retain },
+        {
+          jobId: jobId || null,
+          retainTranscript: retain,
+          ...(resumeSessionId ? { resumeSessionId } : {}),
+        },
         onEvent,
         setConnection,
       );
       handle.current = h;
       setSessionId(h.sessionId);
       setPairing(h.pairing);
+      setAnswers(h.history);
       setPhase("live");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not start the live session.");
     } finally {
       setStarting(false);
+    }
+  };
+
+  const endOld = async (id: string) => {
+    try {
+      await endSessionById(id);
+      toast.success("Session ended.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not end that session.");
     }
   };
 
@@ -192,6 +228,32 @@ function LiveSessionPage() {
           title="Start a live session"
           description="You set everything up here. The extension only relays tab audio when you press Start capture, and shows the answers."
         />
+        {resumable && (
+          <section
+            aria-label="Session in progress"
+            className="flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary-soft/40 p-5 md:flex-row md:items-center md:justify-between"
+          >
+            <div>
+              <p className="font-medium">You have a session in progress</p>
+              <p className="text-sm text-muted-foreground">
+                Started{" "}
+                {new Date(resumable.date).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+                . Pick it up again, or end it before starting a new one.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={() => void start(resumable.id)} disabled={starting}>
+                Resume
+              </Button>
+              <Button variant="outline" onClick={() => void endOld(resumable.id)}>
+                End it
+              </Button>
+            </div>
+          </section>
+        )}
         <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
           <div className="space-y-5 rounded-xl border bg-card p-5">
             <label className="block space-y-1.5 text-sm">
@@ -256,7 +318,11 @@ function LiveSessionPage() {
               </label>
             </div>
 
-            <Button onClick={start} disabled={!ackRules || starting} className="w-full md:w-auto">
+            <Button
+              onClick={() => void start()}
+              disabled={!ackRules || starting}
+              className="w-full md:w-auto"
+            >
               {starting ? "Starting…" : "Start live session"}
             </Button>
           </div>
@@ -343,7 +409,9 @@ function LiveSessionPage() {
           <Button
             variant="destructive"
             onClick={() => {
-              handle.current?.stop();
+              if (window.confirm("End this session? Capture stops and the session is finalised.")) {
+                handle.current?.stop();
+              }
             }}
           >
             Stop session

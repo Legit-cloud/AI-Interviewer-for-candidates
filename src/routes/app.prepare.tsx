@@ -129,7 +129,7 @@ function Prepare() {
     {
       ok: (profile?.experience.length ?? 0) > 0,
       label: "Candidate evidence added",
-      warn: "Add experience so suggestions can cite your real background.",
+      warn: "Add experience so answers can cite your real background.",
     },
     {
       ok:

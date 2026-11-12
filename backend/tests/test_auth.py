@@ -81,3 +81,34 @@ async def test_auth_lifecycle_and_account_deletion(client: AsyncClient) -> None:
     after = await client.get("/v1/me", headers={"Authorization": f"Bearer {new_access}"})
     assert after.status_code == 401
 
+
+
+async def test_change_password(client: AsyncClient) -> None:
+    signup = await client.post("/v1/auth/signup", json={"email": "chg@example.com", "password": "StrongPassword1!"})
+    verified = await client.post("/v1/auth/verify", json={"token": signup.json()["dev_verification_token"]})
+    headers = {"Authorization": f"Bearer {verified.json()['access_token']}"}
+
+    wrong = await client.post(
+        "/v1/auth/change-password", headers=headers,
+        json={"current_password": "nope-nope-nope", "new_password": "BrandNewPassword2!"},
+    )
+    assert wrong.status_code == 400 and wrong.json()["error"]["code"] == "CURRENT_PASSWORD_INVALID"
+
+    same = await client.post(
+        "/v1/auth/change-password", headers=headers,
+        json={"current_password": "StrongPassword1!", "new_password": "StrongPassword1!"},
+    )
+    assert same.status_code == 400
+
+    ok = await client.post(
+        "/v1/auth/change-password", headers=headers,
+        json={"current_password": "StrongPassword1!", "new_password": "BrandNewPassword2!"},
+    )
+    assert ok.status_code == 200 and ok.json()["access_token"]
+
+    old = await client.post("/v1/auth/signin", json={"email": "chg@example.com", "password": "StrongPassword1!"})
+    new = await client.post("/v1/auth/signin", json={"email": "chg@example.com", "password": "BrandNewPassword2!"})
+    assert old.status_code == 401 and new.status_code == 200
+    # the old refresh token no longer works, the new one does
+    assert (await client.post("/v1/auth/refresh", json={"refresh_token": verified.json()["refresh_token"]})).status_code == 401
+    assert (await client.post("/v1/auth/refresh", json={"refresh_token": ok.json()["refresh_token"]})).status_code == 200

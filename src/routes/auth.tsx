@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
@@ -14,12 +14,19 @@ import { Label } from "@/components/ui/label";
 import { AnimatePresence, motion, EASE } from "@/components/motion";
 import { Logo } from "@/components/vren";
 import { ApiError } from "@/lib/api";
-import { auth, delay, useAppState } from "@/lib/store";
+import { hasAuthSession } from "@/lib/api";
+import { auth, delay, getState, hydrateFromBackend, useAppState } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 type Mode = "signin" | "signup" | "forgot" | "verify";
 
 export const Route = createFileRoute("/auth")({
+  // Someone who is already signed in and set up has no reason to see the sign-in page.
+  beforeLoad: async () => {
+    if (!getState().user && hasAuthSession()) await hydrateFromBackend();
+    const { user } = getState();
+    if (user?.verified && user.onboarded) throw redirect({ to: "/app" });
+  },
   validateSearch: (s: Record<string, unknown>): { mode?: Mode | undefined } => ({
     mode: ["signin", "signup", "forgot", "verify"].includes(s["mode"] as string)
       ? (s["mode"] as Mode)
@@ -59,6 +66,14 @@ function AuthPage() {
 
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
+
+  // This page is server-rendered, so the route guard cannot see the session. Check on the client too.
+  useEffect(() => {
+    if (!user && hasAuthSession()) void hydrateFromBackend();
+  }, [user]);
+  useEffect(() => {
+    if (user?.verified && user.onboarded) void navigate({ to: "/app", replace: true });
+  }, [user, navigate]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -336,7 +351,9 @@ function AuthPage() {
                   )}
 
                   <Button type="submit" size="lg" className="w-full" disabled={pending}>
-                    {pending && <SpinnerGapIcon className="size-4 animate-spin" aria-hidden="true" />}
+                    {pending && (
+                      <SpinnerGapIcon className="size-4 animate-spin" aria-hidden="true" />
+                    )}
                     {mode === "signin"
                       ? "Sign in"
                       : mode === "signup"

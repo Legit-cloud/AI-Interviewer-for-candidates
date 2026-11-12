@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager, suppress
 from uuid import uuid4
 
@@ -10,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.core.database import AsyncSessionLocal, get_db
 from app.core.errors import register_exception_handlers
+from app.core.schema_check import schema_status
 from app.modules.auth.router import router as auth_router
 from app.modules.documents.router import router as documents_router
 from app.modules.jobs.router import router as jobs_router
@@ -21,6 +23,7 @@ from app.modules.sessions.retention import purge_expired_transcripts
 from app.modules.sessions.router import export_router, router as sessions_router
 
 settings = get_settings()
+logger = logging.getLogger("uvicorn.error")
 
 
 async def _retention_sweep_loop() -> None:
@@ -38,6 +41,14 @@ async def lifespan(_app: FastAPI):
     task: asyncio.Task[None] | None = None
     if settings.env != "test":
         task = asyncio.create_task(_retention_sweep_loop())
+        try:
+            async with AsyncSessionLocal() as db:
+                if await schema_status(db) == "needs_migration":
+                    logger.warning(
+                        "Database schema is behind the code. Run: cd backend && uv run alembic upgrade head"
+                    )
+        except Exception:
+            pass
     try:
         yield
     finally:
@@ -88,5 +99,10 @@ app.include_router(pairing_router)
 @app.get("/v1/health", tags=["system"])
 async def health(db: AsyncSession = Depends(get_db)) -> dict[str, str]:
     await db.execute(text("SELECT 1"))
-    return {"status": "ok", "database": "connected", "auth_mode": settings.auth_mode}
+    return {
+        "status": "ok",
+        "database": "connected",
+        "schema": await schema_status(db),
+        "auth_mode": settings.auth_mode,
+    }
 

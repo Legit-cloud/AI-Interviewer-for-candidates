@@ -13,7 +13,10 @@ export const Route = createFileRoute("/app/sessions/")({
   head: () => ({
     meta: [
       { title: "Session history | Vren AI" },
-      { name: "description", content: "Past interview sessions, retention state and review status." },
+      {
+        name: "description",
+        content: "Past interview sessions, retention state and review status.",
+      },
       { property: "og:title", content: "Session history | Vren AI" },
       { property: "og:description", content: "Your interview session history." },
       { property: "og:type", content: "website" },
@@ -55,8 +58,14 @@ function Sessions() {
           {(
             [
               ["all", `All (${sessions.length})`],
-              ["completed", `Completed (${sessions.filter((s) => s.state === "completed").length})`],
-              ["interrupted", `Interrupted (${sessions.filter((s) => s.state === "interrupted").length})`],
+              [
+                "completed",
+                `Completed (${sessions.filter((s) => s.state === "completed").length})`,
+              ],
+              [
+                "interrupted",
+                `Interrupted (${sessions.filter((s) => s.state === "interrupted").length})`,
+              ],
               ["unreviewed", `Needs review (${sessions.filter((s) => !s.reviewed).length})`],
             ] as const
           ).map(([id, label]) => (
@@ -109,11 +118,19 @@ function Sessions() {
                           {format(new Date(s.date), "d MMM yyyy, HH:mm")} · {s.durationMin} min
                         </p>
                       </div>
-                      {s.reviewed ? <Status tone="brand">Reviewed</Status> : <Status>Pending</Status>}
+                      {s.reviewed ? (
+                        <Status tone="brand">Reviewed</Status>
+                      ) : (
+                        <Status>Pending</Status>
+                      )}
                     </div>
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
                       {s.state === "completed" ? (
                         <Status tone="success">Completed</Status>
+                      ) : s.state === "live" ? (
+                        <Status tone="brand" pulse>
+                          Live now
+                        </Status>
                       ) : (
                         <Status tone="warning">Interrupted · review available</Status>
                       )}
@@ -168,6 +185,10 @@ function Sessions() {
                       <td className="px-5 py-3.5">
                         {s.state === "completed" ? (
                           <Status tone="success">Completed</Status>
+                        ) : s.state === "live" ? (
+                          <Status tone="brand" pulse>
+                            Live now
+                          </Status>
                         ) : (
                           <Status tone="warning">Interrupted · review available</Status>
                         )}
@@ -176,7 +197,11 @@ function Sessions() {
                         {s.transcriptRetained ? "Retained" : "Not retained"}
                       </td>
                       <td className="px-5 py-3.5">
-                        {s.reviewed ? <Status tone="brand">Reviewed</Status> : <Status>Pending</Status>}
+                        {s.reviewed ? (
+                          <Status tone="brand">Reviewed</Status>
+                        ) : (
+                          <Status>Pending</Status>
+                        )}
                       </td>
                     </tr>
                   );

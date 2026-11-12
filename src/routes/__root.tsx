@@ -65,7 +65,8 @@ function ErrorComponent({ error, reset }: ErrorComponentProps) {
           This view didn’t finish loading.
         </h1>
         <p className="mt-3 text-sm text-muted-foreground">
-          Your saved profile and session notes stay intact locally. Try reloading this view or return home.
+          Your saved profile and session notes stay intact locally. Try reloading this view or
+          return home.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2.5">
           <button
@@ -98,14 +99,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: "width=device-width, initial-scale=1, viewport-fit=cover",
       },
       { name: "theme-color", content: "#f5f3ee" },
-      { title: "Vren AI | Calm, honest interview guidance" },
+      { title: "Vren AI | Calm, honest interview answers" },
       {
         name: "description",
         content:
-          "Prepare with your own CV and job context, then get concise, evidence-based interview guidance.",
+          "Prepare with your own CV and job context, then get a concise, ready-to-say answer to each question.",
       },
       { property: "og:title", content: "Vren AI" },
-      { property: "og:description", content: "Concise interview guidance grounded in your real experience." },
+      {
+        property: "og:description",
+        content: "Concise interview answers grounded in your real experience.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],

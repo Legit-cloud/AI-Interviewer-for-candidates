@@ -296,3 +296,22 @@ async def test_live_session_requires_rules_acknowledgement(client: AsyncClient) 
     acked = (await client.post("/v1/sessions", headers=headers, json={"rules_acknowledged": True})).json()
     assert acked["snapshot"]["rules_acknowledged_at"]
     assert (await client.post(f"/v1/sessions/{acked['id']}/pairing-code", headers=headers)).status_code == 201
+
+
+async def test_unexpected_errors_return_json_and_health_reports_schema(client: AsyncClient, monkeypatch) -> None:
+    from app.main import app as fastapi_app
+
+    health = await client.get("/v1/health")
+    assert health.status_code == 200 and health.json()["schema"] in ("ok", "needs_migration", "unknown")
+
+    @fastapi_app.get("/v1/_boom")
+    async def _boom() -> None:
+        raise RuntimeError("kaboom")
+
+    from httpx import ASGITransport
+
+    async with AsyncClient(transport=ASGITransport(app=fastapi_app, raise_app_exceptions=False), base_url="http://test") as c:
+        res = await c.get("/v1/_boom")
+    assert res.status_code == 500
+    assert res.json()["error"]["code"] == "INTERNAL_ERROR"
+    assert "request_id" in res.json()["error"]

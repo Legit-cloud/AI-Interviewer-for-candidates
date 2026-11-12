@@ -133,7 +133,10 @@ function Dashboard() {
                         aria-hidden="true"
                       />
                     ) : (
-                      <CircleIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                      <CircleIcon
+                        className="size-4 shrink-0 text-muted-foreground"
+                        aria-hidden="true"
+                      />
                     )}
                     <span className={item.done ? "line-through" : "font-medium"}>{item.label}</span>
                   </span>
@@ -187,7 +190,7 @@ function Dashboard() {
                     Verify {unverified} extracted {unverified === 1 ? "field" : "fields"}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Only verified context is cited with confidence during live guidance.
+                    Only verified context is cited with confidence in live answers.
                   </p>
                 </>
               ) : activeJobs.length === 0 ? (
@@ -318,6 +321,10 @@ function Dashboard() {
                   </div>
                   {s.state === "completed" ? (
                     <Status tone="success">Completed</Status>
+                  ) : s.state === "live" ? (
+                    <Status tone="brand" pulse>
+                      Live now
+                    </Status>
                   ) : (
                     <Status tone="warning">Interrupted · review available</Status>
                   )}

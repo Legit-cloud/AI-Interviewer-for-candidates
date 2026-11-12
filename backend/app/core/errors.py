@@ -1,9 +1,13 @@
+import logging
 from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+
+
+logger = logging.getLogger(__name__)
 
 
 class AppError(Exception):
@@ -73,3 +77,25 @@ def register_exception_handlers(app: FastAPI) -> None:
             },
         )
 
+    @app.exception_handler(Exception)
+    async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+        from app.core.config import get_settings
+
+        logger.exception("Unhandled error on %s %s", request.method, request.url.path)
+        message = "Something went wrong on the server. Please try again."
+        if get_settings().env == "development":
+            message += (
+                " If you just updated Vren AI, apply the database migrations with "
+                "`cd backend && uv run alembic upgrade head`, then restart the API."
+            )
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": {
+                    "code": "INTERNAL_ERROR",
+                    "message": message,
+                    "request_id": _request_id(request),
+                    "details": {},
+                }
+            },
+        )
