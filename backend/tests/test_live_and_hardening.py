@@ -6,6 +6,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 from starlette.testclient import TestClient
 
 from app.core.database import get_db
@@ -33,7 +34,7 @@ async def test_session_subroutes_stop_and_retention_purge(client: AsyncClient) -
         json={"retain_transcript_default": True, "retention_days": 30},
     )
 
-    sess = await client.post("/v1/sessions", headers=headers, json={})
+    sess = await client.post("/v1/sessions", headers=headers, json={"rules_acknowledged": True})
     assert sess.status_code == 201
     session_id = sess.json()["id"]
 
@@ -82,7 +83,7 @@ async def test_rate_limiter_enforces_429() -> None:
 
 def test_live_websocket_protocol_question_detection_and_stop(tmp_path) -> None:
     db_file = tmp_path / "ws_test.db"
-    engine = create_async_engine(f"sqlite+aiosqlite:///{db_file}", echo=False)
+    engine = create_async_engine(f"sqlite+aiosqlite:///{db_file}", echo=False, poolclass=NullPool)
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
     import asyncio
@@ -111,7 +112,7 @@ def test_live_websocket_protocol_question_detection_and_stop(tmp_path) -> None:
             vr_b = tc.post("/v1/auth/verify", json={"token": su_b.json()["dev_verification_token"]})
             headers_b = {"Authorization": f"Bearer {vr_b.json()['access_token']}"}
 
-            sess_res = tc.post("/v1/sessions", headers=headers_a, json={"transcript_retained": True})
+            sess_res = tc.post("/v1/sessions", headers=headers_a, json={"transcript_retained": True, "rules_acknowledged": True})
             assert sess_res.status_code == 201
             session_id = sess_res.json()["id"]
 
@@ -158,15 +159,16 @@ def test_live_websocket_protocol_question_detection_and_stop(tmp_path) -> None:
                 assert ws.receive_json()["type"] == "transcript.completed"
                 qd = ws.receive_json()
                 assert qd["type"] == "question.detected"
-                assert ws.receive_json()["type"] == "suggestion.started"
+                assert ws.receive_json()["type"] == "answer.started"
                 deltas = []
                 sr = ws.receive_json()
-                while sr["type"] == "suggestion.delta":
+                while sr["type"] == "answer.delta":
                     deltas.append(sr["delta"])
                     sr = ws.receive_json()
                 assert len(deltas) >= 1
-                assert sr["type"] == "suggestion.ready"
-                assert len(sr["suggestion"]["outline"]) >= 3
+                assert sr["type"] == "answer.ready"
+                assert len(sr["answer"]["lines"]) >= 2
+                assert sr["answer"]["source_label"]
 
                 # Pause + Resume + Stop
                 ws.send_json({"type": "session.pause"})

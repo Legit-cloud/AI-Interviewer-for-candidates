@@ -1,7 +1,13 @@
 // Frontend store synchronized with the FastAPI + PostgreSQL backend (/v1/*).
 // Demo mode (unauthenticated sample workspace) remains available for local preview.
 import { useSyncExternalStore } from "react";
-import { apiFetch, getStoredTokens, hasAuthSession, setStoredTokens, type AuthTokens } from "@/lib/api";
+import {
+  apiFetch,
+  getStoredTokens,
+  hasAuthSession,
+  setStoredTokens,
+  type AuthTokens,
+} from "@/lib/api";
 
 /* ------------------------------------------------------------------ */
 /* Types                                                               */
@@ -92,7 +98,7 @@ export const INTERVIEW_TYPES = [
   "Custom",
 ] as const;
 export const ANSWER_LENGTHS = ["Brief", "Standard", "Detailed"] as const;
-export const RESPONSE_STYLES = ["Direct", "Conversational", "Structured", "Coaching"] as const;
+export const RESPONSE_STYLES = ["Direct", "Conversational", "Structured"] as const;
 export const FRAMEWORKS = [
   "STAR",
   "Problem / approach / trade-off",
@@ -223,7 +229,8 @@ export const sampleProfile = (name: string): Profile => ({
       role: "Product Designer",
       employer: "Helium Health",
       dates: "2019 - 2022",
-      summary: "Designed a clinician scheduling tool now used by 300+ clinics across three countries.",
+      summary:
+        "Designed a clinician scheduling tool now used by 300+ clinics across three countries.",
       origin: "extracted",
       confidence: 0.81,
       source: "Page 1 - Experience",
@@ -258,7 +265,13 @@ export const sampleProfile = (name: string): Profile => ({
     },
   ],
   certifications: [
-    { id: "c1", name: "Google UX Design Certificate", issuer: "Google", year: "2020", origin: "extracted" },
+    {
+      id: "c1",
+      name: "Google UX Design Certificate",
+      issuer: "Google",
+      year: "2020",
+      origin: "extracted",
+    },
   ],
   skills: [
     { name: "Figma", origin: "extracted" },
@@ -269,7 +282,14 @@ export const sampleProfile = (name: string): Profile => ({
     { name: "SQL", origin: "missing" },
   ],
   documents: [
-    { id: "d1", name: "CV_2026.pdf", uploadedAt: now(), status: "processed", sizeKb: 184, pages: 2 },
+    {
+      id: "d1",
+      name: "CV_2026.pdf",
+      uploadedAt: now(),
+      status: "processed",
+      sizeKb: 184,
+      pages: 2,
+    },
   ],
 });
 
@@ -402,22 +422,40 @@ const seedSessions = (): Session[] => [
       },
     ],
     transcript: [
-      { t: "04:12", speaker: "Interviewer", text: "Tell me about a time you improved a key product metric." },
+      {
+        t: "04:12",
+        speaker: "Interviewer",
+        text: "Tell me about a time you improved a key product metric.",
+      },
       {
         t: "04:20",
         speaker: "You",
         text: "At Paystack, merchant onboarding had a 41% drop-off. I ran twelve interviews with merchants...",
       },
-      { t: "11:47", speaker: "Interviewer", text: "How do you keep a design system adopted across teams?" },
-      { t: "11:55", speaker: "You", text: "We set up a contribution model where each squad had an owner..." },
-      { t: "23:05", speaker: "Interviewer", text: "Have you written SQL to analyse funnels yourself?" },
+      {
+        t: "11:47",
+        speaker: "Interviewer",
+        text: "How do you keep a design system adopted across teams?",
+      },
+      {
+        t: "11:55",
+        speaker: "You",
+        text: "We set up a contribution model where each squad had an owner...",
+      },
+      {
+        t: "23:05",
+        speaker: "Interviewer",
+        text: "Have you written SQL to analyse funnels yourself?",
+      },
     ],
     strengths: [
       "Quantified the onboarding result clearly",
       "Answered the SQL question honestly instead of overstating",
     ],
     improvements: ["Lead with the outcome before the context", "Name the stakeholders you aligned"],
-    missedEvidence: ["Helium Health scheduling tool (300+ clinics) fits the scale question at 31:10"],
+    missedEvidence: [
+      "Helium Health scheduling tool (300+ clinics) fits the scale question at 31:10",
+    ],
   },
   {
     id: "s2",
@@ -449,7 +487,12 @@ const seedSessions = (): Session[] => [
 
 const seedConsents = (): ConsentEvent[] => [
   { id: "c1", at: daysAgo(14), label: "Terms and privacy accepted", detail: "Version 1.0" },
-  { id: "c2", at: daysAgo(14), label: "Transcript retention off by default", detail: "Default setting" },
+  {
+    id: "c2",
+    at: daysAgo(14),
+    label: "Transcript retention off by default",
+    detail: "Default setting",
+  },
 ];
 
 const empty: AppState = {
@@ -563,7 +606,9 @@ function mapFeedbackFromBackend(fb: string): SuggestionFeedback | undefined {
   return undefined;
 }
 
-function mapFeedbackToBackend(fb: SuggestionFeedback | undefined): "helpful" | "not_relevant" | "none" {
+function mapFeedbackToBackend(
+  fb: SuggestionFeedback | undefined,
+): "helpful" | "not_relevant" | "none" {
   if (fb === "useful") return "helpful";
   if (fb === "not_useful" || fb === "incorrect") return "not_relevant";
   return "none";
@@ -1044,16 +1089,40 @@ export function saveVerifiedProfile(profile: Profile) {
       };
 
       for (const exp of profile.experience) {
-        await syncItem(exp.id, "experience", exp.role, exp.employer, exp.dates, exp.summary, exp.origin);
+        await syncItem(
+          exp.id,
+          "experience",
+          exp.role,
+          exp.employer,
+          exp.dates,
+          exp.summary,
+          exp.origin,
+        );
       }
       for (const ed of profile.education) {
-        await syncItem(ed.id, "education", ed.degree || ed.school, ed.school, ed.dates, "", ed.origin);
+        await syncItem(
+          ed.id,
+          "education",
+          ed.degree || ed.school,
+          ed.school,
+          ed.dates,
+          "",
+          ed.origin,
+        );
       }
       for (const proj of profile.projects) {
         await syncItem(proj.id, "project", proj.name, "", "", proj.summary, proj.origin);
       }
       for (const cert of profile.certifications) {
-        await syncItem(cert.id, "certification", cert.name, cert.issuer, cert.year, "", cert.origin);
+        await syncItem(
+          cert.id,
+          "certification",
+          cert.name,
+          cert.issuer,
+          cert.year,
+          "",
+          cert.origin,
+        );
       }
       await apiFetch("/v1/profile/verify", {
         method: "POST",
@@ -1072,7 +1141,11 @@ export function saveVerifiedProfile(profile: Profile) {
   }
 }
 
-export async function addDocument(file: { name: string; sizeKb: number; file?: File }): Promise<string> {
+export async function addDocument(file: {
+  name: string;
+  sizeKb: number;
+  file?: File;
+}): Promise<string> {
   const tempId = uid();
   const doc: CvDocument = {
     id: tempId,
@@ -1147,7 +1220,12 @@ export async function addDocument(file: { name: string; sizeKb: number; file?: F
 
 export function deleteDocument(id: string) {
   setState((s) =>
-    s.profile ? { ...s, profile: { ...s.profile, documents: s.profile.documents.filter((d) => d.id !== id) } } : s,
+    s.profile
+      ? {
+          ...s,
+          profile: { ...s.profile, documents: s.profile.documents.filter((d) => d.id !== id) },
+        }
+      : s,
   );
   if (hasAuthSession()) {
     void apiFetch(`/v1/documents/${id}`, { method: "DELETE" }).then(() => hydrateFromBackend());
@@ -1158,7 +1236,9 @@ export function deleteDocument(id: string) {
 /* Jobs                                                                */
 /* ------------------------------------------------------------------ */
 
-export function extractJob(text: string): Pick<Job, "required" | "preferred" | "themes" | "responsibilities"> {
+export function extractJob(
+  text: string,
+): Pick<Job, "required" | "preferred" | "themes" | "responsibilities"> {
   const known = [
     "Design systems",
     "User research",
@@ -1191,7 +1271,9 @@ export function extractJob(text: string): Pick<Job, "required" | "preferred" | "
   };
 }
 
-export async function addJobAsync(job: Omit<Job, "id" | "updatedAt" | "archived">): Promise<string> {
+export async function addJobAsync(
+  job: Omit<Job, "id" | "updatedAt" | "archived">,
+): Promise<string> {
   if (hasAuthSession()) {
     const created = await apiFetch<BackendJobDto>("/v1/jobs", {
       method: "POST",
@@ -1218,7 +1300,10 @@ export async function addJobAsync(job: Omit<Job, "id" | "updatedAt" | "archived"
 
 export function addJob(job: Omit<Job, "id" | "updatedAt" | "archived">) {
   const tempId = uid();
-  setState((s) => ({ ...s, jobs: [{ ...job, id: tempId, updatedAt: now(), archived: false }, ...s.jobs] }));
+  setState((s) => ({
+    ...s,
+    jobs: [{ ...job, id: tempId, updatedAt: now(), archived: false }, ...s.jobs],
+  }));
   if (hasAuthSession()) {
     void apiFetch<BackendJobDto>("/v1/jobs", {
       method: "POST",
@@ -1257,7 +1342,9 @@ export function updateJob(id: string, patch: Partial<Job>) {
         ...(patch.company !== undefined ? { company: patch.company } : {}),
         ...(patch.seniority !== undefined ? { seniority: patch.seniority } : {}),
         ...(patch.description !== undefined ? { raw_text: patch.description } : {}),
-        ...(patch.responsibilities !== undefined ? { responsibilities: patch.responsibilities } : {}),
+        ...(patch.responsibilities !== undefined
+          ? { responsibilities: patch.responsibilities }
+          : {}),
         ...(patch.required !== undefined ? { required_skills: patch.required } : {}),
         ...(patch.preferred !== undefined ? { preferred_skills: patch.preferred } : {}),
         ...(patch.themes !== undefined ? { themes: patch.themes } : {}),
@@ -1275,7 +1362,12 @@ export function deleteJob(id: string) {
 }
 
 export function jobCompleteness(job: Job) {
-  const parts = [job.description.length > 40, job.required.length > 0, job.responsibilities.length > 0, job.themes.length > 0];
+  const parts = [
+    job.description.length > 40,
+    job.required.length > 0,
+    job.responsibilities.length > 0,
+    job.themes.length > 0,
+  ];
   return Math.round((parts.filter(Boolean).length / parts.length) * 100);
 }
 
@@ -1363,7 +1455,10 @@ export async function createPracticeSessionAsync(job: Job, cfg: PrepConfig): Pro
                   `Context: ${firstExp.role} at ${firstExp.employer}`,
                   `Action & outcome: ${firstExp.summary}`,
                 ]
-              : ["Describe a project directly from your experience", "Focus on measurable outcomes"],
+              : [
+                  "Describe a project directly from your experience",
+                  "Focus on measurable outcomes",
+                ],
             evidence: firstExp ? `${firstExp.employer} - ${firstExp.role}` : null,
           },
         ],
@@ -1394,71 +1489,154 @@ export interface LiveServerEvent {
   [key: string]: unknown;
 }
 
-export async function openLiveSessionSocket(
-  jobId: string | null,
-  retainTranscript: boolean,
-  onEvent: (event: LiveServerEvent) => void,
-): Promise<{
+export interface LiveAnswer {
+  id: string;
+  question_text: string;
+  question_type: string;
+  asked_at: string;
+  framework: string;
+  answer: string;
+  lines: string[];
+  key_points: string[];
+  source_label: string;
+  caveat: string;
+}
+
+export interface PairingCode {
+  code: string;
+  expiresAt: string;
+}
+
+export type LiveConnection = "connecting" | "connected" | "reconnecting" | "closed";
+
+export interface LiveSessionHandle {
   sessionId: string;
-  socket: WebSocket;
-  sendUtterance: (text: string, source?: "tab" | "microphone") => void;
+  pairing: PairingCode;
+  refreshPairingCode: () => Promise<PairingCode>;
+  revokePairing: () => Promise<void>;
+  /** Types a question as if the interviewer had asked it, to test the flow without audio. */
+  simulate: (text: string) => void;
   pause: () => void;
   resume: () => void;
   stop: () => void;
-}> {
+  /** Closes this page's socket without ending the session. */
+  close: () => void;
+}
+
+const LIVE_MAX_RECONNECTS = 6;
+
+/**
+ * Creates a live session, issues a pairing code for the extension, and attaches this page as a
+ * display client. The page only shows events; the extension (or the test box) feeds questions in.
+ * If the socket drops it reconnects and asks the server to replay what it missed.
+ */
+export async function startLiveSession(
+  opts: { jobId: string | null; retainTranscript: boolean },
+  onEvent: (event: LiveServerEvent) => void,
+  onConnection: (state: LiveConnection) => void,
+): Promise<LiveSessionHandle> {
   const created = await apiFetch<BackendSessionDto>("/v1/sessions", {
     method: "POST",
     body: JSON.stringify({
-      job_id: jobId,
-      state: "listening",
-      transcript_retained: retainTranscript,
+      job_id: opts.jobId,
+      state: "ready",
+      transcript_retained: opts.retainTranscript,
+      rules_acknowledged: true,
     }),
   });
-  const tokenRes = await apiFetch<{ session_id: string; ws_token: string; ws_path: string }>(
-    `/v1/sessions/${created.id}/token`,
+  const sessionId = created.id;
+
+  const fetchCode = async (): Promise<PairingCode> => {
+    const res = await apiFetch<{ code: string; expires_at: string }>(
+      `/v1/sessions/${sessionId}/pairing-code`,
+      { method: "POST" },
+    );
+    return { code: res.code, expiresAt: res.expires_at };
+  };
+  const pairing = await fetchCode();
+
+  const tokenRes = await apiFetch<{ ws_token: string; ws_path: string }>(
+    `/v1/sessions/${sessionId}/token?role=display`,
     { method: "POST" },
   );
-  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const wsUrl = `${proto}//${window.location.host}${tokenRes.ws_path}?token=${encodeURIComponent(tokenRes.ws_token)}`;
-  const socket = new WebSocket(wsUrl);
-  socket.addEventListener("open", () => {
-    socket.send(JSON.stringify({ type: "session.configure", sources: ["tab"] }));
-  });
-  socket.addEventListener("message", (evt) => {
-    try {
-      const parsed = JSON.parse(String(evt.data)) as LiveServerEvent;
-      onEvent(parsed);
-    } catch {
-      /* ignore non-JSON WS message */
-    }
-  });
+
+  let socket: WebSocket | null = null;
+  let lastEventId = "";
+  let attempts = 0;
+  let finished = false;
+  let intentionallyClosed = false;
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
+
+  const connect = () => {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const replay = lastEventId ? `&last_event_id=${encodeURIComponent(lastEventId)}` : "";
+    const url = `${proto}//${window.location.host}${tokenRes.ws_path}?token=${encodeURIComponent(tokenRes.ws_token)}${replay}`;
+    const ws = new WebSocket(url);
+    socket = ws;
+    onConnection(attempts === 0 ? "connecting" : "reconnecting");
+
+    ws.addEventListener("open", () => {
+      attempts = 0;
+      onConnection("connected");
+      clearInterval(heartbeat);
+      heartbeat = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "client.heartbeat" }));
+      }, 20000);
+    });
+    ws.addEventListener("message", (evt) => {
+      try {
+        const parsed = JSON.parse(String(evt.data)) as LiveServerEvent;
+        if (parsed.event_id) lastEventId = parsed.event_id;
+        if (parsed.type === "session.finalized" || parsed.type === "session.expired")
+          finished = true;
+        onEvent(parsed);
+      } catch {
+        /* ignore non-JSON WS message */
+      }
+    });
+    ws.addEventListener("close", (evt) => {
+      clearInterval(heartbeat);
+      // 44xx codes are deliberate server refusals (ended, expired, revoked): do not retry.
+      const refused = evt.code >= 4400 && evt.code < 4500;
+      if (intentionallyClosed || finished || refused || attempts >= LIVE_MAX_RECONNECTS) {
+        onConnection("closed");
+        return;
+      }
+      attempts += 1;
+      onConnection("reconnecting");
+      setTimeout(connect, Math.min(1000 * 2 ** (attempts - 1), 8000));
+    });
+  };
+  connect();
+
+  const send = (payload: Record<string, unknown>) => {
+    if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
+  };
+
   return {
-    sessionId: created.id,
-    socket,
-    sendUtterance: (text: string, source: "tab" | "microphone" = "tab") => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "utterance.commit", source, text }));
-      }
+    sessionId,
+    pairing,
+    refreshPairingCode: fetchCode,
+    revokePairing: async () => {
+      await apiFetch(`/v1/sessions/${sessionId}/pairing/revoke`, { method: "POST" });
     },
-    pause: () => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "session.pause" }));
-      }
-    },
-    resume: () => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "session.resume" }));
-      }
-    },
-    stop: () => {
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: "session.stop" }));
-      }
+    simulate: (text: string) => send({ type: "transcript.simulate", source: "tab", text }),
+    pause: () => send({ type: "session.pause" }),
+    resume: () => send({ type: "session.resume" }),
+    stop: () => send({ type: "session.stop" }),
+    close: () => {
+      intentionallyClosed = true;
+      clearInterval(heartbeat);
+      socket?.close(1000);
     },
   };
 }
 
-export function setSuggestionFeedback(sessionId: string, questionId: string, feedback: SuggestionFeedback) {
+export function setSuggestionFeedback(
+  sessionId: string,
+  questionId: string,
+  feedback: SuggestionFeedback,
+) {
   setState((s) => ({
     ...s,
     sessions: s.sessions.map((x) =>
@@ -1466,7 +1644,9 @@ export function setSuggestionFeedback(sessionId: string, questionId: string, fee
         ? {
             ...x,
             questions: x.questions.map((q) =>
-              q.id === questionId ? { ...q, feedback: q.feedback === feedback ? undefined : feedback } : q,
+              q.id === questionId
+                ? { ...q, feedback: q.feedback === feedback ? undefined : feedback }
+                : q,
             ),
           }
         : x,
@@ -1484,13 +1664,18 @@ export function setSuggestionFeedback(sessionId: string, questionId: string, fee
 }
 
 export function updateSession(id: string, patch: Partial<Session>) {
-  setState((s) => ({ ...s, sessions: s.sessions.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
+  setState((s) => ({
+    ...s,
+    sessions: s.sessions.map((x) => (x.id === id ? { ...x, ...patch } : x)),
+  }));
   if (hasAuthSession()) {
     void apiFetch(`/v1/sessions/${id}`, {
       method: "PATCH",
       body: JSON.stringify({
         ...(patch.durationMin !== undefined ? { duration_min: patch.durationMin } : {}),
-        ...(patch.transcriptRetained !== undefined ? { transcript_retained: patch.transcriptRetained } : {}),
+        ...(patch.transcriptRetained !== undefined
+          ? { transcript_retained: patch.transcriptRetained }
+          : {}),
         ...(patch.reviewed !== undefined ? { reviewed: patch.reviewed } : {}),
         ...(patch.notes !== undefined ? { note: patch.notes } : {}),
         ...(patch.strengths !== undefined ? { strengths: patch.strengths } : {}),
@@ -1515,10 +1700,15 @@ export function deleteSession(id: string) {
 export function updatePreferences(patch: Partial<Preferences>) {
   setState((s) => {
     const consents = [...s.consents];
-    if (patch.retainTranscriptDefault !== undefined && patch.retainTranscriptDefault !== s.preferences.retainTranscriptDefault)
+    if (
+      patch.retainTranscriptDefault !== undefined &&
+      patch.retainTranscriptDefault !== s.preferences.retainTranscriptDefault
+    )
       consents.unshift(
         consent(
-          patch.retainTranscriptDefault ? "Transcript retention default on" : "Transcript retention default off",
+          patch.retainTranscriptDefault
+            ? "Transcript retention default on"
+            : "Transcript retention default off",
           "Applies to new sessions only",
         ),
       );
@@ -1558,7 +1748,11 @@ export function dismissChecklist() {
 
 export function exportData() {
   const { user, profile, jobs, sessions, preferences, consents } = getState();
-  return JSON.stringify({ exportedAt: now(), user, profile, jobs, sessions, preferences, consents }, null, 2);
+  return JSON.stringify(
+    { exportedAt: now(), user, profile, jobs, sessions, preferences, consents },
+    null,
+    2,
+  );
 }
 
 export function deleteAllSessions() {
@@ -1582,7 +1776,13 @@ export function deleteAccount() {
 
 export function profileCompleteness(p: Profile | null) {
   if (!p) return 0;
-  const parts = [p.summary, p.experience.length, p.skills.length, p.education.length, p.documents.length];
+  const parts = [
+    p.summary,
+    p.experience.length,
+    p.skills.length,
+    p.education.length,
+    p.documents.length,
+  ];
   return Math.round((parts.filter(Boolean).length / parts.length) * 100);
 }
 
@@ -1595,11 +1795,19 @@ export function unverifiedCount(p: Profile | null) {
 
 export type MatchState = "matched" | "partial" | "gap";
 export function matchJob(job: Job, p: Profile | null) {
-  const skills = new Set((p?.skills ?? []).filter((s) => s.origin !== "missing").map((s) => s.name.toLowerCase()));
-  const text = [...(p?.experience ?? []).map((e) => `${e.summary} ${e.employer} ${e.role}`), ...(p?.projects ?? []).map((x) => `${x.name} ${x.summary}`)]
+  const skills = new Set(
+    (p?.skills ?? []).filter((s) => s.origin !== "missing").map((s) => s.name.toLowerCase()),
+  );
+  const text = [
+    ...(p?.experience ?? []).map((e) => `${e.summary} ${e.employer} ${e.role}`),
+    ...(p?.projects ?? []).map((x) => `${x.name} ${x.summary}`),
+  ]
     .join(" ")
     .toLowerCase();
-  const all = [...job.required.map((r) => ({ r, required: true })), ...job.preferred.map((r) => ({ r, required: false }))];
+  const all = [
+    ...job.required.map((r) => ({ r, required: true })),
+    ...job.preferred.map((r) => ({ r, required: false })),
+  ];
   return all.map(({ r, required }) => {
     const k = r.toLowerCase();
     if (skills.has(k)) return { req: r, required, state: "matched" as MatchState };

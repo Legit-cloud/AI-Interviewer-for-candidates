@@ -339,7 +339,7 @@ The system must not generate a new answer for every partial transcript change. A
 ### FR-5 Extension connection (pairing)
 
 **Description:** Pair the extension to a web-created session using a short-lived, single-use pairing code. The extension never receives the user's password or a full account token.  
-**Rules:** code is 6 digits, bound to one session and user, expires in 10 minutes, is stored hashed, is revoked when the session ends, and is rate limited per code and per IP. Redemption returns a session-scoped token that cannot read the CV, profile or other sessions.  
+**Rules:** code is 6 digits, bound to one session and user, expires in 10 minutes, is stored hashed, is revoked when the session ends, and failed redemptions are throttled per IP. Redemption returns a session-scoped token that cannot read the CV, profile or other sessions.  
 **Acceptance criteria:** the panel shows the paired session, extension version and connection status without exposing provider credentials; expired, reused and wrong codes produce deterministic errors; the user can revoke the pairing from the web page.
 
 ### FR-6 Explicit capture
@@ -555,7 +555,7 @@ The extension reuses tokens and components but not the full desktop navigation. 
 |---|---|---|---|
 | Web | React + TypeScript + Vite | Small, explicit SPA architecture with shared types | Next.js is not required for MVP unless SEO or server rendering becomes a requirement |
 | Web state | TanStack Query + typed API client | Clear server-state caching and invalidation | Avoid global state for server data |
-| Extension | WXT + React + TypeScript + MV3 | Practical build structure for extension entrypoints and shared code | Keep browser APIs behind adapters |
+| Extension | WXT + TypeScript + MV3 (no UI framework) | Practical build structure for extension entrypoints and shared code; the panel is small enough for plain DOM | Keep browser APIs behind adapters |
 | UI | Tailwind CSS + custom tokens | Fast consistent implementation with deliberate visual system | No generic component library as the brand layer |
 | Backend | Python + FastAPI + Pydantic | Async HTTP/WebSocket support, typed validation, modular monolith | No microservices until measured need |
 | Database | Supabase PostgreSQL | Relational model, migrations, RLS, operational simplicity | Keep domain access behind backend for sensitive operations |
@@ -750,8 +750,8 @@ Background jobs are appropriate for document extraction and post-session analysi
 | `interview_preferences` | Reusable defaults | FK `user_id`; one current default plus versioning if needed |
 | `interview_sessions` | Session snapshot and lifecycle | FK `user_id`, optional `job_id`; index `(user_id, started_at desc)` |
 | `transcript_segments` | Consent-retained final transcript rows | FK `session_id`, `user_id`; index `(session_id, sequence)` |
-| `generated_answers` | Generated answers, key points and evidence refs (renamed from `generated_suggestions`) | FK `session_id`, `user_id`; index `(session_id, created_at)` |
-| `pairing_codes` | Hashed single-use pairing codes | FK `session_id`, `user_id`; `expires_at`, `redeemed_at`, `failed_attempts`; index on `expires_at` |
+| `generated_answers` | Generated answers and evidence refs. The table is still named `generated_suggestions` in the current schema; renaming it is a later migration | FK `session_id`, `user_id`; index `(session_id, created_at)` |
+| `pairing_codes` | Hashed single-use pairing codes | FK `session_id`, `user_id`; `expires_at`, `redeemed_at`; index on `code_hash` |
 | `session_notes` | User-authored notes | FK `session_id`, `user_id` |
 | `user_consents` | Versioned capture/retention consent events | FK `user_id`; index `(user_id, consent_type, created_at desc)` |
 | `extension_connections` | Revocable extension connection metadata | FK `user_id`; index `(user_id, revoked_at)` |
@@ -838,7 +838,7 @@ All endpoints are under `/v1`. JSON errors use:
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| `POST` | `/v1/sessions` | Create session from selected context |
+| `POST` | `/v1/sessions` | Create session from selected context. `rules_acknowledged: true` records the interview-rules acknowledgement |
 | `GET` | `/v1/sessions/{id}` | Get session state |
 | `POST` | `/v1/sessions/{id}/token` | Issue short-lived WebSocket token |
 | `POST` | `/v1/sessions/{id}/stop` | Request server-side stop/finalisation |
@@ -853,7 +853,8 @@ All endpoints are under `/v1`. JSON errors use:
 - IDs are UUIDs or opaque server IDs; clients cannot set ownership fields.
 - Uploads have configured size/page/type limits and are scanned before parsing.
 - Session creation requires an active profile and job unless the user explicitly chooses general interview mode.
-- WebSocket tokens expire quickly and are scoped to one session and one user.
+- WebSocket tokens expire quickly and are scoped to one session and one user. They are rejected by every REST endpoint.
+- Issuing a WebSocket token or a pairing code for a session without a recorded interview-rules acknowledgement returns `412 RULES_ACK_REQUIRED`.
 - Rate limits apply to sign-in, upload, session creation, answer generation and pairing-code redemption, and deletion requests.
 
 ---
@@ -901,7 +902,10 @@ Endpoint: `wss://api.vren.ai/v1/live/{session_id}`. The client authenticates wit
 - The server closes idle or over-quota sessions with a final explanatory event.
 - A session accepts at most one capture client and up to two display clients; a second capture client is refused with a stable error code.
 - Display clients receive transcript and answer events only for their own session and never receive other clients' tokens.
-- During migration the backend emits both `suggestion.*` and `answer.*` event names for one release, then drops `suggestion.*`.
+- Live events use `answer.started`, `answer.delta`, `answer.ready` and `answer.unavailable`. The old `suggestion.*` names are not emitted. The REST path `/v1/sessions/{id}/suggestions` remains as an alias of `/answers`.
+- A token carries a role, `capture` or `display`. `POST /v1/sessions/{id}/token?role=display` issues a display token. Display clients may only send heartbeat, pause, resume, stop and `transcript.simulate`.
+- A client that reconnects passes `last_event_id` in the query string and the server replays the replayable events it missed (transcript, question, answer and capture-state events), held in memory for the life of the session.
+- The server closes with code 4408 when a session has passed its maximum duration, 4409 for an ended session or a second capture client, and 4403 when pairing is revoked.
 
 ---
 
@@ -922,7 +926,7 @@ A valid user token must not grant access to another user's session ID. Session I
 ### 20.1 Pairing codes and display tokens
 
 - The code is 6 digits, generated only for an authenticated web session, bound to one session and one user, valid for 10 minutes and usable once.
-- Codes are stored hashed. After 5 failed redemptions a code is invalidated; redemption is also rate limited per IP.
+- Codes are stored as keyed hashes. A new code replaces any unredeemed code for the same session. Failed redemptions are throttled per IP address (8 failures per 10 minutes) and redemption is rate limited.
 - Redemption returns a session-scoped token for the capture and display roles. It cannot call profile, document, job or settings endpoints.
 - The token is kept in extension session storage and cleared when the session ends or the user revokes pairing from the web page.
 

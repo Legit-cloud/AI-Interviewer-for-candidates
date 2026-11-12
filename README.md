@@ -8,6 +8,7 @@ Vren AI pairs your background and target job descriptions with a FastAPI + Postg
 
 - **Web Dashboard (`src/`):** TanStack Start / Router, React 19, Tailwind CSS v4, Vite 8
   - Account auth with email verification, CV upload and experience review (`/app/profile`), target job extraction and gap analysis (`/app/jobs`), response style preparation (`/app/prepare`), post-session review (`/app/sessions`), and privacy/account controls (`/app/settings`).
+- **Chrome Extension (`extension/`):** WXT + TypeScript, Manifest V3. A thin client: pair it with a live session using the 6-digit code from `/app/live`, press **Start capture** on your interview tab, and read answers in the Side Panel. Build with `cd extension && npm install && npm run build`, then load `extension/dist/chrome-mv3` as an unpacked extension.
 - **FastAPI Backend (`backend/`):** FastAPI, SQLAlchemy 2 (async), Alembic migrations, PostgreSQL (or local SQLite)
   - Live WebSocket pipeline (`/v1/live/{session_id}`), scoped session tokens, STT adapter (Deepgram, OpenAI-compatible Whisper, or offline prompt mode), question detection, and natural guidance generation.
 - **Storage:** Private local CV storage (`backend/storage/uploads/`, gitignored). Raw audio is processed in memory and not stored on disk.

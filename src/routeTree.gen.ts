@@ -14,6 +14,7 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AppIndexRouteImport } from './routes/app.index'
+import { Route as AppLiveRouteImport } from './routes/app.live'
 import { Route as AppPrepareRouteImport } from './routes/app.prepare'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
 import { Route as AppJobsIndexRouteImport } from './routes/app.jobs.index'
@@ -46,6 +47,11 @@ const OnboardingRoute = OnboardingRouteImport.update({
 const AppIndexRoute = AppIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppLiveRoute = AppLiveRouteImport.update({
+  id: '/live',
+  path: '/live',
   getParentRoute: () => AppRoute,
 } as any)
 const AppPrepareRoute = AppPrepareRouteImport.update({
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
+  '/app/live': typeof AppLiveRoute
   '/app/prepare': typeof AppPrepareRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/': typeof AppIndexRoute
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
+  '/app/live': typeof AppLiveRoute
   '/app/prepare': typeof AppPrepareRoute
   '/app/settings': typeof AppSettingsRoute
   '/app': typeof AppIndexRoute
@@ -124,6 +132,7 @@ export interface FileRoutesById {
   '/app': typeof AppRouteWithChildren
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
+  '/app/live': typeof AppLiveRoute
   '/app/prepare': typeof AppPrepareRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/': typeof AppIndexRoute
@@ -141,6 +150,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/auth'
     | '/onboarding'
+    | '/app/live'
     | '/app/prepare'
     | '/app/settings'
     | '/app/'
@@ -155,6 +165,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/onboarding'
+    | '/app/live'
     | '/app/prepare'
     | '/app/settings'
     | '/app'
@@ -170,6 +181,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/auth'
     | '/onboarding'
+    | '/app/live'
     | '/app/prepare'
     | '/app/settings'
     | '/app/'
@@ -223,6 +235,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/app/'
       preLoaderRoute: typeof AppIndexRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/live': {
+      id: '/app/live'
+      path: '/live'
+      fullPath: '/app/live'
+      preLoaderRoute: typeof AppLiveRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/prepare': {
@@ -285,6 +304,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AppRouteChildren {
+  AppLiveRoute: typeof AppLiveRoute
   AppPrepareRoute: typeof AppPrepareRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -297,6 +317,7 @@ interface AppRouteChildren {
 }
 
 const AppRouteChildren: AppRouteChildren = {
+  AppLiveRoute: AppLiveRoute,
   AppPrepareRoute: AppPrepareRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppIndexRoute: AppIndexRoute,

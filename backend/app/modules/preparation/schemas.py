@@ -33,7 +33,7 @@ class PreferencesOut(BaseModel):
 class PreferencesUpdateIn(BaseModel):
     language: str | None = Field(default=None, max_length=40)
     length: str | None = Field(default=None, max_length=40)
-    style: str | None = Field(default=None, max_length=40)
+    style: Literal["Direct", "Conversational", "Structured"] | None = None
     framework: str | None = Field(default=None, max_length=80)
     retain_transcript_default: bool | None = None
     notes_default: bool | None = None

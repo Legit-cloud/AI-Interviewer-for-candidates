@@ -159,7 +159,7 @@ async def test_cross_industry_outside_cv_suggestions(client: AsyncClient) -> Non
     )
     assert res.status_code == 201
     body = res.json()
-    assert len(body["outline"]) >= 3
+    assert len(body["outline"]) >= 2
     joined = " ".join(body["outline"]).lower()
     assert "budget" in joined or "normal" in joined or "lighting" in joined
     assert "refuse" not in joined

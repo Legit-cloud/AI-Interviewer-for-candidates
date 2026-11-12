@@ -62,17 +62,22 @@ def decode_access_token(token: str) -> dict[str, Any]:
             kwargs["audience"] = settings.jwt_audience
         else:
             kwargs["audience"] = "authenticated"
-        return jwt.decode(token, settings.active_jwt_secret, **kwargs)
+        payload = jwt.decode(token, settings.active_jwt_secret, **kwargs)
     except jwt.ExpiredSignatureError as exc:
         raise AppError("TOKEN_EXPIRED", "Your session has expired. Sign in again.", 401) from exc
     except jwt.InvalidTokenError as exc:
         raise AppError("INVALID_TOKEN", "Invalid authentication token.", 401) from exc
+    # Live-session tokens (pairing / WebSocket) must never work as account tokens.
+    if payload.get("scope") == "ws_session":
+        raise AppError("INVALID_TOKEN", "Invalid authentication token.", 401)
+    return payload
 
 
 def create_session_ws_token(
     user_id: UUID,
     session_id: UUID,
     minutes: int = 60,
+    role: str = "capture",
 ) -> tuple[str, datetime]:
     settings = get_settings()
     now = datetime.now(UTC)
@@ -85,12 +90,14 @@ def create_session_ws_token(
         "iat": int(now.timestamp()),
         "exp": int(expires.timestamp()),
         "scope": "ws_session",
+        "role": role,
     }
     token = jwt.encode(payload, settings.active_jwt_secret, algorithm="HS256")
     return token, expires
 
 
-def decode_session_ws_token(token: str, expected_session_id: UUID) -> UUID:
+def decode_session_ws_claims(token: str, expected_session_id: UUID) -> tuple[UUID, str]:
+    """Validate a live-session token and return (user_id, role). Role is 'capture' or 'display'."""
     settings = get_settings()
     try:
         payload = jwt.decode(
@@ -106,5 +113,11 @@ def decode_session_ws_token(token: str, expected_session_id: UUID) -> UUID:
 
     if payload.get("scope") != "ws_session" or payload.get("session_id") != str(expected_session_id):
         raise AppError("FORBIDDEN_WS_SESSION", "Token is not valid for this session.", 403)
-    return UUID(str(payload["sub"]))
+    role = str(payload.get("role") or "capture")
+    if role not in ("capture", "display"):
+        raise AppError("FORBIDDEN_WS_SESSION", "Token role is not valid.", 403)
+    return UUID(str(payload["sub"])), role
 
+
+def decode_session_ws_token(token: str, expected_session_id: UUID) -> UUID:
+    return decode_session_ws_claims(token, expected_session_id)[0]

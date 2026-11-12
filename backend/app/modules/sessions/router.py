@@ -2,7 +2,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from typing import Literal
+
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,7 +29,7 @@ from app.db.models import (
     User,
     UserConsent,
 )
-from app.modules.sessions.grounding import generate_grounded_suggestion
+from app.modules.sessions.grounding import generate_answer
 from app.modules.sessions.retention import purge_expired_transcripts
 from app.modules.sessions.schemas import (
     CleanupExpiredOut,
@@ -125,6 +127,16 @@ async def _get_owned_session(session_id: UUID, user_id: UUID, db: AsyncSession) 
     return row
 
 
+def require_rules_acknowledgement(session_row: InterviewSession) -> None:
+    """A live session cannot start until the user confirmed the interview-rules acknowledgement (FR-14)."""
+    if not (session_row.snapshot or {}).get("rules_acknowledged_at"):
+        raise AppError(
+            code="RULES_ACK_REQUIRED",
+            message="Confirm the interview-rules acknowledgement before starting a live session.",
+            status_code=412,
+        )
+
+
 async def finalize_session_row(session_row: InterviewSession, db: AsyncSession) -> None:
     """Marks a session ended, populates default review notes if missing, and prunes unretained transcripts."""
     session_row.state = "ended"
@@ -140,7 +152,7 @@ async def finalize_session_row(session_row: InterviewSession, db: AsyncSession) 
         if helpful:
             session_row.strengths = [f"Grounded answer using {s.evidence_ref}" for s in helpful[:3]]
         elif suggestions:
-            session_row.strengths = [f"Anchored talking points in {suggestions[0].evidence_ref}"]
+            session_row.strengths = [f"Anchored answers in {suggestions[0].evidence_ref}"]
     if not session_row.missed_evidence:
         caveated = [s for s in suggestions if s.caveat]
         if caveated:
@@ -244,6 +256,11 @@ async def create_session(
             "length": prefs.length,
             "style": prefs.style,
             "verified_items_count": verified_count,
+            **(
+                {"rules_acknowledged_at": datetime.now(timezone.utc).isoformat()}
+                if payload.rules_acknowledged
+                else {}
+            ),
         },
     )
     db.add(row)
@@ -278,6 +295,7 @@ async def get_session(
 )
 async def issue_session_ws_token(
     session_id: UUID,
+    role: Literal["capture", "display"] = Query(default="capture"),
     user: User = Depends(get_verified_user),
     db: AsyncSession = Depends(get_db),
 ) -> SessionTokenOut:
@@ -288,11 +306,13 @@ async def issue_session_ws_token(
             message="Cannot open a live stream on a finalized session.",
             status_code=409,
         )
+    require_rules_acknowledgement(session_row)
     settings = get_settings()
     ws_token, expires_at = create_session_ws_token(
         user_id=user.id,
         session_id=session_row.id,
         minutes=settings.max_session_minutes,
+        role=role,
     )
     return SessionTokenOut(
         session_id=session_row.id,
@@ -356,6 +376,7 @@ async def get_session_transcript(
     )
 
 
+@router.get("/{session_id}/answers", response_model=list[SuggestionOut])
 @router.get("/{session_id}/suggestions", response_model=list[SuggestionOut])
 async def list_session_suggestions(
     session_id: UUID,
@@ -422,7 +443,7 @@ async def create_session_suggestion(
         await db.execute(select(CandidateSkill).where(CandidateSkill.user_id == user.id))
     ).scalars().all()
 
-    framework, outline, evidence_ref, caveat = await generate_grounded_suggestion(
+    answer = await generate_answer(
         question_text=payload.question_text.strip(),
         question_type=payload.question_type.strip() or "Behavioral",
         prefs=prefs,
@@ -430,6 +451,15 @@ async def create_session_suggestion(
         skills=skills,
         job=job,
     )
+    if not answer.available:
+        raise AppError(
+            code="ANSWER_UNAVAILABLE",
+            message="An answer could not be generated right now.",
+            status_code=503,
+            details={"reason": answer.reason},
+        )
+    framework, outline = answer.framework, answer.lines
+    evidence_ref, caveat = answer.source_label, answer.caveat
 
     if session_row.transcript_retained:
         existing_segs = (

@@ -1,0 +1,20 @@
+import { defineConfig } from "wxt";
+
+// API origin the extension may call. Override at build time: WXT_API_ORIGIN=https://api.example.com npm run build
+const apiOrigin = process.env.WXT_API_ORIGIN ?? "http://localhost:8000";
+
+export default defineConfig({
+  outDir: "dist",
+  manifest: {
+    name: "Vren AI",
+    short_name: "Vren AI",
+    description:
+      "Shows the answers from your Vren AI interview session in a side panel. When you press Start capture it streams the audio of the tab you chose to Vren AI for live transcription.",
+    // Panel + capture relay only. No content scripts, no access to the pages you browse.
+    permissions: ["sidePanel", "tabCapture", "offscreen", "activeTab", "storage"],
+    host_permissions: [`${apiOrigin}/*`],
+    action: { default_title: "Open Vren AI" },
+    icons: { "16": "icon/16.png", "48": "icon/48.png", "128": "icon/128.png" },
+    web_accessible_resources: [],
+  },
+});

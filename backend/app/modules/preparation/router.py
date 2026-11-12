@@ -53,7 +53,7 @@ async def _prefs_out(user_id: UUID, db: AsyncSession) -> PreferencesOut:
     return PreferencesOut(
         language=prefs.language,
         length=prefs.length,
-        style=prefs.style,
+        style=prefs.style if prefs.style in ("Direct", "Conversational", "Structured") else "Direct",
         framework=prefs.framework,
         retain_transcript_default=prefs.retain_transcript_default,
         notes_default=prefs.notes_default,

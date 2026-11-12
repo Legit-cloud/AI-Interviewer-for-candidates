@@ -1,27 +1,46 @@
+"""Answer generation for live interview questions.
+
+The assistant writes the answer itself, in the candidate's first person, so the
+candidate can say it out loud. It never returns coaching-style advice and never
+returns canned placeholder text: when no AI provider is available the result is
+explicitly marked unavailable.
+"""
+
 import re
-from collections.abc import AsyncIterator
-from typing import Any, Sequence
+from collections.abc import AsyncIterator, Sequence
+from dataclasses import dataclass, field
+from typing import Any
 
 from app.adapters.llm import get_llm_adapter
 from app.db.models import CandidateExperience, CandidateSkill, InterviewPreferences, JobDescription
 
 _STOPWORDS = {
-    "tell",
-    "about",
-    "time",
-    "when",
-    "have",
-    "with",
-    "your",
-    "what",
-    "would",
-    "could",
-    "from",
-    "that",
-    "this",
-    "they",
-    "them",
+    "tell", "about", "time", "when", "have", "with", "your", "what", "would", "could", "from",
+    "that", "this", "they", "them", "were", "been", "will", "into", "than", "then", "also",
+    "how", "did", "does", "and", "the", "for", "you", "our", "are", "was", "can", "any",
 }
+
+_LENGTH_LINES = {"brief": 2, "standard": 3, "detailed": 4}
+
+# Details that must come from the candidate's real context.
+_NUMBER_RE = re.compile(r"\$\s?\d[\d,.]*\s?[kKmMbB]?|\b\d[\d,.]*\s?(?:%|x|k|m)\b|\b\d{2,}\b")
+_EMPLOYER_RE = re.compile(
+    r"\b(?:time|role|work|job|years?|while|was|were|worked|working|joined|left)\s+"
+    r"(?:as [^.,;]{0,40}?\s)?at\s+"
+    r"([A-Z][\w&.\-]*(?:\s+(?!(?:I|We|My|The|And|Where|When|Then)\b)[A-Z][\w&.\-]*){0,3})"
+)
+
+
+@dataclass
+class AnswerResult:
+    available: bool
+    framework: str = "Direct"
+    lines: list[str] = field(default_factory=list)
+    key_points: list[str] = field(default_factory=list)
+    source_label: str = ""
+    caveat: str = ""
+    unsupported_claims: list[str] = field(default_factory=list)
+    reason: str = ""
 
 
 def _tokens(text: str) -> set[str]:
@@ -32,179 +51,162 @@ def _tokens(text: str) -> set[str]:
     }
 
 
-def _direct_domain_outline(
+def rank_experiences(
     question_text: str,
-    question_type: str,
-    job: JobDescription | None,
-    bridge_item: CandidateExperience | None,
-) -> list[str]:
-    lower = question_text.lower()
-    role_title = job.title if job else "this role"
-
-    if any(k in lower for k in ("campaign", "marketing", "roas", "cac", "seo", "paid", "ads", "social", "funnel", "audience")):
-        bullets = [
-            "I start by locking in one measurable goal, like qualified signups or lower acquisition cost, and mapping the audience's main pain point before picking channels.",
-            "I launch two or three distinct creative hooks on a tight test budget, track early click-to-conversion drop-off, and cut underperformers within the first few days.",
-            f"Once an angle proves consistent payback, I shift budget onto that winner and verify attribution cleanly for {role_title}.",
-        ]
-    elif any(k in lower for k in ("3d", "render", "shader", "topology", "uv", "lighting", "blender", "maya", "unreal", "texture", "poly", "rig")):
-        bullets = [
-            "I lock down target engine limits first, including poly budget, texture memory, shader complexity, and target frame rate, before building high-detail geometry.",
-            "I block out the silhouette, keep topology and UVs packed cleanly, and bake fine surface detail into normal maps instead of heavy meshes.",
-            "If frame rate drops, I profile shader instruction count and light complexity directly in-engine, then simplify expensive transparencies and shadow-casting lights first.",
-        ]
-    elif any(k in lower for k in ("client", "stakeholder", "budget", "sales", "deadline", "disagree", "conflict", "pushback")):
-        bullets = [
-            "When a timeline tightens or someone pushes back, I first clarify whether the real constraint is the launch date, budget, or risk tolerance.",
-            "Instead of arguing preferences, I propose two clear options: ship the highest-impact core scope on schedule, or move lower-priority items to a fast follow-up.",
-            "Once we agree on the trade-off and success metric, I send a short written recap so everyone stays aligned.",
-        ]
-    elif "behavior" in question_type.lower() or any(k in lower for k in ("tell me about a time", "describe a", "walk me through")):
-        bullets = [
-            "We had a clear bottleneck slowing down delivery and results, so I stepped in to own the fix end to end.",
-            "Instead of waiting for a full overhaul, I isolated the biggest friction point first, shipped a focused fix, and aligned the team on clear ownership.",
-            "That unblocked the team right away and left a simpler process we kept using afterward.",
-        ]
-    else:
-        bullets = [
-            "My direct approach is to solve the core bottleneck simply first rather than over-complicating things upfront.",
-            f"For {role_title}, I check the constraints, put the cleanest working solution in place with clear verification, and measure the real result before scaling.",
-            "That keeps quality reliable while moving fast under real deadlines.",
-        ]
-
-    if bridge_item:
-        bridge_note = (
-            f"In my previous work as {bridge_item.title} at {bridge_item.organization}"
-            if bridge_item.organization
-            else f"In my previous work as {bridge_item.title}"
-        )
-        summary = bridge_item.summary.strip()
-        bullets[-1] = f"{bridge_note}, I applied this directly: {summary[:120]}" if summary else f"{bridge_note}, I handled similar problems hands-on."
-
-    return bullets[:4]
+    experiences: Sequence[CandidateExperience],
+    limit: int = 4,
+) -> list[CandidateExperience]:
+    """Active CV items ordered by relevance to the question. Items with no overlap are excluded."""
+    q_tokens = _tokens(question_text)
+    scored: list[tuple[int, CandidateExperience]] = []
+    for item in experiences:
+        if not item.active:
+            continue
+        overlap = len(q_tokens & _tokens(f"{item.title} {item.organization} {item.summary}"))
+        if overlap <= 0:
+            continue
+        scored.append((overlap * 2 + (1 if item.origin == "verified" else 0), item))
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return [item for _, item in scored[:limit]]
 
 
-async def generate_grounded_suggestion(
+def choose_framework(prefs: InterviewPreferences, question_type: str, question_text: str) -> str:
+    framework = prefs.framework
+    if framework == "Auto":
+        behavioural = "behavior" in question_type.lower() or "tell me" in question_text.lower()
+        return "STAR" if behavioural else "Direct"
+    return framework
+
+
+def target_lines(prefs: InterviewPreferences) -> int:
+    return _LENGTH_LINES.get((prefs.length or "").lower(), 3)
+
+
+def _split_sentences(line: str) -> list[str]:
+    parts = re.split(r"(?<=[.!?])\s+", line.strip())
+    return [p for p in parts if p]
+
+
+def _allowed_corpus(
     question_text: str,
-    question_type: str,
-    prefs: InterviewPreferences,
     experiences: Sequence[CandidateExperience],
     skills: Sequence[CandidateSkill],
     job: JobDescription | None,
-) -> tuple[str, list[str], str, str]:
-    active_items = [e for e in experiences if e.active]
-    pool = active_items
-
-    framework = prefs.framework
-    if framework == "Auto":
-        framework = (
-            "STAR"
-            if ("behavior" in question_type.lower() or "tell me" in question_text.lower())
-            else "Direct"
-        )
-
-    llm = get_llm_adapter()
-    if llm.is_configured:
-        evidence_block = "\n".join(
-            f"- {e.title} at {e.organization or 'Independent'} ({e.dates_text}): {e.summary}"
-            for e in pool[:10]
-        ) or "No CV items uploaded yet."
-        skill_block = ", ".join(s.name for s in skills[:15]) or "None listed yet"
-        job_line = f"{job.title} at {job.company}".strip() if job else "General interview"
-
-        ai_res = await llm.complete_json(
-            system_prompt=(
-                "You are generating the exact spoken interview answer for a candidate during a live interview "
-                "(any industry: digital marketing, 3D art, design, sales, operations, finance, healthcare, software, etc.). "
-                "CRITICAL RULES: "
-                "1) ALWAYS write the ACTUAL ANSWER in first person ('I...' / 'We...') that the candidate can say out loud word-for-word. "
-                "2) NEVER coach or tell the candidate what to do. STRICTLY FORBIDDEN phrases: 'Start with', 'Begin by', 'Mention', 'Walk through', 'Explain how', 'Focus on', 'Set the scene', 'Highlight', 'You should', 'Talk about', 'Tie it back', 'Share a'. Give the real answer itself, not advice on how to answer. "
-                "3) Answer tough questions directly even when the topic is NOT on their CV. If a verified CV item fits, weave it in naturally without inventing fake jobs or metrics. "
-                "4) Sound like a sharp human speaking casually and clearly: short direct sentences, everyday words, zero AI buzzwords "
-                "(ban: leverage, synergy, delve, tapestry, holistic, fast-paced, rockstar, spearheaded, great question). "
-                "Return JSON: {framework: string, outline: string[] (3-4 ready-to-say first-person answer lines), evidence_ref: string, caveat: string}."
-            ),
-            user_prompt=(
-                f"Target role: {job_line}\n"
-                f"Preferences: framework={framework}, length={prefs.length}, style={prefs.style}, language={prefs.language}\n"
-                f"Interviewer question/task ({question_type}): {question_text}\n\n"
-                f"Candidate CV context (use if relevant, otherwise answer directly from role expertise):\n{evidence_block}\n"
-                f"Listed skills: {skill_block}"
-            ),
-            temperature=0.25,
-            max_tokens=900,
-        )
-        if ai_res and isinstance(ai_res.get("outline"), list):
-            outline = [str(x).strip()[:240] for x in ai_res["outline"] if str(x).strip()][:4]
-            if outline:
-                return (
-                    str(ai_res.get("framework") or framework)[:40],
-                    outline,
-                    str(ai_res.get("evidence_ref") or "Role strategy + Candidate context")[:180],
-                    str(ai_res.get("caveat") or "")[:240],
-                )
-
-    q_tokens = _tokens(question_text)
-    scored: list[tuple[int, CandidateExperience]] = []
-    for item in pool:
-        item_tokens = _tokens(f"{item.title} {item.organization} {item.summary}")
-        score = len(q_tokens & item_tokens) + (1 if item.origin == "verified" else 0)
-        scored.append((score, item))
-    scored.sort(key=lambda pair: pair[0], reverse=True)
-
-    best_score, best_item = scored[0] if scored else (0, None)
-    strong_cv_hit = best_item is not None and best_score >= 2
-
-    if strong_cv_hit and best_item is not None:
-        evidence_ref = (
-            f"{best_item.title} ({best_item.organization})"
-            if best_item.organization
-            else best_item.title
-        )
-        snippet = best_item.summary.strip() or f"Your work as {best_item.title}."
-        if framework == "STAR":
-            outline = [
-                f"In my role as {best_item.title}{f' at {best_item.organization}' if best_item.organization else ''} ({best_item.dates_text or 'recently'}), I ran into a similar challenge.",
-                f"I handled it directly: {snippet[:185]}",
-                "That resolved the bottleneck cleanly and gave the team a concrete outcome we could measure.",
-            ]
-        else:
-            matched_skills = [
-                s.name for s in skills if any(tok in s.normalized_name for tok in q_tokens)
-            ][:3]
-            skills_note = f" using {', '.join(matched_skills)}" if matched_skills else ""
-            outline = [
-                f"Yes, I've done this hands-on{skills_note} as {best_item.title}.",
-                f"Specifically, {snippet[:190]}",
-                f"For {job.title if job else 'this role'}, I would apply that exact same approach from day one.",
-            ]
-        return framework, outline, evidence_ref[:180], ""
-
-    # Outside CV or general tough task: still give a sharp, direct, first-person answer.
-    outline = _direct_domain_outline(question_text, question_type, job, best_item)
-    evidence_ref = (
-        f"Role answer + {best_item.title}"
-        if best_item
-        else f"Direct role answer ({job.title if job else question_type})"
-    )
-    caveat = ""
-    return framework, outline, evidence_ref[:180], caveat
+    recent_turns: Sequence[str],
+) -> str:
+    chunks = [question_text, *recent_turns]
+    for e in experiences:
+        if e.active:
+            chunks.extend([e.title, e.organization or "", e.dates_text or "", e.summary or ""])
+    chunks.extend(s.name for s in skills)
+    if job:
+        chunks.extend([job.title or "", job.company or "", job.raw_text or ""])
+    return " ".join(chunks).lower().replace(",", "")
 
 
-def _parse_streamed_bullets(raw_text: str) -> list[str]:
-    lines = []
+def claim_check(lines: Sequence[str], allowed_text: str) -> tuple[list[str], list[str]]:
+    """Drop sentences that state figures or employers not found in the candidate's context.
+
+    Returns (kept_sentences, removed_sentences).
+    """
+    kept: list[str] = []
+    removed: list[str] = []
+    for line in lines:
+        for sentence in _split_sentences(line):
+            bad = False
+            for match in _NUMBER_RE.findall(sentence):
+                core = re.sub(r"[^\d.]", "", match).strip(".")
+                if core and core not in allowed_text:
+                    bad = True
+                    break
+            if not bad:
+                for org in _EMPLOYER_RE.findall(sentence):
+                    if org.strip().lower() not in allowed_text:
+                        bad = True
+                        break
+            (removed if bad else kept).append(sentence)
+    return kept, removed
+
+
+def _parse_bullets(raw_text: str, limit: int) -> list[str]:
+    lines: list[str] = []
     for raw in raw_text.splitlines():
-        cleaned = re.sub(r"^\s*(?:[-*]|\d+[.)])\s*", "", raw).strip()
+        cleaned = re.sub(r"^\s*(?:[-*•]|\d+[.)])\s*", "", raw).strip()
         if cleaned:
-            lines.append(cleaned[:240])
+            lines.append(cleaned[:280])
     if len(lines) <= 1 and raw_text.strip():
         parts = [p.strip() for p in re.split(r"(?<=[.!?])\s+", raw_text.strip()) if p.strip()]
         if len(parts) > 1:
-            lines = [p[:240] for p in parts[:3]]
-    return lines[:3]
+            lines = [p[:280] for p in parts]
+    return lines[:limit]
 
 
-async def stream_grounded_suggestion(
+def _key_points(lines: Sequence[str]) -> list[str]:
+    points: list[str] = []
+    for line in lines[:4]:
+        words = re.sub(r"[.!?]+$", "", line).split()
+        points.append(" ".join(words[:7]))
+    return points
+
+
+def _source_label(
+    answer_lines: Sequence[str],
+    ranked: Sequence[CandidateExperience],
+    job: JobDescription | None,
+) -> str:
+    answer_tokens = _tokens(" ".join(answer_lines))
+    for item in ranked:
+        item_tokens = _tokens(f"{item.title} {item.organization} {item.summary}")
+        if len(answer_tokens & item_tokens) >= 2:
+            where = f" at {item.organization}" if item.organization else ""
+            return f"From your experience: {item.title}{where}"[:180]
+    return f"Direct answer for {job.title}" if job and job.title else "Direct answer"
+
+
+def _build_prompts(
+    question_text: str,
+    question_type: str,
+    prefs: InterviewPreferences,
+    framework: str,
+    ranked: Sequence[CandidateExperience],
+    skills: Sequence[CandidateSkill],
+    job: JobDescription | None,
+    recent_turns: Sequence[str],
+    n_lines: int,
+) -> tuple[str, str]:
+    style = prefs.style if prefs.style in ("Direct", "Conversational", "Structured") else "Direct"
+    system_prompt = (
+        "You write the exact words a job candidate can say out loud to answer the interviewer's question, "
+        "for any industry (marketing, design, 3D art, sales, operations, finance, healthcare, software and more). "
+        f"Output ONLY {n_lines} short sentences, one per line, each starting with '- '. "
+        "Write in the first person ('I' / 'we') as the candidate speaking. "
+        "Give the answer itself. Never give advice about how to answer: no 'Start with', 'Mention', "
+        "'Walk through', 'Explain how', 'You should', 'Talk about'. "
+        "Answer tough questions directly even when the topic is not on the candidate's CV. "
+        "Use a CV item only when it truly fits, and use only the facts given below. "
+        "Never invent employers, job titles, dates, numbers or results. "
+        "Use plain, conversational words. Do not use buzzwords such as leverage, synergy, delve, holistic, "
+        "spearheaded, passionate or 'great question'. No preamble."
+    )
+    evidence = "\n".join(
+        f"- {e.title} ({e.organization or 'Independent'}, {e.dates_text or 'dates not given'}): {(e.summary or '')[:220]}"
+        for e in ranked
+    ) or "None that match this question. Answer from general role knowledge without claiming personal history."
+    skill_line = ", ".join(s.name for s in skills[:10]) or "None listed"
+    job_line = f"{job.title} at {job.company}".strip() if job and job.title else "General interview"
+    turns = "\n".join(recent_turns[-3:]) or "None"
+    user_prompt = (
+        f"Role: {job_line}\n"
+        f"Answer style: {style}. Structure: {framework}. Language: {prefs.language}.\n"
+        f"Relevant background:\n{evidence}\n"
+        f"Skills: {skill_line}\n"
+        f"Recent conversation:\n{turns}\n"
+        f"Interviewer question ({question_type}): {question_text}"
+    )
+    return system_prompt, user_prompt
+
+
+async def stream_answer(
     question_text: str,
     question_type: str,
     prefs: InterviewPreferences,
@@ -213,71 +215,84 @@ async def stream_grounded_suggestion(
     job: JobDescription | None,
     recent_turns: Sequence[str] = (),
 ) -> AsyncIterator[tuple[str, Any]]:
-    """
-    Streams fast first-person spoken answer chunks (`('delta', str)`) followed by
-    the finalized tuple `('done', (framework, outline, evidence_ref, caveat))`.
-    """
-    active_items = [e for e in experiences if e.active]
-    framework = prefs.framework
-    if framework == "Auto":
-        framework = (
-            "STAR"
-            if ("behavior" in question_type.lower() or "tell me" in question_text.lower())
-            else "Direct"
-        )
+    """Yields ('delta', text) chunks while the answer is generated, then ('done', AnswerResult).
 
+    The final result is authoritative: it has passed the claim check, so clients must replace the
+    streamed text with it.
+    """
     llm = get_llm_adapter()
-    if llm.is_configured:
-        # Lean fixed prefix: top 4 experiences + top 8 skills + last 2 transcript turns
-        evidence_lines = "\n".join(
-            f"- {e.title} ({e.organization or 'Independent'}): {e.summary[:140]}"
-            for e in active_items[:4]
-        ) or "None provided"
-        skill_line = ", ".join(s.name for s in skills[:8]) or "General"
-        job_line = f"{job.title} ({job.company})" if job and job.company else (job.title if job else "General")
-        turns_block = "\n".join(recent_turns[-2:]) if recent_turns else "None"
+    if not llm.is_configured:
+        yield ("done", AnswerResult(available=False, reason="AI_PROVIDER_UNAVAILABLE"))
+        return
 
-        system_prompt = (
-            "Output ONLY 2 to 3 short first-person spoken interview bullet lines starting with '- '. "
-            "Write exact words the candidate can read aloud immediately ('I...'). "
-            "NEVER give coaching instructions ('Start with', 'Mention', 'Walk through', 'Explain how'). "
-            "Answer tough questions directly even outside the CV. Zero buzzwords. No preamble."
-        )
-        user_prompt = (
-            f"Role: {job_line} | Style: {framework}, {prefs.length}, {prefs.language}\n"
-            f"Background:\n{evidence_lines}\nSkills: {skill_line}\n"
-            f"Recent turns:\n{turns_block}\n"
-            f"Question ({question_type}): {question_text}"
-        )
+    framework = choose_framework(prefs, question_type, question_text)
+    ranked = rank_experiences(question_text, experiences)
+    n_lines = target_lines(prefs)
+    system_prompt, user_prompt = _build_prompts(
+        question_text, question_type, prefs, framework, ranked, skills, job, recent_turns, n_lines
+    )
 
-        collected: list[str] = []
+    collected: list[str] = []
+    try:
         async for chunk in llm.stream_text(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            temperature=0.2,
-            max_tokens=200,
+            temperature=0.25,
+            max_tokens=320,
         ):
             collected.append(chunk)
             yield ("delta", chunk)
+    except Exception:
+        yield ("done", AnswerResult(available=False, reason="AI_PROVIDER_ERROR"))
+        return
 
-        outline = _parse_streamed_bullets("".join(collected))
-        if outline:
-            evidence_ref = (
-                f"Anchored in {active_items[0].title}"
-                if active_items
-                else f"Direct answer ({job_line})"
-            )
-            yield ("done", (framework, outline, evidence_ref[:180], ""))
-            return
+    lines = _parse_bullets("".join(collected), limit=n_lines + 2)
+    if not lines:
+        yield ("done", AnswerResult(available=False, reason="AI_PROVIDER_ERROR"))
+        return
 
-    # Deterministic low-latency fallback (no AI delay)
-    fw, outline, evidence_ref, caveat = await generate_grounded_suggestion(
-        question_text=question_text,
-        question_type=question_type,
-        prefs=prefs,
-        experiences=experiences,
-        skills=skills,
-        job=job,
+    allowed = _allowed_corpus(question_text, experiences, skills, job, recent_turns)
+    kept, removed = claim_check(lines, allowed)
+    if not kept:
+        yield (
+            "done",
+            AnswerResult(
+                available=False,
+                reason="UNSUPPORTED_CLAIMS_REMOVED",
+                unsupported_claims=[r[:200] for r in removed],
+            ),
+        )
+        return
+    kept = kept[: max(n_lines, 2)]
+
+    yield (
+        "done",
+        AnswerResult(
+            available=True,
+            framework=framework[:40],
+            lines=[k[:280] for k in kept],
+            key_points=_key_points(kept),
+            source_label=_source_label(kept, ranked, job),
+            caveat="Some unverified details were removed from this answer." if removed else "",
+            unsupported_claims=[r[:200] for r in removed],
+        ),
     )
-    yield ("delta", "\n".join(f"- {b}" for b in outline))
-    yield ("done", (fw, outline, evidence_ref, caveat))
+
+
+async def generate_answer(
+    question_text: str,
+    question_type: str,
+    prefs: InterviewPreferences,
+    experiences: Sequence[CandidateExperience],
+    skills: Sequence[CandidateSkill],
+    job: JobDescription | None,
+    recent_turns: Sequence[str] = (),
+) -> AnswerResult:
+    """Non-streaming wrapper used by the REST endpoint."""
+    result = AnswerResult(available=False, reason="AI_PROVIDER_UNAVAILABLE")
+    async for kind, payload in stream_answer(
+        question_text, question_type, prefs, experiences, skills, job, recent_turns
+    ):
+        if kind == "done":
+            result = payload
+    return result
