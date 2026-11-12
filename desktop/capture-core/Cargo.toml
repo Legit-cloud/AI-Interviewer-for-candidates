@@ -1,0 +1,26 @@
+[package]
+name = "vren-capture-core"
+version = "0.1.0"
+edition = "2021"
+description = "Audio conversion, the Vren live-session client and sound devices, without any window code so it can be tested on its own."
+license = "UNLICENSED"
+
+[dependencies]
+base64 = "0.22"
+futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time"] }
+tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
+url = "2"
+cpal = { version = "0.15", optional = true }
+
+[features]
+default = ["audio"]
+# Real sound devices. Turn off to build and test the rest on a machine without audio libraries.
+audio = ["dep:cpal"]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "sync", "time", "net"] }

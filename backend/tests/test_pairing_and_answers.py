@@ -455,3 +455,23 @@ def test_room_mode_treats_the_microphone_as_the_interviewer(ws_env, configure, e
             ws.send_json({"type": "client.heartbeat"})
             assert ws.receive_json()["type"] == "server.heartbeat"  # nothing was detected as a question
     assert events[-1]["speaker"] == expected_speaker
+
+
+def test_a_display_only_pairing_never_conflicts_with_the_capture_app(ws_env) -> None:
+    """The desktop app can pair to only show answers while the extension is the one listening."""
+    tc, _ = ws_env
+    headers = _signup(tc, "both@example.com")
+    sid = tc.post("/v1/sessions", headers=headers, json={"rules_acknowledged": True}).json()["id"]
+
+    code1 = tc.post(f"/v1/sessions/{sid}/pairing-code", headers=headers).json()["code"]
+    capture = tc.post("/v1/pairing/redeem", json={"code": code1}).json()["ws_token"]
+    code2 = tc.post(f"/v1/sessions/{sid}/pairing-code", headers=headers).json()["code"]
+    display = tc.post("/v1/pairing/redeem", json={"code": code2, "role": "display"}).json()["ws_token"]
+
+    with tc.websocket_connect(f"/v1/live/{sid}?token={capture}") as cap:
+        assert cap.receive_json()["role"] == "capture"
+        with tc.websocket_connect(f"/v1/live/{sid}?token={display}") as disp:
+            assert disp.receive_json()["role"] == "display"
+            cap.send_json({"type": "utterance.commit", "source": "tab", "text": QUESTION})
+            assert _collect_until(disp, "answer.ready")[-1]["answer"]["lines"]  # the display app sees what the capture app heard
+            _collect_until(cap, "answer.ready")

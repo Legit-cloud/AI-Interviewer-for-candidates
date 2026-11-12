@@ -1310,20 +1310,20 @@ Vren AI is a user-controlled interview preparation and assistance tool. It does 
 
 ---
 
-## Appendix C — Optional visible desktop overlay (deferred idea)
+## Appendix C — Desktop app (built, version 0.1)
 
-**Status:** not in MVP. Recorded for a later decision (open decision 12).
+**Status:** built in `desktop/` (Tauri). Covers interviews in native apps such as Zoom and Teams, which the extension cannot hear.
 
-A lightweight desktop client (for example a small Tauri app) could show answers as floating text for users who cannot or do not want to use the browser Side Panel. It follows the same thin-client rules as the extension:
+It follows the same thin-client rules as the extension:
 
-- **Web app is the brain.** Sign-up, billing, CV, jobs, session control and AI stay in the web app and backend. The client has no login screen of its own.
-- **Pairing handoff.** The web page shows the same 6-digit pairing code, or a deep link (`vren://session/<id>`) that opens the client with a one-time code. The client redeems it for a session-scoped display token.
-- **Display only.** The client attaches as a display client to the live room and renders `answer.delta` and `answer.ready` events. Audio capture stays in the extension or web fallback.
-- **Ergonomics.** A frameless, always-on-top, transparent window with a drag handle to position it and an optional lock-in-place (click-through) mode that the user can switch off with a visible control or hotkey.
-- **Honest identity.** The window title, process name, installer and signing identify Vren AI. Distribution needs code signing so operating-system warnings are not misleading.
-- **Out of scope by rule.** The client does not call operating-system APIs that exclude it from screen capture or sharing, does not use a disguised title or process name, and does not interfere with focus, window-visibility or monitoring signals. Where the window is shown on the screen, it can appear in a screen share, and the same sharing hint applies.
+- **Web app is the brain.** Sign-up, CV, jobs, session control and AI stay in the web app and backend. The app has no login screen of its own; it connects with the same 6-digit pairing code.
+- **Capture and display.** It listens to the computer's sound (Windows loopback, Linux monitor sources, or a virtual device such as BlackHole on a Mac) and optionally the microphone, and shows `answer.delta` and `answer.ready` events in a small always-on-top answers box. A phone or in-person mode uses the microphone to hear the room.
+- **No conflict with the extension.** A session has one capture client. A second one is refused with a plain message. The pairing code can be redeemed with `role: "display"` so the desktop box only shows answers while the extension listens.
+- **Ergonomics.** A frameless transparent answers box that can be dragged, resized and made click-through. Ctrl or Cmd + Shift + L unlocks it.
+- **Honest identity.** The windows use the app's real name, appear in the taskbar, and can appear in a screen share.
+- **Out of scope by rule.** The app does not call operating-system APIs that exclude it from screen capture, does not use a disguised title or process name, and does not interfere with focus, window-visibility or monitoring signals.
 
-Reusable pieces from the design notes: the thin-client split, the pairing code handoff, token streaming into a minimal display, and the draggable reposition-then-lock interaction. These are already part of the extension plan above.
+**Not done:** Windows and macOS builds are untested; there is no built-in capture of a Mac's system sound; installers are not code signed.
 
 ---
 
@@ -1339,8 +1339,8 @@ Source: the public feature page of a competing live-interview assistant, supplie
 | Customisable answer length, style and framework (STAR, CAR, SOAR) | Length and style existed. **CAR and SOAR frameworks added**, with a short description of each given to the model |
 | Separate interview and answer languages; many languages | **Answer language added** (empty means same as interview language). Language list widened from 5 to 34. A speech-to-text language-code bug (names were cut to two letters, so German, Spanish and Portuguese failed) is fixed, and Deepgram switches to a multilingual model for non-English interviews |
 | Behavioural, technical, coding and system-design questions | Question types are classified; coding-specific answers and code snippets remain an open decision (§28, item 9) |
-| Browser client plus other platforms | Web app and Chrome extension. The live page can be opened on any device as an additional display client. Native desktop and mobile clients are not built |
-| Mock interviews | Planned (Phase 2) |
+| Browser client plus other platforms | Web app, Chrome extension and a desktop app (Appendix C). The live page can be opened on any device as an additional display client. Mobile clients are not built |
+| Mock interviews | Built: the Practice page asks questions for a job, scores each answer, and writes a stronger answer from the CV only |
 
 **Declined**
 

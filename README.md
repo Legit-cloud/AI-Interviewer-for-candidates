@@ -72,7 +72,7 @@ Check what the server sees at `http://localhost:8000/v1/health` (the `ai` sectio
 npm test                                   # web
 uv --directory backend run pytest -q       # backend
 npm --prefix extension test                # extension
-cargo test --manifest-path desktop/capture-core/Cargo.toml   # desktop core
+cargo test --manifest-path desktop/Cargo.toml -p vren-capture-core   # desktop core
 ```
 
 ## Docs

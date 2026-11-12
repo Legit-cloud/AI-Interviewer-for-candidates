@@ -1,0 +1,25 @@
+{
+  "name": "vren-ai-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Vren AI for the desktop: listens to calls in any app and shows the answers in a box on your screen.",
+  "scripts": {
+    "dev:web": "vite --port 1420 --strictPort",
+    "build:web": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "tauri": "tauri",
+    "app:dev": "tauri dev",
+    "app:build": "tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.1.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.1.0",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.0",
+    "vitest": "^3.2.4"
+  }
+}

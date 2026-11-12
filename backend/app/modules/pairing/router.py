@@ -9,6 +9,7 @@ import hashlib
 import hmac
 import secrets
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request
@@ -39,6 +40,8 @@ class PairingCodeOut(BaseModel):
 
 class PairingRedeemIn(BaseModel):
     code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+    # "display" only shows answers, so it never competes with another app that is capturing sound.
+    role: Literal["capture", "display"] = "capture"
 
 
 class PairingRedeemOut(BaseModel):
@@ -168,7 +171,7 @@ async def redeem_pairing_code(
 
     minutes = settings.max_session_minutes
     ws_token, expires_at = create_session_ws_token(
-        user_id=row.user_id, session_id=session_row.id, minutes=minutes, role="capture"
+        user_id=row.user_id, session_id=session_row.id, minutes=minutes, role=payload.role
     )
     return PairingRedeemOut(
         session_id=session_row.id,
