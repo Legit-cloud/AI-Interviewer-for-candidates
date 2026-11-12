@@ -58,6 +58,13 @@ export function reduceEvent(state: PanelState, evt: ServerEvent): PanelState {
         pending: null,
         notice: String(evt["message"] ?? "Answer unavailable for this question."),
       };
+    case "audio.stats":
+      return {
+        ...state,
+        audio: (evt["sources"] as PanelState["audio"]) ?? null,
+        sttReady: typeof evt["stt_ready"] === "boolean" ? (evt["stt_ready"] as boolean) : state.sttReady,
+        audioAt: Date.now(),
+      };
     case "session.degraded":
       return { ...state, notice: String(evt["message"] ?? "The session is degraded.") };
     case "session.expired":

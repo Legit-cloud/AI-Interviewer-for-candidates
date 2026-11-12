@@ -1,4 +1,5 @@
 import { BoundedAudioQueue, float32ToPcm16, pcm16ToBase64, TARGET_SAMPLE_RATE, type AudioSource } from "./audio-buffer";
+import { levelPercent, rmsOfFloat } from "./overlay-model";
 import type { ConnectionStatus, ServerEvent } from "./types";
 
 const CHUNK_SAMPLES = 4000; // 250 ms at 16 kHz
@@ -14,6 +15,8 @@ export interface SourceSpec {
 }
 
 export interface CaptureCallbacks {
+  /** How loud this source is right now, 0 to 100, measured on this computer. */
+  onLevel?: (source: AudioSource, level: number) => void;
   onEvent: (event: ServerEvent) => void;
   onStatus: (status: ConnectionStatus, detail?: string) => void;
 }
@@ -96,6 +99,7 @@ export class CaptureEngine {
   }
 
   private onChunk(source: AudioSource, samples: Float32Array): void {
+    this.cb.onLevel?.(source, this.paused ? 0 : levelPercent(rmsOfFloat(samples)));
     if (this.paused || this.stopping) return;
     const pcm = float32ToPcm16(samples, TARGET_SAMPLE_RATE);
     this.sequences[source] += 1;

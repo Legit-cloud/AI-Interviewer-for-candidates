@@ -8,17 +8,24 @@ const testKey = process.env.WXT_E2E_PUBLIC_KEY;
 
 export default defineConfig({
   outDir: "dist",
+  hooks: {
+    // WXT adds "<all_urls>" because the on-page box is a runtime content script. That would give the extension access to
+    // every website. The box is injected only into the tab where the icon is clicked (activeTab), so it is removed.
+    "build:manifestGenerated": (_wxt, manifest) => {
+      manifest.host_permissions = (manifest.host_permissions ?? []).filter((h: string) => h !== "<all_urls>" && !h.startsWith("*://"));
+    },
+  },
   manifest: {
     ...(testKey ? { key: testKey } : {}),
     name: "Vren AI",
     short_name: "Vren AI",
     description:
-      "Shows the answers from your Vren AI interview session in a side panel. When you press Start capture it streams the audio of the tab you chose to Vren AI for live transcription.",
-    // The panel and capture relay need no page access. The optional on-page overlay is injected only into
-    // the tab you choose, on request (activeTab); nothing is registered for any site.
-    permissions: ["sidePanel", "tabCapture", "desktopCapture", "offscreen", "activeTab", "scripting", "storage"],
-    host_permissions: [`${apiOrigin}/*`],
-    action: { default_title: "Open Vren AI" },
+      "Click the icon on your meeting tab to show a small box with your interview answers. When you press Start it streams the sound you chose to Vren AI so it can write answers.",
+    // The box is injected only into the tab where you click the Vren icon (activeTab). Nothing is registered for any site.
+    permissions: ["tabCapture", "desktopCapture", "offscreen", "activeTab", "scripting", "storage"],
+    // WXT_E2E_HOSTS is only used by the automated browser test, to stand in for the toolbar click. Never set for a release.
+    host_permissions: [`${apiOrigin}/*`, ...(process.env.WXT_E2E_HOSTS ? [process.env.WXT_E2E_HOSTS] : [])],
+    action: { default_title: "Show Vren AI on this tab" },
     icons: { "16": "icon/16.png", "48": "icon/48.png", "128": "icon/128.png" },
     web_accessible_resources: [],
   },

@@ -1,32 +1,35 @@
 import { mountOverlay, type OverlayHandle } from "../lib/overlay";
-import type { PanelState } from "../lib/types";
+import type { OverlayPush, UiMessage } from "../lib/types";
 
-// Injected on demand into the one tab the user chose (activeTab). It is not registered for any site.
+// Injected on demand into the tab where the Vren icon was clicked (activeTab). It is not registered for any site.
 export default defineContentScript({
   matches: ["<all_urls>"],
   registration: "runtime",
   main() {
     let handle: OverlayHandle | null = null;
+
+    const send = (msg: UiMessage) => {
+      void chrome.runtime.sendMessage(msg).then((view) => {
+        // Some actions answer with a fresh view straight away.
+        if (view && typeof view === "object" && "phase" in view) handle?.update(view as never);
+      }).catch(() => {});
+    };
     const close = () => {
       handle?.destroy();
       handle = null;
-      void chrome.runtime.sendMessage({ target: "background", type: "OVERLAY_DISABLE" });
+      send({ target: "background", type: "UI_CLOSE" });
     };
-    handle = mountOverlay(document, {
-      onClose: close,
-      onControl: (action) => void chrome.runtime.sendMessage({ target: "background", type: "OVERLAY_CONTROL", action }),
-    });
-    chrome.runtime.onMessage.addListener((msg: { target?: string; type?: string; state?: PanelState }) => {
+
+    handle = mountOverlay(document, send, close);
+    chrome.runtime.onMessage.addListener((msg: OverlayPush) => {
       if (msg?.target !== "overlay") return;
       if (msg.type === "CLOSE") {
         handle?.destroy();
         handle = null;
-      } else if (msg.type === "STATE" && msg.state) {
-        handle?.update(msg.state);
+      } else if (msg.type === "VIEW") {
+        handle?.update(msg.view);
       }
     });
-    void chrome.runtime.sendMessage({ target: "offscreen", type: "OFFSCREEN_SNAPSHOT" }).then((snap: { state?: PanelState } | undefined) => {
-      if (snap?.state) handle?.update(snap.state);
-    });
+    send({ target: "background", type: "UI_HELLO" });
   },
 });

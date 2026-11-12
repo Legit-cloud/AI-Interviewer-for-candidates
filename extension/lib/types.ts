@@ -20,6 +20,15 @@ export interface LiveAnswer {
   code?: string;
 }
 
+/** What the server says about one source of sound. */
+export type SourceState = "no_audio" | "quiet" | "no_stt" | "hearing" | "problem" | "ok";
+export interface SourceReport {
+  level: number;
+  state: SourceState;
+  text_ago: number | null;
+}
+export type SourceName = "tab" | "microphone";
+
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting" | "closed";
 export type CaptureStatus = "idle" | "listening" | "paused";
 
@@ -45,6 +54,11 @@ export interface PanelState {
   answers: LiveAnswer[];
   transcript: TranscriptLine[];
   notice: string;
+  /** Latest report per source, once a second. Null until the first one arrives. */
+  audio: Partial<Record<SourceName, SourceReport>> | null;
+  sttReady: boolean | null;
+  /** When the last report arrived (ms). Used to notice that the reports stopped. */
+  audioAt: number;
 }
 
 export const emptyState = (): PanelState => ({
@@ -55,51 +69,46 @@ export const emptyState = (): PanelState => ({
   answers: [],
   transcript: [],
   notice: "",
+  audio: null,
+  sttReady: null,
+  audioAt: 0,
 });
 
 /* ---- extension-internal messages ---- */
+
 /** How to get the sound: "tab" is one click on this tab; "picker" opens Chrome's own tab-and-sound chooser. */
 export type CaptureMode = "tab" | "picker" | "room";
+export type Phase = "pairing" | "ready" | "live" | "ended";
 
-export interface StartCaptureMessage {
-  target: "background";
-  type: "START";
-  mode: CaptureMode;
-  tabId: number;
-  wsUrl: string;
-  mic: boolean;
-}
-export interface ControlMessage {
-  target: "background";
-  type: "PAUSE" | "RESUME" | "STOP";
-}
-
-export interface OverlayControlMessage {
-  target: "background";
-  type: "OVERLAY_CONTROL";
-  action: "PAUSE" | "RESUME" | "STOP";
-}
-export interface OverlayEnableMessage {
-  target: "background";
-  type: "OVERLAY_ENABLE";
-  tabId: number;
-}
-export interface OverlayOtherMessage {
-  target: "background";
-  type: "OVERLAY_DISABLE";
-}
-export interface OverlayStateMessage {
-  target: "background";
-  type: "OVERLAY_STATE";
+/** Everything the on-page window needs to draw itself. The background builds it; the window only draws it. */
+export interface OverlayView {
+  phase: Phase;
+  jobTitle: string;
+  error: string;
+  busy: boolean;
   state: PanelState;
+  /** What the extension itself hears, 0 to 100, for the level meters. */
+  levels: Record<SourceName, number>;
+  wantMic: boolean;
+  wantRoom: boolean;
 }
-export type BackgroundMessage =
-  | StartCaptureMessage
-  | ControlMessage
-  | OverlayControlMessage
-  | OverlayEnableMessage
-  | OverlayOtherMessage
-  | OverlayStateMessage;
+
+export type UiMessage =
+  | { target: "background"; type: "UI_HELLO" }
+  | { target: "background"; type: "UI_PAIR"; code: string; server?: string }
+  | { target: "background"; type: "UI_START" }
+  | { target: "background"; type: "UI_PREFS"; mic: boolean; room: boolean }
+  | { target: "background"; type: "UI_CONTROL"; action: "PAUSE" | "RESUME" | "STOP" }
+  | { target: "background"; type: "UI_UNPAIR" }
+  | { target: "background"; type: "UI_SCREEN" }
+  | { target: "background"; type: "UI_CLOSE" };
+
+/** From the sound relay (the offscreen page) to the background. */
+export type RelayMessage =
+  | { target: "background"; type: "RELAY_STATE"; state: PanelState }
+  | { target: "background"; type: "RELAY_LEVEL"; source: SourceName; level: number };
+
+export type BackgroundMessage = UiMessage | RelayMessage;
 
 export interface OffscreenStartMessage {
   target: "offscreen";
@@ -123,12 +132,8 @@ export interface OffscreenImageMessage {
 }
 export type OffscreenMessage = OffscreenStartMessage | OffscreenControlMessage | OffscreenImageMessage;
 
-export type PanelMessage =
-  | { target: "panel"; type: "SERVER_EVENT"; event: ServerEvent }
-  | { target: "panel"; type: "STATUS"; status: ConnectionStatus; detail?: string }
-  | { target: "panel"; type: "ERROR"; message: string }
-  | { target: "panel"; type: "CLOSE" }
-  | { target: "panel"; type: "MIC_GRANTED" };
+/** Pushed from the background into the page window. */
+export type OverlayPush = { target: "overlay"; type: "VIEW"; view: OverlayView } | { target: "overlay"; type: "CLOSE" };
 
-/** Reply codes the background gives the panel when capture cannot start. */
-export type StartFailure = "NEEDS_PICKER" | "NO_SOUND" | "CANCELLED" | "FAILED";
+/** Reply codes the background gives when capture cannot start. */
+export type StartFailure = "NEEDS_PICKER" | "NO_SOUND" | "CANCELLED" | "FAILED" | "NO_MIC";

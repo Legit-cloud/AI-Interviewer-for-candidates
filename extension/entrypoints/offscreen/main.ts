@@ -1,19 +1,23 @@
 import { CaptureEngine, type SourceSpec } from "../../lib/capture";
 import { reduceEvent } from "../../lib/state";
-import { emptyState, type OffscreenMessage, type PanelMessage, type PanelState, type ServerEvent } from "../../lib/types";
+import { plainReason } from "../../lib/plain";
+import { emptyState, type OffscreenMessage, type PanelState, type ServerEvent, type SourceName } from "../../lib/types";
 
 let engine: CaptureEngine | null = null;
 let micFailed = false;
 let state: PanelState = emptyState();
 
-function relayToOverlay(): void {
-  chrome.runtime.sendMessage({ target: "background", type: "OVERLAY_STATE", state }).catch(() => {});
+function relayState(): void {
+  chrome.runtime.sendMessage({ target: "background", type: "RELAY_STATE", state }).catch(() => {});
 }
 
-function toPanel(msg: PanelMessage): void {
-  chrome.runtime.sendMessage(msg).catch(() => {
-    /* the panel may be closed; the state is kept here for when it reopens */
-  });
+// Levels are measured here (on this computer) so the meters move instantly, before the server answers.
+const lastLevelAt: Record<string, number> = {};
+function relayLevel(source: SourceName, level: number): void {
+  const now = Date.now();
+  if (now - (lastLevelAt[source] ?? 0) < 250) return;
+  lastLevelAt[source] = now;
+  chrome.runtime.sendMessage({ target: "background", type: "RELAY_LEVEL", source, level }).catch(() => {});
 }
 
 async function start(streamId: string, kind: "tab" | "desktop" | "none", wsUrl: string, mic: boolean): Promise<void> {
@@ -49,13 +53,14 @@ async function start(streamId: string, kind: "tab" | "desktop" | "none", wsUrl: 
   engine = new CaptureEngine(wsUrl, specs, kind === "none", {
     onEvent: (event: ServerEvent) => {
       state = reduceEvent(state, event);
-      toPanel({ target: "panel", type: "SERVER_EVENT", event });
-      relayToOverlay();
+      relayState();
     },
     onStatus: (status, detail) => {
-      state = { ...state, connection: status };
-      toPanel({ target: "panel", type: "STATUS", status, ...(detail ? { detail } : {}) });
+      const why = status === "closed" ? plainReason(detail) : "";
+      state = { ...state, connection: status, ...(why ? { notice: why } : {}) };
+      relayState();
     },
+    onLevel: relayLevel,
   });
   await engine.start();
 }
@@ -79,10 +84,14 @@ chrome.runtime.onMessage.addListener((raw: OffscreenMessage, _sender, sendRespon
       return true;
     case "OFFSCREEN_PAUSE":
       engine?.pause();
+      state = { ...state, capture: "paused" }; // show it at once; the server confirms a moment later
+      relayState();
       sendResponse({ ok: true });
       return false;
     case "OFFSCREEN_RESUME":
       engine?.resume();
+      state = { ...state, capture: "listening" };
+      relayState();
       sendResponse({ ok: true });
       return false;
     case "OFFSCREEN_STOP":

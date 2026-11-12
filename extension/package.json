@@ -6,8 +6,8 @@
   "description": "Thin Vren AI client: pairs with a web session, relays tab audio on user action, shows answers in the Side Panel.",
   "scripts": {
     "dev": "wxt",
-    "build": "node scripts/generate-icons.mjs && wxt build",
-    "zip": "node scripts/generate-icons.mjs && wxt zip",
+    "build": "node scripts/generate-icons.mjs && wxt build && node scripts/check-manifest.mjs",
+    "zip": "node scripts/generate-icons.mjs && wxt zip && node scripts/check-manifest.mjs",
     "postinstall": "node scripts/generate-icons.mjs && wxt prepare",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"

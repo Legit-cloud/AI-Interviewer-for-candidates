@@ -7,8 +7,7 @@ document.getElementById("allow")?.addEventListener("click", async () => {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     stream.getTracks().forEach((t) => t.stop());
-    msg.textContent = "Done. You can close this tab and press Start again.";
-    chrome.runtime.sendMessage({ target: "panel", type: "MIC_GRANTED" }).catch(() => {});
+    msg.textContent = "Done. Go back to your meeting tab and press Start again.";
     setTimeout(() => window.close(), 1200);
   } catch {
     msg.className = "err";
