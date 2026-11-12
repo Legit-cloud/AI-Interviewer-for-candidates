@@ -13,6 +13,7 @@ from typing import Any
 
 from app.adapters.llm import get_llm_adapter
 from app.core.languages import language_name
+from app.modules.sessions import answer_style
 from app.db.models import CandidateExperience, CandidateSkill, InterviewPreferences, JobDescription
 
 _STOPWORDS = {
@@ -20,8 +21,6 @@ _STOPWORDS = {
     "that", "this", "they", "them", "were", "been", "will", "into", "than", "then", "also",
     "how", "did", "does", "and", "the", "for", "you", "our", "are", "was", "can", "any",
 }
-
-_LENGTH_LINES = {"brief": 2, "standard": 3, "detailed": 4}
 
 # Details that must come from the candidate's real context.
 _NUMBER_RE = re.compile(r"\$\s?\d[\d,.]*\s?[kKmMbB]?|\b\d[\d,.]*\s?(?:%|x|k|m)\b|\b\d{2,}\b")
@@ -95,10 +94,6 @@ def choose_framework(prefs: InterviewPreferences, question_type: str, question_t
         behavioural = "behavior" in question_type.lower() or "tell me" in question_text.lower()
         return "STAR" if behavioural else "Direct"
     return framework
-
-
-def target_lines(prefs: InterviewPreferences) -> int:
-    return _LENGTH_LINES.get((prefs.length or "").lower(), 3)
 
 
 def _split_sentences(line: str) -> list[str]:
@@ -191,40 +186,42 @@ def _build_prompts(
     skills: Sequence[CandidateSkill],
     job: JobDescription | None,
     recent_turns: Sequence[str],
-    n_lines: int,
+    budget: answer_style.Budget,
 ) -> tuple[str, str]:
-    style = prefs.style if prefs.style in ("Direct", "Conversational", "Structured") else "Direct"
-    system_prompt = (
-        "You write the exact words a job candidate can say out loud to answer the interviewer's question, "
-        "for any industry (marketing, design, 3D art, sales, operations, finance, healthcare, software and more). "
-        f"Output ONLY {n_lines} short sentences, one per line, each starting with '- '. "
-        "Write in the first person ('I' / 'we') as the candidate speaking. "
-        "Give the answer itself. Never give advice about how to answer: no 'Start with', 'Mention', "
-        "'Walk through', 'Explain how', 'You should', 'Talk about'. "
-        "Answer tough questions directly even when the topic is not on the candidate's CV. "
-        "Use a CV item only when it truly fits, and use only the facts given below. "
-        "Never invent employers, job titles, dates, numbers or results. "
-        "Use plain, conversational words. Do not use buzzwords such as leverage, synergy, delve, holistic, "
-        "spearheaded, passionate or 'great question'. No preamble."
-    )
+    style = prefs.style if prefs.style in answer_style.STYLE_NOTES else "Direct"
     evidence = "\n".join(
-        f"- {e.title} ({e.organization or 'Independent'}, {e.dates_text or 'dates not given'}): {(e.summary or '')[:220]}"
+        f"- {e.title} ({e.organization or 'Independent'}, {e.dates_text or 'dates not given'}): {(e.summary or '')[:260]}"
         for e in ranked
-    ) or "None that match this question. Answer from general role knowledge without claiming personal history."
-    skill_line = ", ".join(s.name for s in skills[:10]) or "None listed"
-    job_line = f"{job.title} at {job.company}".strip() if job and job.title else "General interview"
-    turns = "\n".join(recent_turns[-3:]) or "None"
+    ) or "Nothing in the background matches this question. Do not claim past experience; say how you would approach it."
+    skill_line = ", ".join(s.name for s in skills[:12]) or "None listed"
+    if job and job.title:
+        job_line = f"{job.title} at {job.company}".strip() if job.company else job.title
+        job_detail = "\n".join(
+            part
+            for part in (
+                ("Responsibilities: " + "; ".join((job.responsibilities or [])[:4])) if getattr(job, "responsibilities", None) else "",
+                ("Looking for: " + ", ".join((job.required_skills or [])[:6])) if getattr(job, "required_skills", None) else "",
+            )
+            if part
+        )
+    else:
+        job_line, job_detail = "General interview", ""
+    turns = "\n".join(recent_turns[-4:]) or "None yet"
+    hint = framework_hint(framework)
+    structure = f"{framework} ({hint})" if hint else framework
     user_prompt = (
         f"Role: {job_line}\n"
-        f"Answer style: {style}. Structure: {framework}"
-        f"{' (' + framework_hint(framework) + ')' if framework_hint(framework) else ''}. "
-        f"Write the answer in {answer_language_for(prefs)}.\n"
-        f"Relevant background:\n{evidence}\n"
-        f"Skills: {skill_line}\n"
-        f"Recent conversation:\n{turns}\n"
-        f"Interviewer question ({question_type}): {question_text}"
+        f"{job_detail + chr(10) if job_detail else ''}"
+        f"Style: {answer_style.STYLE_NOTES[style]}\n"
+        f"If it is a story question, shape it loosely as {structure}, but never say the labels.\n"
+        f"What this kind of question needs: {answer_style.kind_guidance(question_type, question_text)}\n"
+        f"Write the answer in {answer_language_for(prefs)}.\n\n"
+        f"The candidate's background (the only facts you may use):\n{evidence}\n"
+        f"Skills: {skill_line}\n\n"
+        f"Conversation so far:\n{turns}\n\n"
+        f"Interviewer's question ({question_type}): {question_text}"
     )
-    return system_prompt, user_prompt
+    return answer_style.system_prompt(budget), user_prompt
 
 
 async def stream_answer(
@@ -248,18 +245,19 @@ async def stream_answer(
 
     framework = choose_framework(prefs, question_type, question_text)
     ranked = rank_experiences(question_text, experiences)
-    n_lines = target_lines(prefs)
+    budget = answer_style.budget_for(prefs.length)
     system_prompt, user_prompt = _build_prompts(
-        question_text, question_type, prefs, framework, ranked, skills, job, recent_turns, n_lines
+        question_text, question_type, prefs, framework, ranked, skills, job, recent_turns, budget
     )
+    max_tokens = int(budget.max_words * 2.2) + 80
 
     collected: list[str] = []
     try:
         async for chunk in llm.stream_text(
             system_prompt=system_prompt,
             user_prompt=user_prompt,
-            temperature=0.25,
-            max_tokens=320,
+            temperature=0.5,
+            max_tokens=max_tokens,
         ):
             collected.append(chunk)
             yield ("delta", chunk)
@@ -267,7 +265,27 @@ async def stream_answer(
         yield ("done", AnswerResult(available=False, reason="AI_PROVIDER_ERROR"))
         return
 
-    lines = _parse_bullets("".join(collected), limit=n_lines + 2)
+    lines = answer_style.clean_lines(_parse_bullets("".join(collected), limit=budget.sentences + 3), budget)
+
+    # If the draft reads like generic AI text or coaching, rewrite it once, silently. The client already has the
+    # streamed draft; the final answer replaces it.
+    report = answer_style.style_issues(lines, budget)
+    if report.needs_retry:
+        retry: list[str] = []
+        try:
+            async for chunk in llm.stream_text(
+                system_prompt=system_prompt,
+                user_prompt=f"{user_prompt}\n\n{answer_style.retry_note(report)}",
+                temperature=0.6,
+                max_tokens=max_tokens,
+            ):
+                retry.append(chunk)
+        except Exception:
+            retry = []
+        redo = answer_style.clean_lines(_parse_bullets("".join(retry), limit=budget.sentences + 3), budget)
+        if redo and len(answer_style.style_issues(redo, budget).severe) < len(report.severe):
+            lines = redo
+
     if not lines:
         yield ("done", AnswerResult(available=False, reason="AI_PROVIDER_ERROR"))
         return
@@ -284,7 +302,7 @@ async def stream_answer(
             ),
         )
         return
-    kept = kept[: max(n_lines, 2)]
+    kept = kept[: max(budget.sentences, 2)]
 
     yield (
         "done",

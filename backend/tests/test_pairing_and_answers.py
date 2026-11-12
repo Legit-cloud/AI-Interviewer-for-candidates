@@ -103,7 +103,7 @@ async def test_prompt_demands_answers_not_coaching(client: AsyncClient, fake_llm
         f"/v1/sessions/{sess.json()['id']}/suggest", headers=headers, json={"question_text": QUESTION}
     )
     system_prompt, _ = fake_llm.prompts[-1]
-    assert "first person" in system_prompt
+    assert "First person" in system_prompt
     assert "Never give advice about how to answer" in system_prompt
 
 
