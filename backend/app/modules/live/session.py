@@ -13,6 +13,7 @@ At most one capture client is attached at a time.
 import asyncio
 import base64
 import logging
+import time
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -56,6 +57,7 @@ REPLAYABLE = {
     "answer.started",
     "answer.ready",
     "answer.unavailable",
+    "answer.cancelled",
     "capture.state",
     "session.degraded",
 }
@@ -112,6 +114,11 @@ class LiveSession:
         self.lock = asyncio.Lock()
         self._capture_db: AsyncSession | None = None
         self._answer_task: asyncio.Task[None] | None = None
+        self._answer_qid = ""
+        # Detection and answering run in the background so audio and controls are never held up by the model.
+        self._queue: asyncio.Queue[tuple[str, str, str, list[str]]] = asyncio.Queue(maxsize=20)
+        self._worker: asyncio.Task[None] | None = None
+        self._bind = None  # database engine, so background work can open its own sessions
 
     # ------------------------------------------------------------------ fan-out
     async def broadcast(self, event: dict[str, Any]) -> None:
@@ -153,6 +160,7 @@ class LiveSession:
         if role == "capture" and any(c.role == "capture" for c in self.clients.values()):
             raise LiveSessionError(4409, "CAPTURE_CLIENT_ALREADY_CONNECTED")
 
+        self._bind = self._bind or db.bind
         first_join = not self.clients
         self.clients[ws] = _Client(role=role)
         if role == "capture":
@@ -204,6 +212,7 @@ class LiveSession:
                 self.paused = True
                 await self.emit("capture.state", source="tab", state="paused")
         if not self.clients:
+            await self._cancel_tasks()
             live_registry.drop(self.session_id)
 
     async def _close_capture_resources(self) -> None:
@@ -404,8 +413,7 @@ class LiveSession:
                 await self._transcribe_buffer(db, src, f"turn_{uuid4().hex[:8]}")
         for buf in self.buffers.values():
             buf.clear()
-        if self._answer_task and not self._answer_task.done():
-            self._answer_task.cancel()
+        await self._drain_for_stop()
 
         row = await db.get(InterviewSession, self.session_id)
         retained = False
@@ -466,31 +474,81 @@ class LiveSession:
         )
 
         # Earlier turns give the classifier context (the current turn is already the last entry).
-        earlier = self.recent_turns[:-1]
-        detected = await self.detector.detect(
-            text,
-            speaker=speaker,
-            classify=lambda t: self.classifier.classify(t, earlier),
-        )
-        if not detected:
-            return
+        self._enqueue_detection(text, speaker, ts_label, self.recent_turns[:-1])
 
-        question_id = f"q_{uuid4().hex[:10]}"
-        await self.emit(
-            "question.detected",
-            question_id=question_id,
-            kind=detected.kind,
-            text=detected.text,
-            fingerprint=detected.fingerprint,
-            detection=detected.source,
-        )
-        await self.emit(
-            "answer.started",
-            question_id=question_id,
-            question_text=detected.text,
-            question_type=detected.kind,
-        )
-        await self._generate_answer(db, row, question_id, detected.text, detected.kind, ts_label)
+    # ------------------------------------------------------------------ background detection and answers
+    def _enqueue_detection(self, text: str, speaker: str, ts_label: str, earlier: list[str]) -> None:
+        if self._worker is None or self._worker.done():
+            self._worker = asyncio.create_task(self._detection_loop())
+        try:
+            self._queue.put_nowait((text, speaker, ts_label, list(earlier)))
+        except asyncio.QueueFull:
+            logger.warning("Detection queue full; dropping an utterance session_id=%s", self.session_id)
+
+    async def _detection_loop(self) -> None:
+        """Looks at one utterance at a time, in order. A found question starts its answer without waiting for it."""
+        while True:
+            text, speaker, ts_label, earlier = await self._queue.get()
+            try:
+                detected = await self.detector.detect(
+                    text, speaker=speaker, classify=lambda t, e=earlier: self.classifier.classify(t, e)
+                )
+                if not detected:
+                    continue
+                question_id = f"q_{uuid4().hex[:10]}"
+                await self.emit(
+                    "question.detected",
+                    question_id=question_id,
+                    kind=detected.kind,
+                    text=detected.text,
+                    fingerprint=detected.fingerprint,
+                    detection=detected.source,
+                )
+                # A newer question interrupts an answer that is still being written.
+                if self._answer_task and not self._answer_task.done():
+                    self._answer_task.cancel()
+                    await self.emit("answer.cancelled", question_id=self._answer_qid)
+                self._answer_qid = question_id
+                self._answer_task = asyncio.create_task(
+                    self._answer_job(question_id, detected.text, detected.kind, ts_label)
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Question detection failed session_id=%s", self.session_id)
+
+    async def _answer_job(self, question_id: str, text: str, kind: str, ts_label: str) -> None:
+        started = time.monotonic()
+        await self.emit("answer.started", question_id=question_id, question_text=text, question_type=kind)
+        # The job has its own database session: the socket's session is busy with audio and controls.
+        async with AsyncSession(bind=self._bind, expire_on_commit=False) as sdb:
+            row = await sdb.get(InterviewSession, self.session_id)
+            if row is None:
+                return
+            await self._generate_answer(sdb, row, question_id, text, kind, ts_label, started)
+
+    async def _cancel_tasks(self) -> None:
+        for task in (self._worker, self._answer_task):
+            if task and not task.done():
+                task.cancel()
+        for task in (self._worker, self._answer_task):
+            if task:
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+    async def _drain_for_stop(self) -> None:
+        """On stop: give a running answer a few seconds to be saved, then cancel whatever is left."""
+        if self._worker and not self._worker.done():
+            self._worker.cancel()
+        task = self._answer_task
+        if task and not task.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=3.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
+                task.cancel()
+        await self._cancel_tasks()
 
     async def _generate_answer(
         self,
@@ -500,7 +558,10 @@ class LiveSession:
         question_text: str,
         question_kind: str,
         ts_label: str,
+        started: float | None = None,
     ) -> None:
+        started = started or time.monotonic()
+        first_word: float | None = None
         prefs = await db.get(InterviewPreferences, row.user_id) or InterviewPreferences(user_id=row.user_id)
         job = await db.get(JobDescription, row.job_id) if row.job_id else None
         experiences = (
@@ -522,6 +583,8 @@ class LiveSession:
                 recent_turns=list(self.recent_turns),
             ):
                 if kind == "delta":
+                    if first_word is None:
+                        first_word = time.monotonic() - started
                     await self.emit("answer.delta", question_id=question_id, delta=str(payload))
                 elif kind == "done":
                     result = payload
@@ -554,6 +617,15 @@ class LiveSession:
         await db.commit()
         await db.refresh(suggestion)
 
+        total = time.monotonic() - started
+        timing = {
+            "first_word_ms": int((first_word if first_word is not None else total) * 1000),
+            "total_ms": int(total * 1000),
+        }
+        logger.info(
+            "Answer timing session=%s kind=%s first_word_ms=%d total_ms=%d",
+            self.session_id, question_kind, timing["first_word_ms"], timing["total_ms"],
+        )
         await self.emit(
             "answer.ready",
             question_id=question_id,
@@ -568,6 +640,7 @@ class LiveSession:
                 "key_points": list(result.key_points),
                 "source_label": result.source_label,
                 "caveat": result.caveat,
+                "timing": timing,
             },
         )
 

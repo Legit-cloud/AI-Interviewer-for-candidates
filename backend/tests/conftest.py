@@ -22,6 +22,7 @@ class FakeLLMState:
     configured: bool = True
     fail: bool = False
     text: str | None = None  # fixed output; otherwise echo the first relevant background item
+    delay: float = 0.0  # seconds before the first token, to simulate a slow model
     sequence: list[str] = field(default_factory=list)  # outputs for successive calls, consumed in order
     prompts: list[tuple[str, str]] = field(default_factory=list)
 
@@ -40,6 +41,10 @@ class FakeLLM:
         self.state.prompts.append((system_prompt, user_prompt))
         if self.state.fail:
             raise RuntimeError("provider down")
+        if self.state.delay:
+            import asyncio
+
+            await asyncio.sleep(self.state.delay)
         if self.state.sequence:
             out = self.state.sequence.pop(0)
         elif self.state.text is not None:
