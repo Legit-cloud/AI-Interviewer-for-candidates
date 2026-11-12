@@ -3,6 +3,7 @@ import { useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import {
   apiFetch,
+  API_BASE,
   getStoredTokens,
   hasAuthSession,
   setStoredTokens,
@@ -1600,6 +1601,43 @@ export function dismissChecklist() {
       body: JSON.stringify({ checklist_dismissed: true }),
     });
   }
+}
+
+/** Downloads the readable PDF report from the server. Falls back to a JSON file when offline/demo. */
+export async function downloadReport(): Promise<string> {
+  if (!hasAuthSession()) {
+    const blob = new Blob([exportData()], { type: "application/json" });
+    saveBlob(blob, "vren-ai-data.json");
+    return "vren-ai-data.json";
+  }
+  const tokens = getStoredTokens();
+  const res = await fetch(`${API_BASE}/v1/me/export.pdf`, {
+    headers: tokens?.access_token ? { Authorization: `Bearer ${tokens.access_token}` } : {},
+  });
+  if (!res.ok) throw new Error("Could not make the report. Please try again.");
+  saveBlob(await res.blob(), "vren-ai-report.pdf");
+  return "vren-ai-report.pdf";
+}
+
+function saveBlob(blob: Blob, name: string) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+export interface AiCheckResult {
+  ok: boolean;
+  message: string;
+  providers: { name: string; label: string; ok: boolean; message: string }[];
+  speech: { provider: string; ok: boolean; message: string };
+  sample: { question: string; answer: string; seconds: number } | null;
+}
+
+/** Asks the server to try the AI and speech-to-text for real. */
+export async function checkAi(): Promise<AiCheckResult> {
+  return apiFetch<AiCheckResult>("/v1/ai/check", { method: "POST" });
 }
 
 export function exportData() {

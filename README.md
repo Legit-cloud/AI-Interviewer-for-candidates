@@ -23,11 +23,10 @@ It is honest by design: answers use only facts from your CV, you decide what to 
         ▼                                                      │
  ┌──────────────┐  audio   ┌──────────────┐  answers   ┌───────────────┐
  │ capture      │ ───────▶ │   backend    │ ─────────▶ │ display       │
- │ extension OR │          │  speech→text │            │ side panel,   │
- │ desktop app  │          │  question    │            │ on-page box,  │
- └──────────────┘          │  answer (AI) │            │ desktop box,  │
-        ▲                  └──────────────┘            │ web live page │
-        │ 6-digit code            ▲                    └───────────────┘
+ │ extension OR │          │  speech→text │            │ on-page box,  │
+ │ desktop app  │          │  question    │            │ desktop box,  │
+ └──────────────┘          │  answer (AI) │            │ web live page │
+        ▲                  └──────────────┘            └───────────────┘
         └───── web app ───────────┘  (CV, jobs, settings, practice, history, review)
 ```
 

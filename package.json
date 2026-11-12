@@ -19,7 +19,8 @@
     "ext:build": "npm --prefix extension run build",
     "test:api": "uv --directory backend run pytest -q",
     "test:ext": "npm --prefix extension test",
-    "test:all": "npm test && npm run test:api && npm run test:ext"
+    "test:all": "npm test && npm run test:api && npm run test:ext",
+    "ext:package": "npm --prefix extension run zip && node scripts/copy-extension-zip.mjs"
   },
   "overrides": {
     "rolldown": "1.2.1"

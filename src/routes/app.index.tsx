@@ -8,6 +8,7 @@ import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { XIcon } from "@phosphor-icons/react/X";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { ExtensionDownload } from "@/components/extension-download";
 import { DashboardSkeleton } from "@/components/loading";
 import { PageTransition, Stagger, StaggerItem } from "@/components/motion";
 import { EmptyState, PageHeader, Status } from "@/components/vren";
@@ -333,6 +334,14 @@ function Dashboard() {
             ))}
           </ul>
         )}
+      </section>
+
+      <section className="panel space-y-3 p-5" aria-label="Get the Chrome extension">
+        <h2 className="text-sm font-medium">Chrome extension</h2>
+        <p className="text-sm text-muted-foreground">
+          Answers show in a small box on your meeting tab.
+        </p>
+        <ExtensionDownload compact />
       </section>
     </PageTransition>
   );

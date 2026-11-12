@@ -33,12 +33,15 @@ import { PrivacyDialog, TermsDialog } from "@/components/legal-dialogs";
 import { DetailSkeleton } from "@/components/loading";
 import { PageTransition } from "@/components/motion";
 import { PageHeader, Status } from "@/components/vren";
+import { ExtensionDownload } from "@/components/extension-download";
 import {
   ANSWER_LENGTHS,
   auth,
   deleteAccount,
   deleteAllSessions,
-  exportData,
+  checkAi,
+  downloadReport,
+  type AiCheckResult,
   FRAMEWORKS,
   LANGUAGES,
   RESPONSE_STYLES,
@@ -84,14 +87,26 @@ function Row({
 function Settings() {
   const { user, preferences, consents, sessions } = useAppState();
   const navigate = useNavigate();
+  const [checking, setChecking] = useState(false);
+  const [check, setCheck] = useState<AiCheckResult | null>(null);
 
   const downloadExport = () => {
-    const blob = new Blob([exportData()], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "vren-export.json";
-    a.click();
-    toast.success("Export downloaded (vren-export.json).");
+    downloadReport().then(
+      (name) => toast.success(`Saved ${name}`),
+      (e: unknown) => toast.error(e instanceof Error ? e.message : "Could not make the report."),
+    );
+  };
+
+  const runCheck = async () => {
+    setChecking(true);
+    setCheck(null);
+    try {
+      setCheck(await checkAi());
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not reach the server.");
+    } finally {
+      setChecking(false);
+    }
   };
 
   return (
@@ -200,6 +215,53 @@ function Settings() {
               ))}
             </select>
           </Row>
+        </div>
+      </section>
+
+      {/* Check AI */}
+      <section className="space-y-2" aria-label="Check AI">
+        <h2 className="eyebrow">Check that the AI works</h2>
+        <div className="panel space-y-3 p-5">
+          <p className="text-sm text-muted-foreground">
+            Asks a test question and shows the answer. Takes a few seconds.
+          </p>
+          <Button onClick={() => void runCheck()} disabled={checking}>
+            {checking ? "Checking…" : "Test the AI"}
+          </Button>
+          {check && (
+            <div className="space-y-2 text-sm" role="status">
+              <p className={check.ok ? "font-medium text-success" : "font-medium text-destructive"}>
+                {check.message}
+              </p>
+              <ul className="space-y-1 text-muted-foreground">
+                {check.providers.map((p) => (
+                  <li key={p.name}>
+                    {p.ok ? "✓" : "✗"} {p.label}: {p.message}
+                  </li>
+                ))}
+                <li>
+                  {check.speech.ok ? "✓" : "✗"} Speech to text: {check.speech.message}
+                </li>
+              </ul>
+              {check.sample && (
+                <blockquote className="rounded-md border-l-2 border-primary bg-muted/40 p-3">
+                  <p className="text-xs text-muted-foreground">{check.sample.question}</p>
+                  <p className="mt-1">{check.sample.answer}</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {check.sample.seconds.toFixed(1)} seconds
+                  </p>
+                </blockquote>
+              )}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Extension */}
+      <section className="space-y-2" id="extension" aria-label="Chrome extension">
+        <h2 className="eyebrow">Chrome extension</h2>
+        <div className="panel space-y-3 p-5">
+          <ExtensionDownload />
         </div>
       </section>
 

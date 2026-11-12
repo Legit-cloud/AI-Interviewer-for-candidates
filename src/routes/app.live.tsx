@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { PageTransition } from "@/components/motion";
 import { apiFetch } from "@/lib/api";
 import { PageHeader, Status } from "@/components/vren";
+import { readMeter, type SoundReport } from "@/lib/sound";
 import {
   ANSWER_LENGTHS,
   endSessionById,
@@ -128,6 +129,12 @@ function LiveSessionPage() {
   const [notice, setNotice] = useState("");
   const [ai, setAi] = useState<{ answers: boolean; transcription: string } | null>(null);
   const [testText, setTestText] = useState("");
+  const [sound, setSound] = useState<SoundReport | null>(null);
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setTick((n) => n + 1), 1000);
+    return () => window.clearInterval(t);
+  }, []);
   const countdown = useCountdown(pairing?.expiresAt);
 
   useEffect(() => () => handle.current?.close(), []);
@@ -193,6 +200,11 @@ function LiveSessionPage() {
       case "capture.state": {
         setPaired(true);
         setCapture(evt["state"] === "paused" ? "paused" : "listening");
+        break;
+      }
+      case "audio.stats": {
+        const src = (evt["sources"] ?? {}) as SoundReport["sources"];
+        setSound({ sources: src, sttReady: evt["stt_ready"] !== false, at: Date.now() });
         break;
       }
       case "transcript.completed": {
@@ -308,50 +320,40 @@ function LiveSessionPage() {
   const earlier = useMemo(() => answers.slice(1), [answers]);
 
   if (phase === "setup") {
+    const job = jobs.find((j) => j.id === jobId);
+    const missingCv = (profile?.experience.length ?? 0) === 0;
+    const problem = ai && (!ai.answers || ai.transcription === "offline");
     return (
-      <PageTransition className="space-y-8">
+      <PageTransition className="mx-auto max-w-xl space-y-6">
         <PageHeader
-          eyebrow="Live"
-          title="Start a live session"
-          description="You set everything up here. The extension only relays tab audio when you press Start capture, and shows the answers."
+          eyebrow="Live interview"
+          title="Start an interview"
+          description="Pick the job, press Start, then type the code in the Vren box on your meeting tab."
         />
-        {ai && (!ai.answers || ai.transcription === "offline") && (
+
+        {problem && (
           <section
             role="status"
             aria-label="Server setup"
-            className="rounded-xl border border-copper/30 bg-copper-soft/40 p-5 text-sm"
+            className="rounded-xl border border-copper/30 bg-copper-soft/40 p-4 text-sm"
           >
-            <p className="font-medium">The server is not fully set up for live answers</p>
-            <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-              {!ai.answers && <li>No AI provider key. Add LLM_API_KEY to backend/.env.</li>}
-              {ai.transcription === "offline" && (
-                <li>
-                  No speech-to-text. Set STT_PROVIDER=deepgram and DEEPGRAM_API_KEY in backend/.env.
-                </li>
-              )}
-            </ul>
-            <p className="mt-2 text-muted-foreground">
-              You can still start a session and type test questions, but nothing is transcribed or
-              answered until this is set up.
+            <p className="font-medium">Answers will not work yet</p>
+            <p className="mt-1 text-muted-foreground">
+              {!ai?.answers ? "No AI key is set up. " : ""}
+              {ai?.transcription === "offline" ? "Speech to text is not set up. " : ""}
+              <Link to="/app/settings" className="font-medium text-primary hover:underline">
+                Check and fix it
+              </Link>
             </p>
           </section>
         )}
+
         {resumable && (
           <section
             aria-label="Session in progress"
-            className="flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary-soft/40 p-5 md:flex-row md:items-center md:justify-between"
+            className="flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary-soft/40 p-4 sm:flex-row sm:items-center sm:justify-between"
           >
-            <div>
-              <p className="font-medium">You have a session in progress</p>
-              <p className="text-sm text-muted-foreground">
-                Started{" "}
-                {new Date(resumable.date).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-                . Pick it up again, or end it before starting a new one.
-              </p>
-            </div>
+            <p className="text-sm font-medium">You have an interview in progress</p>
             <div className="flex gap-2">
               <Button onClick={() => void start(resumable.id)} disabled={starting}>
                 Resume
@@ -362,68 +364,61 @@ function LiveSessionPage() {
             </div>
           </section>
         )}
-        <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
-          <div className="space-y-5 rounded-xl border bg-card p-5">
-            <label className="block space-y-1.5 text-sm">
-              <span className="font-medium">Target job</span>
-              <select
-                value={jobId}
-                onChange={(e) => setJobId(e.target.value)}
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-base md:h-9 md:text-sm"
-              >
-                <option value="">General interview</option>
-                {activeJobs.map((j) => (
-                  <option key={j.id} value={j.id}>
-                    {j.title}
-                    {j.company ? ` · ${j.company}` : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
 
-            {(() => {
-              const job = jobs.find((j) => j.id === jobId);
-              const gaps = job ? matchJob(job, profile).filter((m) => m.state === "gap").length : 0;
-              const checks = [
-                {
-                  ok: (profile?.experience.length ?? 0) > 0,
-                  text: "Your CV is added",
-                  fix: "Add your experience so answers use your real background.",
-                },
-                {
-                  ok: !!job && job.required.length > 0,
-                  text: "A job is chosen",
-                  fix: "Pick a job so answers fit the role.",
-                },
-              ];
-              return (
-                <ul className="space-y-1 text-sm" aria-label="Before you start">
-                  {checks.map((c) => (
-                    <li key={c.text} className={c.ok ? "text-muted-foreground" : "text-copper"}>
-                      {c.ok ? "✓ " : "• "}
-                      {c.ok ? c.text : c.fix}
-                    </li>
-                  ))}
-                  {gaps > 0 && job && (
-                    <li className="text-muted-foreground">
-                      {gaps} job {gaps === 1 ? "requirement is" : "requirements are"} not in your
-                      CV.{" "}
-                      <Link
-                        to="/app/jobs/$jobId"
-                        params={{ jobId: job.id }}
-                        className="font-medium text-primary hover:underline"
-                      >
-                        See which
-                      </Link>
-                    </li>
-                  )}
-                </ul>
-              );
-            })()}
+        <div className="space-y-5 rounded-xl border bg-card p-5">
+          <label className="block space-y-1.5 text-sm">
+            <span className="font-medium">Job</span>
+            <select
+              value={jobId}
+              onChange={(e) => setJobId(e.target.value)}
+              className="h-10 w-full rounded-md border border-input bg-background px-3 text-base md:h-9 md:text-sm"
+            >
+              <option value="">Any job</option>
+              {activeJobs.map((j) => (
+                <option key={j.id} value={j.id}>
+                  {j.title}
+                  {j.company ? ` · ${j.company}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
 
-            <div className="space-y-4">
+          {(missingCv || !job) && (
+            <p className="text-sm text-copper">
+              {missingCv ? "Add your CV so answers use your real experience. " : ""}
+              {!job ? "Pick a job so answers fit the role." : ""}
+            </p>
+          )}
+
+          <label className="flex items-start gap-2.5 text-sm">
+            <input
+              type="checkbox"
+              checked={ackRules}
+              onChange={(e) => setAckRules(e.target.checked)}
+              className="mt-0.5 size-4"
+            />
+            <span>
+              I am allowed to use an assistive tool in this interview.
+              <span className="block text-xs text-muted-foreground">
+                Vren cannot check the interviewer's rules. You are responsible for following them.
+              </span>
+            </span>
+          </label>
+
+          <Button
+            onClick={() => void start()}
+            disabled={!ackRules || starting}
+            size="lg"
+            className="w-full"
+          >
+            {starting ? "Starting…" : "Start"}
+          </Button>
+
+          <details className="text-sm">
+            <summary className="cursor-pointer text-muted-foreground">More options</summary>
+            <div className="mt-4 space-y-4">
               <Segmented
-                label="Interview type"
+                label="Kind of interview"
                 value={interviewType}
                 options={INTERVIEW_TYPES}
                 onChange={setInterviewType}
@@ -446,21 +441,6 @@ function LiveSessionPage() {
                 options={FRAMEWORKS}
                 onChange={(v) => updatePreferences({ framework: v })}
               />
-            </div>
-
-            <div className="space-y-3 rounded-lg border bg-background p-4 text-sm">
-              <p className="font-medium">What gets captured</p>
-              <ul className="list-disc space-y-1 pl-5 text-muted-foreground">
-                <li>
-                  Audio from the browser tab you choose, sent for live transcription while the
-                  session runs.
-                </li>
-                <li>
-                  Raw audio is not kept. Chrome shows its own recording indicator on the captured
-                  tab.
-                </li>
-                <li>You can stop at any time from this page or from the extension.</li>
-              </ul>
               <label className="flex items-start gap-2.5">
                 <input
                   type="checkbox"
@@ -468,56 +448,29 @@ function LiveSessionPage() {
                   onChange={(e) => setRetain(e.target.checked)}
                   className="mt-0.5 size-4"
                 />
-                <span>Keep the transcript after the session so I can review it.</span>
-              </label>
-            </div>
-
-            <div className="space-y-3 rounded-lg border border-copper/30 bg-copper-soft/40 p-4 text-sm">
-              <p className="font-medium">Before you share your screen</p>
-              <p className="text-muted-foreground">
-                Answers appear in the extension&apos;s Side Panel, not in the meeting page. The
-                panel is part of your browser window: sharing a single tab does not include it, but
-                sharing your whole screen or browser window may show it. Check what you are sharing.
-              </p>
-              <label className="flex items-start gap-2.5">
-                <input
-                  type="checkbox"
-                  checked={ackRules}
-                  onChange={(e) => setAckRules(e.target.checked)}
-                  className="mt-0.5 size-4"
-                />
                 <span>
-                  I confirm that using an assistive tool is allowed in this interview, or I accept
-                  responsibility for using it. Vren AI cannot check the interviewer&apos;s rules.
+                  Keep the transcript so I can review it later. Audio itself is never kept.
                 </span>
               </label>
             </div>
-
-            <Button
-              onClick={() => void start()}
-              disabled={!ackRules || starting}
-              className="w-full md:w-auto"
-            >
-              {starting ? "Starting…" : "Start live session"}
-            </Button>
-          </div>
-
-          <aside className="space-y-3 rounded-xl border bg-card p-5 text-sm text-muted-foreground">
-            <p className="font-medium text-foreground">How it works</p>
-            <ol className="list-decimal space-y-2 pl-5">
-              <li>Start the session. You get a 6-digit pairing code.</li>
-              <li>
-                Open your interview tab, then open the Vren extension panel and enter the code.
-              </li>
-              <li>Press Start capture in the panel.</li>
-              <li>Each question the interviewer asks gets a ready-to-say answer.</li>
-            </ol>
-            <p>
-              No extension yet? You can still try the flow here by typing a question into the test
-              box once the session starts.
-            </p>
-          </aside>
+          </details>
         </div>
+
+        <ol className="space-y-1.5 text-sm text-muted-foreground">
+          <li>1. Press Start here. You get a 6-digit code.</li>
+          <li>2. On your meeting tab, click the Vren icon and type the code.</li>
+          <li>3. Press Start in the box. Answers appear there.</li>
+          <li>
+            No extension yet?{" "}
+            <Link
+              to="/app/settings"
+              hash="extension"
+              className="font-medium text-primary hover:underline"
+            >
+              Get it here
+            </Link>
+          </li>
+        </ol>
       </PageTransition>
     );
   }
@@ -592,6 +545,48 @@ function LiveSessionPage() {
             Stop session
           </Button>
         </div>
+      )}
+
+      {phase === "live" && paired && (
+        <section className="rounded-xl border bg-card p-5" aria-label="Sound check">
+          <p className="eyebrow mb-3">Sound check</p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(["tab", "microphone"] as const).map((k) => {
+              const m = readMeter(sound, k, Date.now(), capture === "paused");
+              return (
+                <div key={k} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium">{k === "tab" ? "Interviewer" : "You"}</span>
+                    <span
+                      className={
+                        m.tone === "good"
+                          ? "text-success"
+                          : m.tone === "bad"
+                            ? "text-destructive"
+                            : "text-muted-foreground"
+                      }
+                    >
+                      {m.label}
+                    </span>
+                  </div>
+                  <div
+                    className="h-2 overflow-hidden rounded-full bg-muted"
+                    role="meter"
+                    aria-label={k === "tab" ? "Interviewer volume" : "Your volume"}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={m.level}
+                  >
+                    <div
+                      className="h-full rounded-full bg-primary transition-all"
+                      style={{ width: `${Math.min(100, m.level)}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
       )}
 
       {phase === "live" && !paired && (
