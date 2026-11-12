@@ -1,6 +1,6 @@
 {
   "name": "vren-ai",
-  "description": "Evidence-based interview preparation and live guidance web dashboard grounded in your CV and job context.",
+  "description": "Live interview answers in your own words: a web app, Chrome extension and desktop app that listen to the interviewer and write a short answer from your real CV.",
   "private": true,
   "sideEffects": false,
   "type": "module",

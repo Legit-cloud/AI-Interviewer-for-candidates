@@ -1,7 +1,7 @@
 [project]
 name = "vren-backend"
 version = "0.1.0"
-description = "Vren AI FastAPI backend engine with local PostgreSQL, auth, and CV/interview workflows"
+description = "Vren AI backend: speech-to-text, question detection, grounded answers, practice interviews and review, with auth and CV workflows"
 requires-python = ">=3.12"
 dependencies = [
   "aiosqlite>=0.20.0",
