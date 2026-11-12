@@ -1323,3 +1323,30 @@ A lightweight desktop client (for example a small Tauri app) could show answers 
 - **Out of scope by rule.** The client does not call operating-system APIs that exclude it from screen capture or sharing, does not use a disguised title or process name, and does not interfere with focus, window-visibility or monitoring signals. Where the window is shown on the screen, it can appear in a screen share, and the same sharing hint applies.
 
 Reusable pieces from the design notes: the thin-client split, the pairing code handoff, token streaming into a minimal display, and the draggable reposition-then-lock interaction. These are already part of the extension plan above.
+
+---
+
+## Appendix D — Market review (competitor marketing page, reviewed 12 November 2026)
+
+Source: the public feature page of a competing live-interview assistant, supplied by the product owner. Claims are the vendor's own and are not verified.
+
+**Adopted or already covered**
+
+| Competitor claim | Vren AI |
+|---|---|
+| Real-time answers; automatic question detection from live audio; streaming answers | Built (FR-7, FR-8, FR-9). Detection is heuristic; an LLM-assisted fallback is planned |
+| Customisable answer length, style and framework (STAR, CAR, SOAR) | Length and style existed. **CAR and SOAR frameworks added**, with a short description of each given to the model |
+| Separate interview and answer languages; many languages | **Answer language added** (empty means same as interview language). Language list widened from 5 to 34. A speech-to-text language-code bug (names were cut to two letters, so German, Spanish and Portuguese failed) is fixed, and Deepgram switches to a multilingual model for non-English interviews |
+| Behavioural, technical, coding and system-design questions | Question types are classified; coding-specific answers and code snippets remain an open decision (§28, item 9) |
+| Browser client plus other platforms | Web app and Chrome extension. The live page can be opened on any device as an additional display client. Native desktop and mobile clients are not built |
+| Mock interviews | Planned (Phase 2) |
+
+**Declined**
+
+The page advertises a "stealth suite": exclusion from screen-capture APIs, hiding from the dock, taskbar and process lists, process-name masking so it appears as a system process, exclusion from window enumeration, and "zero confirmed detections". Vren AI does not build or claim any of these (see §2.3 and §21.7). The product does not hide from screen sharing, proctoring or monitoring, does not disguise itself, and does not market itself as undetectable.
+
+**Where Vren AI aims to be better**
+
+- Honest about what it does: capture is user-initiated and indicated, and the interview-rules acknowledgement is recorded per session.
+- Answers are checked against the candidate's real CV: unverified figures and employers are removed, and the answer says which part of the CV it used.
+- When the AI provider or speech-to-text is not configured, or fails, the user is told plainly; nothing is faked.

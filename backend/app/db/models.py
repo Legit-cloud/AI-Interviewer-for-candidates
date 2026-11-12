@@ -164,6 +164,8 @@ class InterviewPreferences(Base):
         Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
     language: Mapped[str] = mapped_column(String(64), default="English", nullable=False)
+    # Language the answers are written in. Empty means "same as the interview language".
+    answer_language: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     length: Mapped[str] = mapped_column(String(32), default="Brief", nullable=False)
     style: Mapped[str] = mapped_column(String(32), default="Structured", nullable=False)
     framework: Mapped[str] = mapped_column(String(64), default="STAR", nullable=False)

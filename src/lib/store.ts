@@ -102,11 +102,48 @@ export const ANSWER_LENGTHS = ["Brief", "Standard", "Detailed"] as const;
 export const RESPONSE_STYLES = ["Direct", "Conversational", "Structured"] as const;
 export const FRAMEWORKS = [
   "STAR",
+  "CAR",
+  "SOAR",
   "Problem / approach / trade-off",
   "Situation / decision / result",
   "None",
 ] as const;
-export const LANGUAGES = ["English", "French", "Spanish", "German", "Portuguese"] as const;
+export const LANGUAGES = [
+  "English",
+  "French",
+  "Spanish",
+  "German",
+  "Portuguese",
+  "Italian",
+  "Dutch",
+  "Polish",
+  "Russian",
+  "Ukrainian",
+  "Turkish",
+  "Arabic",
+  "Hebrew",
+  "Hindi",
+  "Bengali",
+  "Urdu",
+  "Indonesian",
+  "Malay",
+  "Vietnamese",
+  "Thai",
+  "Filipino",
+  "Japanese",
+  "Korean",
+  "Chinese",
+  "Swedish",
+  "Norwegian",
+  "Danish",
+  "Finnish",
+  "Greek",
+  "Czech",
+  "Romanian",
+  "Hungarian",
+  "Swahili",
+  "Yoruba",
+] as const; // keep in sync with backend/app/core/languages.py
 
 export interface PrepConfig {
   jobId: string;
@@ -159,6 +196,8 @@ export interface User {
   createdAt: string;
 }
 export interface Preferences {
+  /** Language the answers are written in. Empty means the same as the interview language. */
+  answerLanguage: string;
   length: string;
   style: string;
   framework: string;
@@ -195,6 +234,7 @@ const now = () => new Date().toISOString();
 const daysAgo = (d: number) => new Date(Date.now() - 86400000 * d).toISOString();
 
 export const defaultPreferences: Preferences = {
+  answerLanguage: "",
   length: "Brief",
   style: "Structured",
   framework: "STAR",
@@ -564,6 +604,7 @@ interface BackendJobDto {
 
 interface BackendPreferencesDto {
   language: string;
+  answer_language?: string;
   length: string;
   style: string;
   framework: string;
@@ -839,6 +880,7 @@ export async function hydrateFromBackend(): Promise<void> {
         sessions: sessionsDto.map(mapSessionDto),
         preferences: {
           language: prefsDto.language || "English",
+          answerLanguage: prefsDto.answer_language || "",
           length: prefsDto.length || "Brief",
           style: prefsDto.style || "Structured",
           framework: prefsDto.framework || "STAR",
@@ -1803,6 +1845,7 @@ export function updatePreferences(patch: Partial<Preferences>) {
       method: "PATCH",
       body: JSON.stringify({
         ...(patch.language !== undefined ? { language: patch.language } : {}),
+        ...(patch.answerLanguage !== undefined ? { answer_language: patch.answerLanguage } : {}),
         ...(patch.length !== undefined ? { length: patch.length } : {}),
         ...(patch.style !== undefined ? { style: patch.style } : {}),
         ...(patch.framework !== undefined ? { framework: patch.framework } : {}),

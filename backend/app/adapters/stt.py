@@ -13,6 +13,7 @@ from contextlib import suppress
 import httpx
 
 from app.core.config import Settings, get_settings
+from app.core.languages import language_code
 
 logger = logging.getLogger(__name__)
 
@@ -101,9 +102,11 @@ class DeepgramStreamingChannel:
         model: str,
         source: str,
         on_transcript: Callable[[str, bool], Awaitable[None]],
+        language: str = "en",
     ) -> None:
         self.api_key = api_key
         self.model = model or "flux-general-en"
+        self.language = language or "en"
         self.source = source
         self.on_transcript = on_transcript
         self._ws: object | None = None
@@ -126,6 +129,7 @@ class DeepgramStreamingChannel:
                     f"wss://api.deepgram.com/v1/listen"
                     f"?model={self.model}&encoding=linear16&sample_rate=16000&channels=1"
                     f"&interim_results=true&endpointing=300&punctuate=true&smart_format=true"
+                    f"&language={self.language}"
                 )
             self._ws = await websockets.connect(
                 url,
@@ -232,7 +236,7 @@ class STTProviderAdapter:
     async def _transcribe_openai_compatible(self, wav_bytes: bytes, language: str) -> str | None:
         url = f"{self.settings.stt_base_url.rstrip('/')}/audio/transcriptions"
         headers = {"Authorization": f"Bearer {self.settings.stt_api_key}"}
-        lang_code = language[:2].lower() if language else "en"
+        lang_code = language_code(language)
         try:
             async with httpx.AsyncClient(timeout=20.0) as client:
                 res = await client.post(

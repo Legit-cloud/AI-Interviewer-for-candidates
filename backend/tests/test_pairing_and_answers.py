@@ -366,3 +366,65 @@ def test_audio_frames_become_transcript_question_and_answer(ws_env, monkeypatch)
     completed = next(e for e in events if e["type"] == "transcript.completed")
     assert completed["speaker"] == "Interviewer" and completed["text"] == QUESTION
     assert stt.heard and stt.heard[0] > 16000  # a real WAV of the buffered speech was sent to speech-to-text
+
+
+def test_language_codes_are_correct() -> None:
+    from app.core.languages import language_code, language_name
+
+    # These used to be derived from the first two letters of the name ("ge", "sp", "po"), which is wrong.
+    assert [language_code(n) for n in ("German", "Spanish", "Portuguese", "Japanese", "Chinese")] == ["de", "es", "pt", "ja", "zh"]
+    assert language_code("fr") == "fr" and language_code("klingon") == "en" and language_code(None) == "en"
+    assert language_name("de") == "German"
+
+
+async def test_separate_answer_language_and_framework_reach_the_prompt(client: AsyncClient, fake_llm) -> None:
+    headers = await _verified_headers(client, "lang@example.com")
+    patched = await client.patch(
+        "/v1/preparation/preferences", headers=headers,
+        json={"language": "German", "answer_language": "English", "framework": "SOAR"},
+    )
+    assert patched.status_code == 200 and patched.json()["answer_language"] == "English"
+    sid = (await client.post("/v1/sessions", headers=headers, json={"rules_acknowledged": True})).json()["id"]
+    res = await client.post(f"/v1/sessions/{sid}/suggest", headers=headers, json={"question_text": QUESTION})
+    assert res.status_code == 201
+    _, user_prompt = fake_llm.prompts[-1]
+    assert "Write the answer in English" in user_prompt
+    assert "SOAR" in user_prompt and "Obstacle" in user_prompt
+
+
+def test_deepgram_switches_to_a_multilingual_model_for_non_english(ws_env, monkeypatch) -> None:
+    tc, _ = ws_env
+    seen: dict[str, str] = {}
+
+    class FakeChannel:
+        def __init__(self, api_key, model, source, on_transcript, language="en"):
+            seen.update(model=model, language=language)
+
+        async def connect(self) -> bool:
+            return False  # no real network in tests
+
+        async def close(self) -> None: ...
+
+    class FakeSTT:
+        active_provider = "deepgram"
+        is_configured = True
+
+    monkeypatch.setattr("app.modules.live.session.DeepgramStreamingChannel", FakeChannel)
+    monkeypatch.setattr("app.modules.live.session.get_stt_adapter", lambda: FakeSTT())
+
+    class _S:
+        deepgram_api_key = "k"
+        deepgram_model = "flux-general-en"
+        max_session_minutes = 120
+
+    monkeypatch.setattr("app.modules.live.session.get_settings", lambda: _S())
+
+    headers = _signup(tc, "dg@example.com")
+    assert tc.patch("/v1/preparation/preferences", headers=headers, json={"language": "German"}).status_code == 200
+    sid = tc.post("/v1/sessions", headers=headers, json={"rules_acknowledged": True}).json()["id"]
+    token = tc.post(f"/v1/sessions/{sid}/token", headers=headers).json()["ws_token"]
+    with tc.websocket_connect(f"/v1/live/{sid}?token={token}") as ws:
+        ws.receive_json()
+        ws.send_json({"type": "session.configure", "sources": ["tab"]})
+        ws.receive_json()
+    assert seen == {"model": "nova-3", "language": "de"}

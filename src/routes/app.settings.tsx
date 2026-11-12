@@ -131,15 +131,36 @@ function Settings() {
       <section className="space-y-2">
         <h2 className="eyebrow">Preparation defaults</h2>
         <div className="panel divide-y px-5">
-          <Row title="Default language">
+          <Row
+            title="Interview language"
+            desc="The language the interviewer speaks. Used for transcription."
+          >
             <select
-              aria-label="Default language"
+              aria-label="Interview language"
               value={preferences.language}
               onChange={(e) => updatePreferences({ language: e.target.value })}
               className="h-10 rounded-md border border-input bg-card px-3 text-base md:h-9 md:text-sm"
             >
               {LANGUAGES.map((l) => (
                 <option key={l}>{l}</option>
+              ))}
+            </select>
+          </Row>
+          <Row
+            title="Answer language"
+            desc="The language answers are written in. Leave on the same language unless you want them translated."
+          >
+            <select
+              aria-label="Answer language"
+              value={preferences.answerLanguage}
+              onChange={(e) => updatePreferences({ answerLanguage: e.target.value })}
+              className="h-10 rounded-md border border-input bg-card px-3 text-base md:h-9 md:text-sm"
+            >
+              <option value="">Same as interview language</option>
+              {LANGUAGES.map((l) => (
+                <option key={l} value={l}>
+                  {l}
+                </option>
               ))}
             </select>
           </Row>

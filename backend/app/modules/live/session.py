@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.adapters.llm import get_llm_adapter
 from app.adapters.stt import AudioUtteranceBuffer, DeepgramStreamingChannel, get_stt_adapter
 from app.core.config import get_settings
+from app.core.languages import language_code
 from app.db.models import (
     CandidateExperience,
     CandidateSkill,
@@ -276,14 +277,21 @@ class LiveSession:
         settings = get_settings()
         stt = get_stt_adapter()
         if stt.active_provider == "deepgram" and settings.deepgram_api_key:
+            prefs = await db.get(InterviewPreferences, self.user_id)
+            lang = language_code(prefs.language if prefs else "English")
+            # flux-general-en only understands English; switch to a multilingual model otherwise.
+            model = settings.deepgram_model
+            if lang != "en" and model.startswith("flux"):
+                model = "nova-3"
             for src in self.active_sources:
                 if src in self.dg_channels:
                     continue
                 channel = DeepgramStreamingChannel(
                     api_key=settings.deepgram_api_key,
-                    model=settings.deepgram_model,
+                    model=model,
                     source=src,
                     on_transcript=lambda text, is_final, s=src: self._on_deepgram(s, text, is_final),
+                    language=lang,
                 )
                 if await channel.connect():
                     self.dg_channels[src] = channel

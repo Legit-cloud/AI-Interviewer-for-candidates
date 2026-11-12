@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.adapters.llm import get_llm_adapter
+from app.core.languages import language_name
 from app.db.models import CandidateExperience, CandidateSkill, InterviewPreferences, JobDescription
 
 _STOPWORDS = {
@@ -68,6 +69,24 @@ def rank_experiences(
         scored.append((overlap * 2 + (1 if item.origin == "verified" else 0), item))
     scored.sort(key=lambda pair: pair[0], reverse=True)
     return [item for _, item in scored[:limit]]
+
+
+_FRAMEWORK_HINTS = {
+    "STAR": "Situation, Task, Action, Result: set the scene briefly, then what you did and what came of it.",
+    "CAR": "Challenge, Action, Result: name the challenge, what you did, and the outcome.",
+    "SOAR": "Situation, Obstacle, Action, Result: the situation, what stood in the way, what you did, the result.",
+    "Problem / approach / trade-off": "State the problem, your approach, and the trade-off you accepted.",
+    "Situation / decision / result": "The situation, the decision you made, and the result.",
+}
+
+
+def framework_hint(framework: str) -> str:
+    return _FRAMEWORK_HINTS.get(framework, "")
+
+
+def answer_language_for(prefs: InterviewPreferences) -> str:
+    """The language answers are written in: the answer language if set, otherwise the interview language."""
+    return language_name(getattr(prefs, "answer_language", "") or prefs.language)
 
 
 def choose_framework(prefs: InterviewPreferences, question_type: str, question_text: str) -> str:
@@ -197,7 +216,9 @@ def _build_prompts(
     turns = "\n".join(recent_turns[-3:]) or "None"
     user_prompt = (
         f"Role: {job_line}\n"
-        f"Answer style: {style}. Structure: {framework}. Language: {prefs.language}.\n"
+        f"Answer style: {style}. Structure: {framework}"
+        f"{' (' + framework_hint(framework) + ')' if framework_hint(framework) else ''}. "
+        f"Write the answer in {answer_language_for(prefs)}.\n"
         f"Relevant background:\n{evidence}\n"
         f"Skills: {skill_line}\n"
         f"Recent conversation:\n{turns}\n"
