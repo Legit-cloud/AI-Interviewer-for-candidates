@@ -56,3 +56,12 @@ input.plain { font: 13px system-ui, sans-serif; letter-spacing: normal; text-ali
 details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
 ul.transcript { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; max-height: 220px; overflow: auto; font-size: 13px; }
 .row { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+
+button.wide { width: 100%; padding: 11px 12px; font-size: 15px; }
+button.link { border: 0; background: none; color: var(--muted); text-decoration: underline; padding: 4px 0; align-self: center; font-size: 13px; }
+.toggle { display: flex; gap: 10px; align-items: flex-start; padding: 6px 0; cursor: pointer; }
+.toggle input { margin-top: 3px; width: 18px; height: 18px; }
+.toggle small { display: block; color: var(--muted); font-size: 12px; }
+.strong { font-weight: 600; margin: 0 0 2px; }
+.center { text-align: center; }
+pre.code { background: rgba(127,127,127,.12); border-radius: 8px; padding: 10px; overflow: auto; font: 12.5px/1.45 ui-monospace, monospace; margin: 10px 0 0; white-space: pre; }

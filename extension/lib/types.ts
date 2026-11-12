@@ -16,6 +16,8 @@ export interface LiveAnswer {
   key_points: string[];
   source_label: string;
   caveat: string;
+  /** A short code snippet for coding questions. */
+  code?: string;
 }
 
 export type ConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting" | "closed";
@@ -56,15 +58,26 @@ export const emptyState = (): PanelState => ({
 });
 
 /* ---- extension-internal messages ---- */
+/** How to get the sound: "tab" is one click on this tab; "picker" opens Chrome's own tab-and-sound chooser. */
+export type CaptureMode = "tab" | "picker" | "room";
+
 export interface StartCaptureMessage {
   target: "background";
   type: "START";
+  mode: CaptureMode;
   tabId: number;
   wsUrl: string;
+  mic: boolean;
 }
 export interface ControlMessage {
   target: "background";
   type: "PAUSE" | "RESUME" | "STOP";
+}
+
+export interface OverlayControlMessage {
+  target: "background";
+  type: "OVERLAY_CONTROL";
+  action: "PAUSE" | "RESUME" | "STOP";
 }
 export interface OverlayEnableMessage {
   target: "background";
@@ -83,6 +96,7 @@ export interface OverlayStateMessage {
 export type BackgroundMessage =
   | StartCaptureMessage
   | ControlMessage
+  | OverlayControlMessage
   | OverlayEnableMessage
   | OverlayOtherMessage
   | OverlayStateMessage;
@@ -90,8 +104,12 @@ export type BackgroundMessage =
 export interface OffscreenStartMessage {
   target: "offscreen";
   type: "OFFSCREEN_START";
+  /** Chrome media stream id for the captured sound. */
   streamId: string;
+  /** "tab" for tabCapture ids, "desktop" for ids from the picker, "none" for microphone-only (phone or in person). */
+  streamKind: "tab" | "desktop" | "none";
   wsUrl: string;
+  mic: boolean;
 }
 export interface OffscreenControlMessage {
   target: "offscreen";
@@ -102,4 +120,9 @@ export type OffscreenMessage = OffscreenStartMessage | OffscreenControlMessage;
 export type PanelMessage =
   | { target: "panel"; type: "SERVER_EVENT"; event: ServerEvent }
   | { target: "panel"; type: "STATUS"; status: ConnectionStatus; detail?: string }
-  | { target: "panel"; type: "ERROR"; message: string };
+  | { target: "panel"; type: "ERROR"; message: string }
+  | { target: "panel"; type: "CLOSE" }
+  | { target: "panel"; type: "MIC_GRANTED" };
+
+/** Reply codes the background gives the panel when capture cannot start. */
+export type StartFailure = "NEEDS_PICKER" | "NO_SOUND" | "CANCELLED" | "FAILED";

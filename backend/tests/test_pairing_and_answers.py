@@ -428,3 +428,30 @@ def test_deepgram_switches_to_a_multilingual_model_for_non_english(ws_env, monke
         ws.send_json({"type": "session.configure", "sources": ["tab"]})
         ws.receive_json()
     assert seen == {"model": "nova-3", "language": "de"}
+
+
+@pytest.mark.parametrize(
+    ("configure", "expected_speaker"),
+    [
+        ({"sources": ["microphone"], "room": True}, "Interviewer"),  # phone / in person: the room is the interviewer
+        ({"sources": ["tab", "microphone"]}, "You"),  # normal call: the microphone is the candidate
+        ({"sources": ["tab", "microphone"], "room": True}, "You"),  # room mode only applies when the microphone is the only source
+    ],
+)
+def test_room_mode_treats_the_microphone_as_the_interviewer(ws_env, configure, expected_speaker) -> None:
+    tc, _ = ws_env
+    headers = _signup(tc, "room@example.com")
+    sid = tc.post("/v1/sessions", headers=headers, json={"rules_acknowledged": True}).json()["id"]
+    token = tc.post(f"/v1/sessions/{sid}/token", headers=headers).json()["ws_token"]
+    with tc.websocket_connect(f"/v1/live/{sid}?token={token}") as ws:
+        ws.receive_json()
+        ws.send_json({"type": "session.configure", **configure})
+        ws.receive_json()
+        ws.send_json({"type": "utterance.commit", "source": "microphone", "text": QUESTION})
+        events = _collect_until(ws, "transcript.completed")
+        if expected_speaker == "Interviewer":
+            _collect_until(ws, "answer.ready")  # let the answer finish before closing the socket
+        else:
+            ws.send_json({"type": "client.heartbeat"})
+            assert ws.receive_json()["type"] == "server.heartbeat"  # nothing was detected as a question
+    assert events[-1]["speaker"] == expected_speaker

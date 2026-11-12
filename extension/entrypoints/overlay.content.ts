@@ -12,7 +12,10 @@ export default defineContentScript({
       handle = null;
       void chrome.runtime.sendMessage({ target: "background", type: "OVERLAY_DISABLE" });
     };
-    handle = mountOverlay(document, close);
+    handle = mountOverlay(document, {
+      onClose: close,
+      onControl: (action) => void chrome.runtime.sendMessage({ target: "background", type: "OVERLAY_CONTROL", action }),
+    });
     chrome.runtime.onMessage.addListener((msg: { target?: string; type?: string; state?: PanelState }) => {
       if (msg?.target !== "overlay") return;
       if (msg.type === "CLOSE") {

@@ -12,11 +12,11 @@ const ans: LiveAnswer = {
 describe("on-page overlay", () => {
   it("is labelled, mounted once, click-through in the body, and closable", () => {
     const onClose = vi.fn();
-    mountOverlay(document, onClose);
-    const h = mountOverlay(document, onClose); // remounting replaces, never duplicates
+    mountOverlay(document, { onClose, onControl: vi.fn() });
+    const h = mountOverlay(document, { onClose, onControl: vi.fn() }); // remounting replaces, never duplicates
     expect(document.querySelectorAll(`#${OVERLAY_HOST_ID}`)).toHaveLength(1);
     const root = document.getElementById(OVERLAY_HOST_ID)!.shadowRoot!;
-    expect(root.querySelector(".title")!.textContent).toMatch(/Vren AI/);
+    expect(root.querySelector(".title")!.textContent).toBe("Vren AI");
     expect(root.querySelector("style")!.textContent).toMatch(/\.body \{[^}]*pointer-events: none/);
     expect(root.querySelector(".box")!.className).toBe("box");
     (root.querySelector('button[aria-label="Close overlay"]') as HTMLElement).click();
@@ -25,8 +25,26 @@ describe("on-page overlay", () => {
     expect(document.getElementById(OVERLAY_HOST_ID)).toBeNull();
   });
 
+  it("has pause and stop controls that follow the session state", () => {
+    const onControl = vi.fn();
+    const h = mountOverlay(document, { onClose: () => {}, onControl });
+    const root = document.getElementById(OVERLAY_HOST_ID)!.shadowRoot!;
+    const pause = root.querySelector('button[aria-label="Pause listening"]') as HTMLButtonElement;
+    pause.click();
+    expect(onControl).toHaveBeenLastCalledWith("PAUSE");
+    h.update({ ...emptyState(), capture: "paused" });
+    expect(pause.textContent).toBe("Resume");
+    pause.click();
+    expect(onControl).toHaveBeenLastCalledWith("RESUME");
+    (root.querySelector('button[aria-label="Stop the session"]') as HTMLButtonElement).click();
+    expect(onControl).toHaveBeenLastCalledWith("STOP");
+    h.update({ ...emptyState(), ended: true });
+    expect(pause.hidden).toBe(true);
+    h.destroy();
+  });
+
   it("renders text only through textContent, never as markup", () => {
-    const h = mountOverlay(document, () => {});
+    const h = mountOverlay(document, { onClose: () => {}, onControl: () => {} });
     h.update({ ...emptyState(), answers: [{ ...ans, answer: "<img src=x onerror=alert(1)>" }] });
     const root = document.getElementById(OVERLAY_HOST_ID)!.shadowRoot!;
     expect(root.querySelector("img")).toBeNull();

@@ -100,6 +100,8 @@ class LiveSession:
         self.buffers = {"tab": AudioUtteranceBuffer(), "microphone": AudioUtteranceBuffer()}
         self.last_sequences = {"tab": 0, "microphone": 0}
         self.active_sources: list[str] = ["tab"]
+        # Phone or in-person interviews: the microphone is hearing the interviewer, not the candidate.
+        self.room_mode = False
         self.segment_seq = 0
         self.paused = False
         self.stopped = False
@@ -270,6 +272,7 @@ class LiveSession:
     async def _configure(self, db: AsyncSession, msg: dict[str, Any]) -> None:
         requested = msg.get("sources") or ["tab"]
         self.active_sources = [str(s) for s in requested if s in ("tab", "microphone")] or ["tab"]
+        self.room_mode = bool(msg.get("room")) and self.active_sources == ["microphone"]
         row = await db.get(InterviewSession, self.session_id)
         if row is not None and row.state == "ready":
             row.state = "listening"
@@ -432,7 +435,7 @@ class LiveSession:
             return
 
         # Per-channel attribution: tab audio is the interviewer, microphone is the candidate.
-        speaker = "You" if source == "microphone" else "Interviewer"
+        speaker = "You" if source == "microphone" and not self.room_mode else "Interviewer"
         ts_label = _elapsed_label(row.started_at)
         self.segment_seq += 1
         self.recent_turns.append(f"{speaker}: {text[:220]}")

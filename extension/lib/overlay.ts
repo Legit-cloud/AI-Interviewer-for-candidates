@@ -22,6 +22,13 @@ const CSS = `
 .m { margin: 8px 0 0; font: 11px ui-monospace, monospace; opacity: .65; }
 `;
 
+export type OverlayAction = "PAUSE" | "RESUME" | "STOP";
+
+export interface OverlayHandlers {
+  onClose: () => void;
+  onControl: (action: OverlayAction) => void;
+}
+
 export interface OverlayHandle {
   update: (state: PanelState) => void;
   destroy: () => void;
@@ -31,7 +38,7 @@ export interface OverlayHandle {
  * Mounts the visible on-page overlay. It is labelled as Vren AI, can be dragged by its top bar, resized
  * text-wise, dimmed, and closed. Its text area is click-through. Text is only ever set via textContent.
  */
-export function mountOverlay(doc: Document, onClose: () => void): OverlayHandle {
+export function mountOverlay(doc: Document, handlers: OverlayHandlers): OverlayHandle {
   doc.getElementById(OVERLAY_HOST_ID)?.remove();
   const host = doc.createElement("div");
   host.id = OVERLAY_HOST_ID;
@@ -46,7 +53,7 @@ export function mountOverlay(doc: Document, onClose: () => void): OverlayHandle 
   bar.className = "bar";
   const title = doc.createElement("span");
   title.className = "title";
-  title.textContent = "Vren AI · on-page overlay";
+  title.textContent = "Vren AI";
   const mk = (label: string, aria: string, fn: () => void) => {
     const b = doc.createElement("button");
     b.textContent = label;
@@ -60,12 +67,17 @@ export function mountOverlay(doc: Document, onClose: () => void): OverlayHandle 
     box.style.setProperty("--size", `${size}px`);
     box.style.setProperty("--op", String(opacity));
   };
+  let paused = false;
+  const pauseBtn = mk("Pause", "Pause listening", () => handlers.onControl(paused ? "RESUME" : "PAUSE"));
+  const stopBtn = mk("Stop", "Stop the session", () => handlers.onControl("STOP"));
   bar.append(
     title,
+    pauseBtn,
+    stopBtn,
     mk("A−", "Smaller text", () => ((size = Math.max(12, size - 1)), apply())),
     mk("A+", "Larger text", () => ((size = Math.min(28, size + 1)), apply())),
     mk("◐", "Change transparency", () => ((opacity = opacity <= 0.5 ? 0.95 : opacity - 0.15), apply())),
-    mk("×", "Close overlay", onClose),
+    mk("×", "Close overlay", handlers.onClose),
   );
 
   const body = doc.createElement("div");
@@ -106,6 +118,10 @@ export function mountOverlay(doc: Document, onClose: () => void): OverlayHandle 
   apply();
   return {
     update: (state) => {
+      paused = state.capture === "paused";
+      pauseBtn.textContent = paused ? "Resume" : "Pause";
+      pauseBtn.hidden = state.ended;
+      stopBtn.hidden = state.ended;
       const c = describeOverlay(state);
       q.textContent = c.heading;
       q.hidden = !c.heading;

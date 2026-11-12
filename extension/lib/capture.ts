@@ -1,4 +1,4 @@
-import { BoundedAudioQueue, float32ToPcm16, pcm16ToBase64, TARGET_SAMPLE_RATE } from "./audio-buffer";
+import { BoundedAudioQueue, float32ToPcm16, pcm16ToBase64, TARGET_SAMPLE_RATE, type AudioSource } from "./audio-buffer";
 import type { ConnectionStatus, ServerEvent } from "./types";
 
 const CHUNK_SAMPLES = 4000; // 250 ms at 16 kHz
@@ -6,22 +6,28 @@ const MAX_RECONNECTS = 6;
 const HEARTBEAT_MS = 20_000;
 const STOP_GRACE_MS = 3_000;
 
+/** One audio source to relay. `passthrough` keeps a captured tab audible (Chrome mutes a tab while it is captured). */
+export interface SourceSpec {
+  source: AudioSource;
+  stream: MediaStream;
+  passthrough: boolean;
+}
+
 export interface CaptureCallbacks {
   onEvent: (event: ServerEvent) => void;
   onStatus: (status: ConnectionStatus, detail?: string) => void;
 }
 
 /**
- * Relays the audio of one tab to the Vren backend and hands every server event to the panel.
- * It makes no decisions: transcription, question detection and answers all happen server-side.
- * Tab audio keeps playing locally while it is captured.
+ * Relays audio to the Vren backend and hands every server event to the panel. It makes no decisions:
+ * transcription, question detection and answers all happen on the server.
  */
 export class CaptureEngine {
-  private ctx: AudioContext | null = null;
+  private contexts: AudioContext[] = [];
   private socket: WebSocket | null = null;
   private heartbeat: ReturnType<typeof setInterval> | undefined;
   private readonly queue = new BoundedAudioQueue();
-  private sequence = 0;
+  private readonly sequences: Record<AudioSource, number> = { tab: 0, microphone: 0 };
   private lastEventId = "";
   private attempts = 0;
   private paused = false;
@@ -30,21 +36,23 @@ export class CaptureEngine {
 
   constructor(
     private readonly wsUrl: string,
-    private readonly stream: MediaStream,
+    private readonly specs: SourceSpec[],
+    /** Phone or in-person interview: the microphone hears the interviewer. */
+    private readonly room: boolean,
     private readonly cb: CaptureCallbacks,
   ) {}
 
   async start(): Promise<void> {
-    this.ctx = new AudioContext({ sampleRate: TARGET_SAMPLE_RATE });
-    await this.ctx.audioWorklet.addModule(chrome.runtime.getURL("pcm-processor.js"));
-    const source = this.ctx.createMediaStreamSource(this.stream);
-    const worklet = new AudioWorkletNode(this.ctx, "vren-pcm-processor", {
-      processorOptions: { chunkSamples: CHUNK_SAMPLES },
-    });
-    worklet.port.onmessage = (e: MessageEvent<Float32Array>) => this.onChunk(e.data);
-    source.connect(worklet);
-    // Capturing a tab mutes it locally unless the stream is routed back to the speakers.
-    source.connect(this.ctx.destination);
+    for (const spec of this.specs) {
+      const ctx = new AudioContext({ sampleRate: TARGET_SAMPLE_RATE });
+      await ctx.audioWorklet.addModule(chrome.runtime.getURL("pcm-processor.js"));
+      const node = ctx.createMediaStreamSource(spec.stream);
+      const worklet = new AudioWorkletNode(ctx, "vren-pcm-processor", { processorOptions: { chunkSamples: CHUNK_SAMPLES } });
+      worklet.port.onmessage = (e: MessageEvent<Float32Array>) => this.onChunk(spec.source, e.data);
+      node.connect(worklet);
+      if (spec.passthrough) node.connect(ctx.destination);
+      this.contexts.push(ctx);
+    }
     this.connect();
   }
 
@@ -58,7 +66,7 @@ export class CaptureEngine {
     ws.onopen = () => {
       this.attempts = 0;
       this.cb.onStatus("connected");
-      ws.send(JSON.stringify({ type: "session.configure", role: "capture", sources: ["tab"], client_version: "0.2.0" }));
+      ws.send(JSON.stringify({ type: "session.configure", role: "capture", sources: this.specs.map((s) => s.source), room: this.room, client_version: "0.3.0" }));
       clearInterval(this.heartbeat);
       this.heartbeat = setInterval(() => this.send({ type: "client.heartbeat" }), HEARTBEAT_MS);
       this.flush();
@@ -75,10 +83,10 @@ export class CaptureEngine {
     };
     ws.onclose = (evt) => {
       clearInterval(this.heartbeat);
-      const refused = evt.code >= 4400 && evt.code < 4500; // ended, expired, revoked, duplicate
+      const refused = evt.code >= 4400 && evt.code < 4500; // ended, expired, revoked, another capture client
       if (this.stopping || this.closedForGood || refused || this.attempts >= MAX_RECONNECTS) {
         this.releaseAudio();
-        this.cb.onStatus("closed", refused ? evt.reason || "Session closed by the server." : undefined);
+        this.cb.onStatus("closed", refused ? evt.reason || "CLOSED_BY_SERVER" : undefined);
         return;
       }
       this.attempts += 1;
@@ -87,13 +95,13 @@ export class CaptureEngine {
     };
   }
 
-  private onChunk(samples: Float32Array): void {
+  private onChunk(source: AudioSource, samples: Float32Array): void {
     if (this.paused || this.stopping) return;
     const pcm = float32ToPcm16(samples, TARGET_SAMPLE_RATE);
-    this.sequence += 1;
+    this.sequences[source] += 1;
     this.queue.enqueue({
-      source: "tab",
-      sequence: this.sequence,
+      source,
+      sequence: this.sequences[source],
       capturedAt: new Date().toISOString(),
       sampleRate: TARGET_SAMPLE_RATE,
       channels: 1,
@@ -134,7 +142,7 @@ export class CaptureEngine {
     this.send({ type: "session.resume" });
   }
 
-  /** Ends the session: asks the server to finalise, then releases the tab audio. */
+  /** Ends the session: asks the server to finalise, then releases the audio. */
   stop(): void {
     this.stopping = true;
     this.queue.clear();
@@ -147,8 +155,8 @@ export class CaptureEngine {
 
   private releaseAudio(): void {
     clearInterval(this.heartbeat);
-    this.stream.getTracks().forEach((t) => t.stop());
-    void this.ctx?.close().catch(() => {});
-    this.ctx = null;
+    for (const spec of this.specs) spec.stream.getTracks().forEach((t) => t.stop());
+    for (const ctx of this.contexts) void ctx.close().catch(() => {});
+    this.contexts = [];
   }
 }

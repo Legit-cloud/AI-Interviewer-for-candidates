@@ -8,8 +8,8 @@ export function reduceEvent(state: PanelState, evt: ServerEvent): PanelState {
   switch (evt.type) {
     case "session.ready": {
       const notes: string[] = [];
-      if (evt["stt_mode"] === "offline") notes.push("Speech-to-text is not set up on the server, so audio cannot be transcribed.");
-      if (evt["answers_ready"] === false) notes.push("The AI provider is not set up on the server, so no answers can be written.");
+      if (evt["stt_mode"] === "offline") notes.push("The server can't turn speech into text yet.");
+      if (evt["answers_ready"] === false) notes.push("The server has no AI key yet, so there are no answers.");
       return { ...state, ended: false, notice: notes.join(" ") };
     }
     case "capture.state":
@@ -61,7 +61,7 @@ export function reduceEvent(state: PanelState, evt: ServerEvent): PanelState {
     case "session.degraded":
       return { ...state, notice: String(evt["message"] ?? "The session is degraded.") };
     case "session.expired":
-      return { ...state, ended: true, capture: "idle", notice: "This session reached its time limit." };
+      return { ...state, ended: true, capture: "idle", notice: "This session ran out of time." };
     case "session.finalized":
       return { ...state, ended: true, capture: "idle", pending: null };
     default:

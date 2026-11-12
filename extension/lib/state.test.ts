@@ -39,8 +39,8 @@ describe("panel state reducer", () => {
 
   it("tells the user when the server has no speech-to-text or AI configured", () => {
     const s = reduceEvent(emptyState(), ev("session.ready", { stt_mode: "offline", answers_ready: false }));
-    expect(s.notice).toMatch(/Speech-to-text/);
-    expect(s.notice).toMatch(/AI provider/);
+    expect(s.notice).toMatch(/speech into text/);
+    expect(s.notice).toMatch(/no AI key/);
     expect(reduceEvent(emptyState(), ev("session.ready", { stt_mode: "deepgram", answers_ready: true })).notice).toBe("");
   });
 
