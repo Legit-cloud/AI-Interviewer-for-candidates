@@ -23,16 +23,16 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Vren AI | Interview guidance grounded in your experience" },
+      { title: "Vren AI | Interview answers grounded in your experience" },
       {
         name: "description",
         content:
-          "Bring your CV and the job description. Vren AI gives you short, evidence-based talking points during browser interviews, never invented claims.",
+          "Bring your CV and the job description. Vren AI gives you a short, ready-to-say answer to each question during browser interviews, never invented claims.",
       },
-      { property: "og:title", content: "Vren AI | Interview guidance grounded in your experience" },
+      { property: "og:title", content: "Vren AI | Interview answers grounded in your experience" },
       {
         property: "og:description",
-        content: "Short, honest talking points from your own background, with capture you control.",
+        content: "Short, honest answers from your own background, with capture you control.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -79,7 +79,7 @@ const workflow = [
     step: "01",
     icon: FileTextIcon,
     title: "Upload and verify your CV",
-    body: "PDF or DOCX up to 5 MB. Review every extracted role, date, and skill side-by-side before it becomes eligible for suggestions.",
+    body: "PDF or DOCX up to 5 MB. Review every extracted role, date, and skill side-by-side before it becomes eligible for answers.",
   },
   {
     step: "02",
@@ -97,7 +97,7 @@ const workflow = [
     step: "04",
     icon: ShieldCheckIcon,
     title: "Open the live companion",
-    body: "Start system audio or mic explicitly on your interview call. Short talking points appear beside the call; stop anytime.",
+    body: "Start system audio or mic explicitly on your interview call. Each question gets a short answer beside the call; stop anytime.",
   },
 ];
 
@@ -179,11 +179,7 @@ function Landing() {
                 Sign in
               </Link>
             </Button>
-            <Button
-              size="sm"
-              className="bg-background text-ink hover:bg-background/90"
-              asChild
-            >
+            <Button size="sm" className="bg-background text-ink hover:bg-background/90" asChild>
               <Link to="/auth" search={{ mode: "signup" }}>
                 Create account
               </Link>
@@ -232,8 +228,8 @@ function Landing() {
             <StaggerItem>
               <p className="mx-auto mt-6 max-w-xl text-base leading-relaxed text-pine-foreground/80 sm:text-lg">
                 Vren AI pairs your verified CV with the job description and delivers short,
-                evidence-backed talking points during browser interviews. Never automated speech,
-                never invented claims.
+                ready-to-say answers during browser interviews. Never automated speech, never
+                invented claims.
               </p>
             </StaggerItem>
 
@@ -416,7 +412,7 @@ function Landing() {
                   0s
                 </p>
                 <p className="mt-1 text-xs leading-relaxed text-pine-foreground/80">
-                  Raw audio retained by default. Suggestions cite only verified CV items.
+                  Raw audio is not retained. Answers use only facts from your verified CV.
                 </p>
               </div>
             </div>
@@ -425,7 +421,9 @@ function Landing() {
           {/* Subtle Bottom Anchors */}
           <dl className="mx-auto mt-10 grid max-w-4xl grid-cols-2 gap-4 border-t border-white/12 pt-6 text-xs text-pine-foreground/75 sm:grid-cols-4">
             <div>
-              <dt className="font-mono uppercase tracking-wider text-pine-foreground/55">Capture</dt>
+              <dt className="font-mono uppercase tracking-wider text-pine-foreground/55">
+                Capture
+              </dt>
               <dd className="mt-1 font-medium text-white">User-initiated only</dd>
             </div>
             <div>
@@ -453,8 +451,8 @@ function Landing() {
               Prepare calmly in the dashboard. Stay grounded in the call.
             </h2>
             <p className="mt-3 text-base text-muted-foreground">
-              Your structured profile, job match, and privacy preferences stay synced with your
-              live interview companion.
+              Your structured profile, job match, and privacy preferences stay synced with your live
+              interview companion.
             </p>
           </Reveal>
 

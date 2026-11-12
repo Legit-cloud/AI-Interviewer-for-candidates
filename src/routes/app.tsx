@@ -19,12 +19,15 @@ import { Button } from "@/components/ui/button";
 import { WorkspaceLoadingShell } from "@/components/loading";
 import { motion } from "@/components/motion";
 import { Logo } from "@/components/vren";
-import { auth, getState, useAppState } from "@/lib/store";
+import { hasAuthSession } from "@/lib/api";
+import { auth, getState, hydrateFromBackend, useAppState } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/app")({
   ssr: false,
-  beforeLoad: () => {
+  beforeLoad: async () => {
+    // A refresh or deep link starts with an empty store. If tokens exist, load the account before guarding.
+    if (!getState().user && hasAuthSession()) await hydrateFromBackend();
     const { user } = getState();
     if (!user) throw redirect({ to: "/auth", search: { mode: "signin" } });
     if (!user.verified) throw redirect({ to: "/auth", search: { mode: "verify" } });

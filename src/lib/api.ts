@@ -81,6 +81,13 @@ async function parseError(res: Response): Promise<ApiError> {
       res.status,
     );
   }
+  if (res.status >= 500) {
+    return new ApiError(
+      "server_error",
+      `The server hit an error (${res.status}). If you just updated the app, apply the database migrations (cd backend && uv run alembic upgrade head) and restart the API.`,
+      res.status,
+    );
+  }
   return new ApiError("api_error", `Request failed (${res.status})`, res.status);
 }
 
@@ -151,4 +158,3 @@ export async function apiFetch<T>(
   }
   return (await res.json()) as T;
 }
-

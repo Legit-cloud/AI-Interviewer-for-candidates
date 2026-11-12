@@ -12,13 +12,18 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AnimatePresence, motion, EASE } from "@/components/motion";
 import { Logo } from "@/components/vren";
-import { completeOnboarding, getState, LANGUAGES } from "@/lib/store";
+import { hasAuthSession } from "@/lib/api";
+import { completeOnboarding, getState, hydrateFromBackend, LANGUAGES } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/onboarding")({
   ssr: false,
-  beforeLoad: () => {
-    if (!getState().user) throw redirect({ to: "/auth", search: { mode: "signin" } });
+  beforeLoad: async () => {
+    if (!getState().user && hasAuthSession()) await hydrateFromBackend();
+    const { user } = getState();
+    if (!user) throw redirect({ to: "/auth", search: { mode: "signin" } });
+    if (!user.verified) throw redirect({ to: "/auth", search: { mode: "verify" } });
+    if (user.onboarded) throw redirect({ to: "/app" });
   },
   head: () => ({
     meta: [
@@ -133,7 +138,9 @@ function Onboarding() {
               <section className="space-y-6">
                 <div>
                   <p className="eyebrow mb-2">Step 01 · Candidate identity</p>
-                  <h1 className="font-display text-3xl tracking-tight">Tell us a little about you</h1>
+                  <h1 className="font-display text-3xl tracking-tight">
+                    Tell us a little about you
+                  </h1>
                   <p className="mt-1.5 text-sm text-muted-foreground">
                     Your profile stays reusable across every job description you add.
                   </p>
@@ -195,7 +202,7 @@ function Onboarding() {
                   <h1 className="font-display text-3xl tracking-tight">Add your CV</h1>
                   <p className="mt-1.5 text-sm text-muted-foreground">
                     PDF or DOCX, up to 5 MB and 10 pages. You’ll review every extracted field before
-                    it becomes eligible for live suggestions.
+                    it becomes eligible for live answers.
                   </p>
                 </div>
 

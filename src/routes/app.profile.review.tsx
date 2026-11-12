@@ -55,7 +55,7 @@ function Review() {
       <PageHeader
         eyebrow="CV review"
         title="Check what we extracted"
-        description="Edit or remove anything inaccurate. Only verified fields are used with confidence in live suggestions."
+        description="Edit or remove anything inaccurate. Only verified fields are used with confidence in live answers."
         actions={
           <Button variant="outline" asChild>
             <Link to="/app/profile">Back to profile</Link>

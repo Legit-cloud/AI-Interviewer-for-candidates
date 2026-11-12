@@ -98,7 +98,7 @@ function ProfilePage() {
       <PageHeader
         eyebrow="Candidate profile"
         title={profile.name}
-        description="Only information you verify is used with confidence in live suggestions. Empty fields are never inferred."
+        description="Only information you verify is used with confidence in live answers. Empty fields are never inferred."
         actions={
           <Button variant={unverified > 0 ? "default" : "outline"} asChild>
             <Link to="/app/profile/review">
@@ -232,7 +232,7 @@ function ProfilePage() {
               {profile.experience.length === 0 && (
                 <EmptyState
                   title="No experience added yet."
-                  description="Upload a CV or add roles manually so live suggestions can cite real outcomes."
+                  description="Upload a CV or add roles manually so live answers can cite real outcomes."
                 />
               )}
               {profile.experience.map((e) => (

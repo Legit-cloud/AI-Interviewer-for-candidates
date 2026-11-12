@@ -37,7 +37,10 @@ export const Route = createFileRoute("/app/sessions/$sessionId")({
   head: () => ({
     meta: [
       { title: "Session review | Vren AI" },
-      { name: "description", content: "Questions, suggestions, evidence, notes and coaching feedback." },
+      {
+        name: "description",
+        content: "Questions, answers, evidence, notes and coaching feedback.",
+      },
       { property: "og:title", content: "Session review | Vren AI" },
       { property: "og:description", content: "Review a past interview session." },
       { property: "og:type", content: "website" },
@@ -115,7 +118,10 @@ function SessionReview() {
         <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
           {[
             ["Duration", `${s.durationMin} min`],
-            ["State", s.state === "completed" ? "Completed" : "Interrupted"],
+            [
+              "State",
+              s.state === "completed" ? "Completed" : s.state === "live" ? "Live" : "Interrupted",
+            ],
             ["Questions", String(s.questions.length)],
             ["Transcript", s.transcriptRetained ? "Retained" : "Not retained"],
           ].map(([k, v]) => (
@@ -135,7 +141,10 @@ function SessionReview() {
             s.snapshot.style,
             s.snapshot.language,
           ].map((tag) => (
-            <span key={tag} className="rounded-full border bg-card px-2.5 py-0.5 font-mono text-[11px]">
+            <span
+              key={tag}
+              className="rounded-full border bg-card px-2.5 py-0.5 font-mono text-[11px]"
+            >
               {tag}
             </span>
           ))}
@@ -154,7 +163,7 @@ function SessionReview() {
 
       {/* Questions & Suggestions */}
       <section className="space-y-4">
-        <h2 className="text-base font-semibold">Questions & live suggestions</h2>
+        <h2 className="text-base font-semibold">Questions & live answers</h2>
         {s.questions.length === 0 ? (
           <EmptyState title="No questions were detected before the session ended." />
         ) : (
@@ -206,7 +215,7 @@ function SessionReview() {
 
               <div className="flex flex-wrap items-center gap-1.5 border-t pt-3">
                 <span className="mr-1 font-mono text-[11px] text-muted-foreground">
-                  Rate suggestion:
+                  Rate answer:
                 </span>
                 {FEEDBACK_OPTIONS.map(({ id, label, icon: Icon }) => (
                   <button
@@ -310,7 +319,7 @@ function SessionReview() {
         <div>
           <p className="text-sm font-medium text-foreground">Delete session</p>
           <p className="text-xs text-muted-foreground">
-            Permanently removes questions, suggestions, notes, and any retained transcript.
+            Permanently removes questions, answers, notes, and any retained transcript.
           </p>
         </div>
         <AlertDialog>

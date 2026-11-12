@@ -3,7 +3,7 @@ import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { format } from "date-fns";
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -17,6 +17,15 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -26,6 +35,7 @@ import { PageTransition } from "@/components/motion";
 import { PageHeader, Status } from "@/components/vren";
 import {
   ANSWER_LENGTHS,
+  auth,
   deleteAccount,
   deleteAllSessions,
   exportData,
@@ -51,7 +61,15 @@ export const Route = createFileRoute("/app/settings")({
   pendingComponent: DetailSkeleton,
 });
 
-function Row({ title, desc, children }: { title: string; desc?: string | undefined; children: ReactNode }) {
+function Row({
+  title,
+  desc,
+  children,
+}: {
+  title: string;
+  desc?: string | undefined;
+  children: ReactNode;
+}) {
   return (
     <div className="flex flex-col gap-3 py-4 md:flex-row md:items-center md:justify-between">
       <div className="min-w-0">
@@ -96,16 +114,15 @@ function Settings() {
                 : undefined
             }
           >
-            <Input className="md:w-72" value={user?.email ?? ""} disabled />
+            <Input
+              className="md:w-72"
+              aria-label="Email address"
+              value={user?.email ?? ""}
+              disabled
+            />
           </Row>
           <Row title="Password" desc="Requires verifying your current password.">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => toast("Password change will connect once backend auth is wired.")}
-            >
-              Change password
-            </Button>
+            <ChangePasswordDialog />
           </Row>
         </div>
       </section>
@@ -169,7 +186,10 @@ function Settings() {
       <section className="space-y-2">
         <h2 className="eyebrow">Data retention & privacy</h2>
         <div className="panel divide-y px-5">
-          <Row title="Raw audio" desc="Never stored on disk. Discarded immediately after transcription.">
+          <Row
+            title="Raw audio"
+            desc="Never stored on disk. Discarded immediately after transcription."
+          >
             <Status tone="success">
               <ShieldCheckIcon className="size-3.5" aria-hidden="true" />
               Not stored
@@ -188,7 +208,10 @@ function Settings() {
               onCheckedChange={(v) => updatePreferences({ retainTranscriptDefault: v })}
             />
           </Row>
-          <Row title="Retained session window" desc="Auto-expire retained transcripts after this window.">
+          <Row
+            title="Retained session window"
+            desc="Auto-expire retained transcripts after this window."
+          >
             <select
               aria-label="Retention window"
               value={preferences.retentionDays}
@@ -202,7 +225,10 @@ function Settings() {
               <option value={365}>365 days</option>
             </select>
           </Row>
-          <Row title="Export all your data" desc="Includes profile, jobs, sessions, notes, and consent history.">
+          <Row
+            title="Export all your data"
+            desc="Includes profile, jobs, sessions, notes, and consent history."
+          >
             <Button variant="outline" size="sm" onClick={downloadExport}>
               <DownloadSimpleIcon className="size-4" aria-hidden="true" />
               Download JSON
@@ -216,7 +242,10 @@ function Settings() {
         <h2 className="eyebrow">Consent & audit history</h2>
         <div className="panel divide-y px-5">
           {consents.map((c) => (
-            <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
+            <div
+              key={c.id}
+              className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"
+            >
               <div>
                 <p className="font-medium text-foreground">{c.label}</p>
                 <p className="text-xs text-muted-foreground">{c.detail}</p>
@@ -247,7 +276,8 @@ function Settings() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Delete all session history?</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Every recorded session, note, and retained transcript will be removed permanently.
+                    Every recorded session, note, and retained transcript will be removed
+                    permanently.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -255,8 +285,13 @@ function Settings() {
                   <AlertDialogAction
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     onClick={() => {
-                      deleteAllSessions();
-                      toast("All sessions deleted.");
+                      deleteAllSessions().then(
+                        () => toast("All sessions deleted."),
+                        (err) =>
+                          toast.error(
+                            err instanceof Error ? err.message : "Could not delete sessions.",
+                          ),
+                      );
                     }}
                   >
                     Delete sessions
@@ -289,9 +324,16 @@ function Settings() {
                   <AlertDialogAction
                     className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     onClick={() => {
-                      deleteAccount();
-                      toast("Account deleted.");
-                      navigate({ to: "/", replace: true });
+                      deleteAccount().then(
+                        () => {
+                          toast("Account deleted.");
+                          navigate({ to: "/", replace: true });
+                        },
+                        (err) =>
+                          toast.error(
+                            err instanceof Error ? err.message : "Could not delete the account.",
+                          ),
+                      );
                     }}
                   >
                     Delete everything
@@ -321,5 +363,108 @@ function Settings() {
         </div>
       </section>
     </PageTransition>
+  );
+}
+
+function ChangePasswordDialog() {
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const reset = () => {
+    setCurrent("");
+    setNext("");
+    setConfirm("");
+    setError("");
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (next.length < 8) return setError("Use at least 8 characters for the new password.");
+    if (next !== confirm) return setError("The new passwords do not match.");
+    setSaving(true);
+    try {
+      await auth.changePassword(current, next);
+      toast.success("Password updated. Other devices have been signed out.");
+      setOpen(false);
+      reset();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not change the password.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        setOpen(o);
+        if (!o) reset();
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          Change password
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <form onSubmit={submit} className="space-y-4">
+          <DialogHeader>
+            <DialogTitle>Change password</DialogTitle>
+            <DialogDescription>
+              You will stay signed in here. Every other device is signed out.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="pw-current">Current password</Label>
+            <Input
+              id="pw-current"
+              type="password"
+              autoComplete="current-password"
+              value={current}
+              onChange={(e) => setCurrent(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="pw-new">New password</Label>
+            <Input
+              id="pw-new"
+              type="password"
+              autoComplete="new-password"
+              value={next}
+              onChange={(e) => setNext(e.target.value)}
+              required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="pw-confirm">Confirm new password</Label>
+            <Input
+              id="pw-confirm"
+              type="password"
+              autoComplete="new-password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              required
+            />
+          </div>
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+          <DialogFooter>
+            <Button type="submit" disabled={saving || !current || !next || !confirm}>
+              {saving ? "Saving…" : "Update password"}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

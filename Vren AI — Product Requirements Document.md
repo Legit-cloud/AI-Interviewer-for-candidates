@@ -807,6 +807,8 @@ All endpoints are under `/v1`. JSON errors use:
 | Method | Endpoint | Purpose |
 |---|---|---|
 | `GET` | `/v1/me` | Return current user and profile summary |
+| `POST` | `/v1/auth/change-password` | Change password for the signed-in user; signs out other sessions and returns fresh tokens |
+| `GET` | `/v1/health` | Liveness, database connection and `schema` status (`ok`, `needs_migration`, `unknown`) |
 | `POST` | `/v1/sessions/{id}/pairing-code` | Web only: issue a 6-digit, 10-minute, single-use pairing code |
 | `POST` | `/v1/pairing/redeem` | Extension: exchange a valid code for a session-scoped capture and display token |
 | `POST` | `/v1/extensions/{id}/revoke` | Revoke extension access |

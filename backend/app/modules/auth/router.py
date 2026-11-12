@@ -29,6 +29,7 @@ from app.db.models import (
 )
 from app.modules.auth.schemas import (
     AuthTokensResponse,
+    ChangePasswordRequest,
     ForgotPasswordRequest,
     MeResponse,
     MessageResponse,
@@ -311,6 +312,30 @@ async def reset_password(
     db.add(AuditEvent(user_id=user.id, event_type="auth.password_reset_completed", metadata_json={}))
     await db.commit()
     return MessageResponse(message="Password updated. You can sign in now.")
+
+
+@router.post(
+    "/auth/change-password",
+    response_model=AuthTokensResponse,
+    dependencies=[Depends(rate_limit("change_password", 5, 300))],
+)
+async def change_password(
+    payload: ChangePasswordRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> AuthTokensResponse:
+    """Changes the password for the signed-in user, signs out every other session, and returns fresh tokens."""
+    if not verify_password(payload.current_password, user.password_hash):
+        raise AppError("CURRENT_PASSWORD_INVALID", "Your current password is incorrect.", 400)
+    if payload.current_password == payload.new_password:
+        raise AppError("PASSWORD_UNCHANGED", "Choose a password you have not used just now.", 400)
+
+    user.password_hash = hash_password(payload.new_password)
+    await db.execute(
+        delete(AuthToken).where(AuthToken.user_id == user.id, AuthToken.kind == "refresh")
+    )
+    db.add(AuditEvent(user_id=user.id, event_type="auth.password_changed", metadata_json={}))
+    return await _issue_session_tokens(db, user)
 
 
 @router.get("/me", response_model=MeResponse)

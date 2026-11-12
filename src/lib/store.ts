@@ -1,6 +1,7 @@
 // Frontend store synchronized with the FastAPI + PostgreSQL backend (/v1/*).
 // Demo mode (unauthenticated sample workspace) remains available for local preview.
 import { useSyncExternalStore } from "react";
+import { toast } from "sonner";
 import {
   apiFetch,
   getStoredTokens,
@@ -140,7 +141,7 @@ export interface Session {
   date: string;
   jobId: string;
   durationMin: number;
-  state: "completed" | "interrupted";
+  state: "completed" | "interrupted" | "live";
   transcriptRetained: boolean;
   reviewed: boolean;
   snapshot: Omit<PrepConfig, "jobId" | "savedAt">;
@@ -587,17 +588,19 @@ interface BackendSessionDto {
   note: string;
   started_at: string;
   transcript: { speaker: string; text: string; timestamp_label: string }[];
-  questions: {
-    id: string;
-    question_text: string;
-    question_type: string;
-    asked_at: string;
-    framework: string;
-    outline: string[];
-    evidence_ref: string;
-    caveat: string;
-    feedback: string;
-  }[];
+  questions: BackendQuestionDto[];
+}
+
+interface BackendQuestionDto {
+  id: string;
+  question_text: string;
+  question_type: string;
+  asked_at: string;
+  framework: string;
+  outline: string[];
+  evidence_ref: string;
+  caveat: string;
+  feedback: string;
 }
 
 function mapFeedbackFromBackend(fb: string): SuggestionFeedback | undefined {
@@ -694,11 +697,16 @@ function mapSessionDto(s: BackendSessionDto): Session {
     date: s.started_at,
     jobId: s.job_id || "",
     durationMin: s.duration_min,
-    state: s.state === "paused" || s.state === "ready" ? "interrupted" : "completed",
+    state:
+      s.state === "listening"
+        ? "live"
+        : s.state === "paused" || s.state === "ready"
+          ? "interrupted"
+          : "completed",
     transcriptRetained: s.transcript_retained,
     reviewed: s.reviewed,
     snapshot: {
-      interviewType: String(snap["interviewType"] || "Behavioural"),
+      interviewType: String(snap["interview_type"] || snap["interviewType"] || "Behavioural"),
       language: String(snap["language"] || "English"),
       length: String(snap["length"] || "Brief"),
       style: String(snap["style"] || "Structured"),
@@ -780,6 +788,20 @@ export function useAppState(): AppState {
     getState,
     () => empty,
   );
+}
+
+/** A background save failed: tell the user and reload the server's copy so the screen is not lying. */
+function handleWriteError(err: unknown): undefined {
+  toast.error(err instanceof Error ? err.message : "Could not save your change.", {
+    description: "The page was refreshed to match what is saved.",
+  });
+  void hydrateFromBackend();
+  return undefined;
+}
+
+/** Fire-and-forget API write with visible failure handling. */
+function writeThrough<T = unknown>(path: string, init: RequestInit = {}): Promise<T | undefined> {
+  return apiFetch<T>(path, init).catch(handleWriteError);
 }
 
 export const uid = () => Math.random().toString(36).slice(2, 9);
@@ -964,6 +986,19 @@ export const auth = {
           },
     );
   },
+  /** Changes the password. The server signs out other sessions and returns fresh tokens for this one. */
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const tokens = await apiFetch<AuthTokens>("/v1/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    });
+    setStoredTokens({
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      token_type: tokens.token_type || "bearer",
+    });
+  },
+
   signOut() {
     setStoredTokens(null);
     if (typeof window !== "undefined") {
@@ -1025,7 +1060,7 @@ export async function completeOnboarding(
 export function updateProfile(patch: Partial<Profile>) {
   setState((s) => (s.profile ? { ...s, profile: { ...s.profile, ...patch } } : s));
   if (hasAuthSession()) {
-    void apiFetch("/v1/profile", {
+    void writeThrough("/v1/profile", {
       method: "PATCH",
       body: JSON.stringify({
         ...(patch.name !== undefined ? { full_name: patch.name } : {}),
@@ -1228,7 +1263,7 @@ export function deleteDocument(id: string) {
       : s,
   );
   if (hasAuthSession()) {
-    void apiFetch(`/v1/documents/${id}`, { method: "DELETE" }).then(() => hydrateFromBackend());
+    void writeThrough(`/v1/documents/${id}`, { method: "DELETE" }).then(() => hydrateFromBackend());
   }
 }
 
@@ -1318,13 +1353,18 @@ export function addJob(job: Omit<Job, "id" | "updatedAt" | "archived">) {
         preferred_skills: job.preferred,
         themes: job.themes,
       }),
-    }).then((created) => {
-      const mapped = mapJobDto(created);
-      setState((s) => ({
-        ...s,
-        jobs: s.jobs.map((j) => (j.id === tempId ? mapped : j)),
-      }));
-    });
+    })
+      .then((created) => {
+        const mapped = mapJobDto(created);
+        setState((s) => ({
+          ...s,
+          jobs: s.jobs.map((j) => (j.id === tempId ? mapped : j)),
+        }));
+      })
+      .catch((err) => {
+        setState((s) => ({ ...s, jobs: s.jobs.filter((j) => j.id !== tempId) }));
+        handleWriteError(err);
+      });
   }
   return tempId;
 }
@@ -1335,7 +1375,7 @@ export function updateJob(id: string, patch: Partial<Job>) {
     jobs: s.jobs.map((j) => (j.id === id ? { ...j, ...patch, updatedAt: now() } : j)),
   }));
   if (hasAuthSession()) {
-    void apiFetch(`/v1/jobs/${id}`, {
+    void writeThrough(`/v1/jobs/${id}`, {
       method: "PATCH",
       body: JSON.stringify({
         ...(patch.title !== undefined ? { title: patch.title } : {}),
@@ -1357,7 +1397,7 @@ export function updateJob(id: string, patch: Partial<Job>) {
 export function deleteJob(id: string) {
   setState((s) => ({ ...s, jobs: s.jobs.filter((j) => j.id !== id) }));
   if (hasAuthSession()) {
-    void apiFetch(`/v1/jobs/${id}`, { method: "DELETE" });
+    void writeThrough(`/v1/jobs/${id}`, { method: "DELETE" });
   }
 }
 
@@ -1378,7 +1418,7 @@ export function jobCompleteness(job: Job) {
 export function savePrep(cfg: PrepConfig) {
   setState((s) => ({ ...s, prep: { ...cfg, savedAt: now() } }));
   if (hasAuthSession()) {
-    void apiFetch("/v1/preparation/preferences", {
+    void writeThrough("/v1/preparation/preferences", {
       method: "PATCH",
       body: JSON.stringify({
         language: cfg.language,
@@ -1509,9 +1549,17 @@ export interface PairingCode {
 
 export type LiveConnection = "connecting" | "connected" | "reconnecting" | "closed";
 
+/** Ends a session from outside the live page (for example one left running in another tab). */
+export async function endSessionById(sessionId: string): Promise<void> {
+  await apiFetch(`/v1/sessions/${sessionId}/stop`, { method: "POST" });
+  await hydrateFromBackend();
+}
+
 export interface LiveSessionHandle {
   sessionId: string;
   pairing: PairingCode;
+  /** Answers already generated when resuming an existing session. */
+  history: LiveAnswer[];
   refreshPairingCode: () => Promise<PairingCode>;
   revokePairing: () => Promise<void>;
   /** Types a question as if the interviewer had asked it, to test the flow without audio. */
@@ -1531,20 +1579,26 @@ const LIVE_MAX_RECONNECTS = 6;
  * If the socket drops it reconnects and asks the server to replay what it missed.
  */
 export async function startLiveSession(
-  opts: { jobId: string | null; retainTranscript: boolean },
+  opts: { jobId: string | null; retainTranscript: boolean; resumeSessionId?: string },
   onEvent: (event: LiveServerEvent) => void,
   onConnection: (state: LiveConnection) => void,
 ): Promise<LiveSessionHandle> {
-  const created = await apiFetch<BackendSessionDto>("/v1/sessions", {
-    method: "POST",
-    body: JSON.stringify({
-      job_id: opts.jobId,
-      state: "ready",
-      transcript_retained: opts.retainTranscript,
-      rules_acknowledged: true,
-    }),
-  });
-  const sessionId = created.id;
+  // Resuming re-attaches to a session that is still running; otherwise a new one is created.
+  let createdHere = false;
+  let sessionId = opts.resumeSessionId ?? "";
+  if (!sessionId) {
+    const created = await apiFetch<BackendSessionDto>("/v1/sessions", {
+      method: "POST",
+      body: JSON.stringify({
+        job_id: opts.jobId,
+        state: "ready",
+        transcript_retained: opts.retainTranscript,
+        rules_acknowledged: true,
+      }),
+    });
+    sessionId = created.id;
+    createdHere = true;
+  }
 
   const fetchCode = async (): Promise<PairingCode> => {
     const res = await apiFetch<{ code: string; expires_at: string }>(
@@ -1553,12 +1607,38 @@ export async function startLiveSession(
     );
     return { code: res.code, expiresAt: res.expires_at };
   };
-  const pairing = await fetchCode();
-
-  const tokenRes = await apiFetch<{ ws_token: string; ws_path: string }>(
-    `/v1/sessions/${sessionId}/token?role=display`,
-    { method: "POST" },
-  );
+  let pairing: PairingCode;
+  let tokenRes: { ws_token: string; ws_path: string };
+  let history: LiveAnswer[] = [];
+  try {
+    pairing = await fetchCode();
+    tokenRes = await apiFetch<{ ws_token: string; ws_path: string }>(
+      `/v1/sessions/${sessionId}/token?role=display`,
+      { method: "POST" },
+    );
+    if (opts.resumeSessionId) {
+      const past = await apiFetch<BackendQuestionDto[]>(`/v1/sessions/${sessionId}/answers`);
+      history = past
+        .map((q) => ({
+          id: q.id,
+          question_text: q.question_text,
+          question_type: q.question_type,
+          asked_at: q.asked_at,
+          framework: q.framework,
+          answer: q.outline.join(" "),
+          lines: q.outline,
+          key_points: [],
+          source_label: q.evidence_ref || "",
+          caveat: q.caveat || "",
+        }))
+        .reverse();
+    }
+  } catch (err) {
+    // Do not leave a half-created session behind when setup fails.
+    if (createdHere)
+      void apiFetch(`/v1/sessions/${sessionId}`, { method: "DELETE" }).catch(() => {});
+    throw err;
+  }
 
   let socket: WebSocket | null = null;
   let lastEventId = "";
@@ -1616,6 +1696,7 @@ export async function startLiveSession(
   return {
     sessionId,
     pairing,
+    history,
     refreshPairingCode: fetchCode,
     revokePairing: async () => {
       await apiFetch(`/v1/sessions/${sessionId}/pairing/revoke`, { method: "POST" });
@@ -1656,7 +1737,7 @@ export function setSuggestionFeedback(
   if (hasAuthSession()) {
     const sess = getState().sessions.find((s) => s.id === sessionId);
     const updatedQ = sess?.questions.find((q) => q.id === questionId);
-    void apiFetch(`/v1/sessions/${sessionId}/suggestions/${questionId}/feedback`, {
+    void writeThrough(`/v1/sessions/${sessionId}/suggestions/${questionId}/feedback`, {
       method: "PATCH",
       body: JSON.stringify({ feedback: mapFeedbackToBackend(updatedQ?.feedback) }),
     });
@@ -1669,7 +1750,7 @@ export function updateSession(id: string, patch: Partial<Session>) {
     sessions: s.sessions.map((x) => (x.id === id ? { ...x, ...patch } : x)),
   }));
   if (hasAuthSession()) {
-    void apiFetch(`/v1/sessions/${id}`, {
+    void writeThrough(`/v1/sessions/${id}`, {
       method: "PATCH",
       body: JSON.stringify({
         ...(patch.durationMin !== undefined ? { duration_min: patch.durationMin } : {}),
@@ -1689,7 +1770,7 @@ export function updateSession(id: string, patch: Partial<Session>) {
 export function deleteSession(id: string) {
   setState((s) => ({ ...s, sessions: s.sessions.filter((x) => x.id !== id) }));
   if (hasAuthSession()) {
-    void apiFetch(`/v1/sessions/${id}`, { method: "DELETE" });
+    void writeThrough(`/v1/sessions/${id}`, { method: "DELETE" });
   }
 }
 
@@ -1718,7 +1799,7 @@ export function updatePreferences(patch: Partial<Preferences>) {
   });
 
   if (hasAuthSession()) {
-    void apiFetch("/v1/preparation/preferences", {
+    void writeThrough("/v1/preparation/preferences", {
       method: "PATCH",
       body: JSON.stringify({
         ...(patch.language !== undefined ? { language: patch.language } : {}),
@@ -1739,7 +1820,7 @@ export function updatePreferences(patch: Partial<Preferences>) {
 export function dismissChecklist() {
   setState((s) => ({ ...s, checklistDismissed: true }));
   if (hasAuthSession()) {
-    void apiFetch("/v1/profile", {
+    void writeThrough("/v1/profile", {
       method: "PATCH",
       body: JSON.stringify({ checklist_dismissed: true }),
     });
@@ -1755,16 +1836,17 @@ export function exportData() {
   );
 }
 
-export function deleteAllSessions() {
-  setState((s) => ({ ...s, sessions: [] }));
+/** Deletes on the server first; local state is only cleared once the server confirms. */
+export async function deleteAllSessions(): Promise<void> {
   if (hasAuthSession()) {
-    void apiFetch("/v1/sessions", { method: "DELETE" });
+    await apiFetch("/v1/sessions", { method: "DELETE" });
   }
+  setState((s) => ({ ...s, sessions: [] }));
 }
 
-export function deleteAccount() {
+export async function deleteAccount(): Promise<void> {
   if (hasAuthSession()) {
-    void apiFetch("/v1/me", { method: "DELETE" });
+    await apiFetch("/v1/me", { method: "DELETE" });
   }
   setStoredTokens(null);
   setState(() => empty);
