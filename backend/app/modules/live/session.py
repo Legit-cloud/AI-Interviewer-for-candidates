@@ -13,6 +13,7 @@ At most one capture client is attached at a time.
 import asyncio
 import base64
 import logging
+import time
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -23,8 +24,10 @@ from fastapi import WebSocket
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters.stt import AudioUtteranceBuffer, DeepgramStreamingChannel, get_stt_adapter
+from app.adapters.llm import get_llm_adapter
+from app.adapters.stt import AudioUtteranceBuffer, DeepgramStreamingChannel, get_stt_adapter, pcm16_rms
 from app.core.config import get_settings
+from app.core.languages import language_code
 from app.db.models import (
     CandidateExperience,
     CandidateSkill,
@@ -34,14 +37,19 @@ from app.db.models import (
     JobDescription,
     TranscriptSegment,
 )
+from app.modules.ai.explain import explain_unavailable
+from app.modules.live.audio_stats import SourceStats
 from app.modules.live.question_detector import QuestionDetector
+from app.modules.live.question_llm import QuestionClassifier
 from app.modules.sessions.grounding import AnswerResult, stream_answer
+from app.modules.sessions.image_question import read_question_from_image
 from app.modules.sessions.router import finalize_session_row
 
 logger = logging.getLogger(__name__)
 
 DISPLAY_ALLOWED = {
     "client.heartbeat",
+    "image.ask",
     "session.pause",
     "session.resume",
     "session.stop",
@@ -53,6 +61,7 @@ REPLAYABLE = {
     "answer.started",
     "answer.ready",
     "answer.unavailable",
+    "answer.cancelled",
     "capture.state",
     "session.degraded",
 }
@@ -93,9 +102,14 @@ class LiveSession:
         self.user_id = user_id
         self.clients: dict[WebSocket, _Client] = {}
         self.detector = QuestionDetector()
+        self.classifier = QuestionClassifier()
         self.buffers = {"tab": AudioUtteranceBuffer(), "microphone": AudioUtteranceBuffer()}
         self.last_sequences = {"tab": 0, "microphone": 0}
         self.active_sources: list[str] = ["tab"]
+        # Phone or in-person interviews: the microphone is hearing the interviewer, not the candidate.
+        self.room_mode = False
+        self.stats = {"tab": SourceStats(), "microphone": SourceStats()}
+        self._stats_sent_at = 0.0
         self.segment_seq = 0
         self.paused = False
         self.stopped = False
@@ -106,6 +120,12 @@ class LiveSession:
         self.lock = asyncio.Lock()
         self._capture_db: AsyncSession | None = None
         self._answer_task: asyncio.Task[None] | None = None
+        self._answer_qid = ""
+        self._image_task: asyncio.Task[None] | None = None
+        # Detection and answering run in the background so audio and controls are never held up by the model.
+        self._queue: asyncio.Queue[tuple[str, str, str, list[str]]] = asyncio.Queue(maxsize=20)
+        self._worker: asyncio.Task[None] | None = None
+        self._bind = None  # database engine, so background work can open its own sessions
 
     # ------------------------------------------------------------------ fan-out
     async def broadcast(self, event: dict[str, Any]) -> None:
@@ -147,6 +167,7 @@ class LiveSession:
         if role == "capture" and any(c.role == "capture" for c in self.clients.values()):
             raise LiveSessionError(4409, "CAPTURE_CLIENT_ALREADY_CONNECTED")
 
+        self._bind = self._bind or db.bind
         first_join = not self.clients
         self.clients[ws] = _Client(role=role)
         if role == "capture":
@@ -170,6 +191,7 @@ class LiveSession:
                 role=role,
                 expires_at=self.expires_at.isoformat(),
                 stt_mode=get_stt_adapter().active_provider,
+                answers_ready=get_llm_adapter().is_configured,
             ),
         )
         if last_event_id:
@@ -197,6 +219,7 @@ class LiveSession:
                 self.paused = True
                 await self.emit("capture.state", source="tab", state="paused")
         if not self.clients:
+            await self._cancel_tasks()
             live_registry.drop(self.session_id)
 
     async def _close_capture_resources(self) -> None:
@@ -254,6 +277,8 @@ class LiveSession:
             await self._set_paused(db, False)
         elif msg_type == "audio.frame":
             await self._audio_frame(db, msg)
+        elif msg_type == "image.ask":
+            self.ask_image(str(msg.get("image") or ""), str(msg.get("mime") or "image/png"))
         elif msg_type in ("audio.flush", "utterance.commit", "transcript.simulate"):
             await self._commit_or_flush(db, msg)
         elif msg_type == "session.stop":
@@ -265,6 +290,7 @@ class LiveSession:
     async def _configure(self, db: AsyncSession, msg: dict[str, Any]) -> None:
         requested = msg.get("sources") or ["tab"]
         self.active_sources = [str(s) for s in requested if s in ("tab", "microphone")] or ["tab"]
+        self.room_mode = bool(msg.get("room")) and self.active_sources == ["microphone"]
         row = await db.get(InterviewSession, self.session_id)
         if row is not None and row.state == "ready":
             row.state = "listening"
@@ -274,14 +300,21 @@ class LiveSession:
         settings = get_settings()
         stt = get_stt_adapter()
         if stt.active_provider == "deepgram" and settings.deepgram_api_key:
+            prefs = await db.get(InterviewPreferences, self.user_id)
+            lang = language_code(prefs.language if prefs else "English")
+            # flux-general-en only understands English; switch to a multilingual model otherwise.
+            model = settings.deepgram_model
+            if lang != "en" and model.startswith("flux"):
+                model = "nova-3"
             for src in self.active_sources:
                 if src in self.dg_channels:
                     continue
                 channel = DeepgramStreamingChannel(
                     api_key=settings.deepgram_api_key,
-                    model=settings.deepgram_model,
+                    model=model,
                     source=src,
                     on_transcript=lambda text, is_final, s=src: self._on_deepgram(s, text, is_final),
+                    language=lang,
                 )
                 if await channel.connect():
                     self.dg_channels[src] = channel
@@ -289,9 +322,23 @@ class LiveSession:
         for src in self.active_sources:
             await self.emit("capture.state", source=src, state="listening")
 
+    async def _maybe_send_stats(self) -> None:
+        """Once a second, tell every screen whether sound is arriving and being read."""
+        now = time.monotonic()
+        if now - self._stats_sent_at < 1.0:
+            return
+        self._stats_sent_at = now
+        stt_ready = get_stt_adapter().is_configured
+        await self.emit(
+            "audio.stats",
+            stt_ready=stt_ready,
+            sources={name: st.report(now, stt_ready) for name, st in self.stats.items() if name in self.active_sources},
+        )
+
     async def _on_deepgram(self, src: str, text: str, is_final: bool) -> None:
         if self.paused or self.stopped:
             return
+        self.stats[src].on_text(time.monotonic())
         if not is_final:
             await self.emit("transcript.delta", item_id=f"live_{src}", source=src, text=text)
             return
@@ -336,6 +383,11 @@ class LiveSession:
         payload_b64 = str(msg.get("payload") or "")
         sample_rate = int(msg.get("sample_rate") or 16000)
         channels = int(msg.get("channels") or 1)
+        try:
+            self.stats[src].on_frame(time.monotonic(), pcm16_rms(base64.b64decode(payload_b64, validate=True)))
+        except Exception:
+            pass  # a bad frame is handled below; it must not stop the level meter code
+        await self._maybe_send_stats()
 
         if src in self.dg_channels:
             try:
@@ -389,8 +441,7 @@ class LiveSession:
                 await self._transcribe_buffer(db, src, f"turn_{uuid4().hex[:8]}")
         for buf in self.buffers.values():
             buf.clear()
-        if self._answer_task and not self._answer_task.done():
-            self._answer_task.cancel()
+        await self._drain_for_stop()
 
         row = await db.get(InterviewSession, self.session_id)
         retained = False
@@ -420,7 +471,9 @@ class LiveSession:
             return
 
         # Per-channel attribution: tab audio is the interviewer, microphone is the candidate.
-        speaker = "You" if source == "microphone" else "Interviewer"
+        speaker = "You" if source == "microphone" and not self.room_mode else "Interviewer"
+        if source in self.stats:
+            self.stats[source].on_text(time.monotonic())
         ts_label = _elapsed_label(row.started_at)
         self.segment_seq += 1
         self.recent_turns.append(f"{speaker}: {text[:220]}")
@@ -450,25 +503,114 @@ class LiveSession:
             text=text,
         )
 
-        detected = self.detector.inspect(text, speaker=speaker)
-        if not detected:
-            return
+        # Earlier turns give the classifier context (the current turn is already the last entry).
+        self._enqueue_detection(text, speaker, ts_label, self.recent_turns[:-1])
 
+    # ------------------------------------------------------------------ background detection and answers
+    def _enqueue_detection(self, text: str, speaker: str, ts_label: str, earlier: list[str]) -> None:
+        if self._worker is None or self._worker.done():
+            self._worker = asyncio.create_task(self._detection_loop())
+        try:
+            self._queue.put_nowait((text, speaker, ts_label, list(earlier)))
+        except asyncio.QueueFull:
+            logger.warning("Detection queue full; dropping an utterance session_id=%s", self.session_id)
+
+    async def _detection_loop(self) -> None:
+        """Looks at one utterance at a time, in order. A found question starts its answer without waiting for it."""
+        while True:
+            text, speaker, ts_label, earlier = await self._queue.get()
+            try:
+                detected = await self.detector.detect(
+                    text, speaker=speaker, classify=lambda t, e=earlier: self.classifier.classify(t, e)
+                )
+                if not detected:
+                    continue
+                question_id = f"q_{uuid4().hex[:10]}"
+                await self.emit(
+                    "question.detected",
+                    question_id=question_id,
+                    kind=detected.kind,
+                    text=detected.text,
+                    fingerprint=detected.fingerprint,
+                    detection=detected.source,
+                )
+                # A newer question interrupts an answer that is still being written.
+                if self._answer_task and not self._answer_task.done():
+                    self._answer_task.cancel()
+                    await self.emit("answer.cancelled", question_id=self._answer_qid)
+                self._answer_qid = question_id
+                self._answer_task = asyncio.create_task(
+                    self._answer_job(question_id, detected.text, detected.kind, ts_label)
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                logger.exception("Question detection failed session_id=%s", self.session_id)
+
+    async def _answer_job(self, question_id: str, text: str, kind: str, ts_label: str) -> None:
+        started = time.monotonic()
+        await self.emit("answer.started", question_id=question_id, question_text=text, question_type=kind)
+        # The job has its own database session: the socket's session is busy with audio and controls.
+        async with AsyncSession(bind=self._bind, expire_on_commit=False) as sdb:
+            row = await sdb.get(InterviewSession, self.session_id)
+            if row is None:
+                return
+            await self._generate_answer(sdb, row, question_id, text, kind, ts_label, started)
+
+    # ------------------------------------------------------------------ asking directly (screenshot, typed)
+    def ask_image(self, image_b64: str, mime: str) -> None:
+        """Reads a screenshot of a question or problem and answers it. Runs in the background."""
+        if self.stopped:
+            return
+        self._image_task = asyncio.create_task(self._read_image_and_ask(image_b64, mime))
+
+    async def _read_image_and_ask(self, image_b64: str, mime: str) -> None:
+        question = await read_question_from_image(image_b64, mime)
+        if question is None:
+            await self.emit(
+                "answer.unavailable",
+                question_id="",
+                reason="IMAGE_UNREADABLE",
+                message="Could not read that screenshot. Try a clearer one.",
+            )
+            return
+        await self.ask(question.text, question.kind, source="screenshot")
+
+    async def ask(self, text: str, kind: str, source: str = "typed") -> None:
+        """Answers a question that did not come from the audio. A newer question interrupts an older answer."""
+        if self.stopped:
+            return
         question_id = f"q_{uuid4().hex[:10]}"
-        await self.emit(
-            "question.detected",
-            question_id=question_id,
-            kind=detected.kind,
-            text=detected.text,
-            fingerprint=detected.fingerprint,
-        )
-        await self.emit(
-            "answer.started",
-            question_id=question_id,
-            question_text=detected.text,
-            question_type=detected.kind,
-        )
-        await self._generate_answer(db, row, question_id, detected.text, detected.kind, ts_label)
+        await self.emit("question.detected", question_id=question_id, kind=kind, text=text, fingerprint="", detection=source)
+        if self._answer_task and not self._answer_task.done():
+            self._answer_task.cancel()
+            await self.emit("answer.cancelled", question_id=self._answer_qid)
+        self._answer_qid = question_id
+        ts_label = _elapsed_label(datetime.now(timezone.utc))
+        self._answer_task = asyncio.create_task(self._answer_job(question_id, text, kind, ts_label))
+
+    async def _cancel_tasks(self) -> None:
+        for task in (self._worker, self._answer_task, self._image_task):
+            if task and not task.done():
+                task.cancel()
+        for task in (self._worker, self._answer_task, self._image_task):
+            if task:
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+    async def _drain_for_stop(self) -> None:
+        """On stop: give a running answer a few seconds to be saved, then cancel whatever is left."""
+        if self._worker and not self._worker.done():
+            self._worker.cancel()
+        task = self._answer_task
+        if task and not task.done():
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=3.0)
+            except (asyncio.TimeoutError, asyncio.CancelledError, Exception):
+                task.cancel()
+        await self._cancel_tasks()
 
     async def _generate_answer(
         self,
@@ -478,7 +620,10 @@ class LiveSession:
         question_text: str,
         question_kind: str,
         ts_label: str,
+        started: float | None = None,
     ) -> None:
+        started = started or time.monotonic()
+        first_word: float | None = None
         prefs = await db.get(InterviewPreferences, row.user_id) or InterviewPreferences(user_id=row.user_id)
         job = await db.get(JobDescription, row.job_id) if row.job_id else None
         experiences = (
@@ -500,6 +645,8 @@ class LiveSession:
                 recent_turns=list(self.recent_turns),
             ):
                 if kind == "delta":
+                    if first_word is None:
+                        first_word = time.monotonic() - started
                     await self.emit("answer.delta", question_id=question_id, delta=str(payload))
                 elif kind == "done":
                     result = payload
@@ -512,7 +659,7 @@ class LiveSession:
                 "answer.unavailable",
                 question_id=question_id,
                 reason=(result.reason if result else "AI_PROVIDER_ERROR"),
-                message="Answer unavailable for this question. You can continue or stop safely.",
+                message=explain_unavailable(result.reason if result else "AI_PROVIDER_ERROR"),
             )
             return
 
@@ -526,12 +673,22 @@ class LiveSession:
             outline=result.lines,
             evidence_ref=result.source_label,
             caveat=result.caveat,
+            code=result.code,
             feedback="none",
         )
         db.add(suggestion)
         await db.commit()
         await db.refresh(suggestion)
 
+        total = time.monotonic() - started
+        timing = {
+            "first_word_ms": int((first_word if first_word is not None else total) * 1000),
+            "total_ms": int(total * 1000),
+        }
+        logger.info(
+            "Answer timing session=%s kind=%s first_word_ms=%d total_ms=%d",
+            self.session_id, question_kind, timing["first_word_ms"], timing["total_ms"],
+        )
         await self.emit(
             "answer.ready",
             question_id=question_id,
@@ -546,6 +703,8 @@ class LiveSession:
                 "key_points": list(result.key_points),
                 "source_label": result.source_label,
                 "caveat": result.caveat,
+                "code": result.code,
+                "timing": timing,
             },
         )
 

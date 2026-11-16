@@ -1,6 +1,19 @@
 import type { PairedSession } from "./api";
 
 const SESSION_KEY = "vren-paired-session";
+export const INVOKED_KEY = "vren-invoked-tab";
+
+/** The tab the user last clicked the Vren icon on. Chrome only lets us capture or draw on a tab that was invoked. */
+export interface InvokedTab {
+  tabId: number;
+  url: string;
+  title: string;
+}
+
+export async function loadInvokedTab(): Promise<InvokedTab | null> {
+  const out = await chrome.storage.session.get(INVOKED_KEY);
+  return (out[INVOKED_KEY] as InvokedTab | undefined) ?? null;
+}
 const API_KEY = "vren-api-base";
 
 /** Pairing token lives in session storage only: it is cleared when the browser closes. */

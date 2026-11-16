@@ -8,7 +8,8 @@
 **Primary interfaces:** Web dashboard and Google Chrome extension  
 **Audience:** Product, design, frontend, extension, backend, AI, security, QA, and operations teams
 
-**Revision 1.1:** (1) The product returns a ready-to-say answer to each interviewer question instead of coaching-style guidance. (2) The web app does the heavy lifting (account, CV, jobs, session control, AI, review); the Chrome extension is a thin client that relays tab audio on user action and displays answers in its Side Panel. (3) The extension connects through a short-lived pairing code created in the web app. (4) A **Private view** mode keeps answers in the user's own Side Panel only. (5) Explicit boundary: the product does not hide itself from, or evade, screen sharing, proctoring or monitoring. (6) The "Coaching" response style is removed. (7) An optional visible desktop overlay is recorded as a deferred idea in Appendix C.  
+**Revision 1.2:** the extension is now only the on-page box (no on-page box). Added the Sound check (audio.stats), `POST /v1/ai/check` ("Test the AI"), a readable PDF export (`/v1/me/export.pdf`) and an extension download placeholder in the web app. Where this document says on-page box, read "on-page box".  
+**Revision 1.1:** (1) The product returns a ready-to-say answer to each interviewer question instead of coaching-style guidance. (2) The web app does the heavy lifting (account, CV, jobs, session control, AI, review); the Chrome extension is a thin client that relays tab audio on user action and displays answers in its on-page box. (3) The extension connects through a short-lived pairing code created in the web app. (4) A **Private view** mode keeps answers in the user's own on-page box only. (5) Explicit boundary: the product does not hide itself from, or evade, screen sharing, proctoring or monitoring. (6) The "Coaching" response style is removed. (7) An optional visible desktop overlay is recorded as a deferred idea in Appendix C.  
 
 ---
 
@@ -17,7 +18,7 @@
 Vren AI is one connected product with two interfaces:
 
 1. A web dashboard for account management, candidate context, job descriptions, interview preparation, session history, and review.
-2. A Chrome extension that is deliberately thin: it pairs to a session created in the web app, relays tab audio after a user action, and displays the answers in its own Side Panel (Private view). It holds no CV data, no AI keys and no business logic.
+2. A Chrome extension that is deliberately thin: it pairs to a session created in the web app, relays tab audio after a user action, and displays the answers in its own on-page box (Private view). It holds no CV data, no AI keys and no business logic.
 
 The product helps a candidate prepare for and navigate an interview by combining the candidate's structured professional context, the relevant job description, selected interview preferences, and the live interview conversation. For each question the interviewer asks, it returns a short, first-person answer the candidate can say aloud, rather than advice about how to answer. The web application does most of the work; the extension only displays the result.
 
@@ -29,7 +30,7 @@ The MVP will support:
 - CV upload, extraction, review, and structured candidate context.
 - Multiple job descriptions and reusable candidate profiles.
 - Interview preferences and preparation configuration.
-- Chrome Manifest V3 extension that pairs with a web session by a short-lived code, relays tab audio after a user action, and displays answers in a Side Panel (Private view).
+- Chrome Manifest V3 extension that pairs with a web session by a short-lived code, relays tab audio after a user action, and displays answers in a on-page box (Private view).
 - Explicit tab-audio capture and optional microphone capture as separate paths.
 - Streaming transcription through a server-side provider adapter.
 - Question detection, context retrieval, and a ready-to-say answer for every interviewer question, with source labels.
@@ -60,7 +61,7 @@ Vren AI should feel like a calm, capable interview partner for candidates across
 
 ### 2.3 Non-objectives for MVP
 
-The MVP will not include any operation designed to evade detection or monitoring: hiding the product from screen-capture or screen-sharing APIs, disguising the extension's name, icon, description or process, interfering with proctoring, focus or tab-switch checks, or masking Chrome's capture indicators. It also excludes desktop-wide audio capture, automatic capture of arbitrary native applications, candidate impersonation, automated speaking, coding execution, recruiter-side workflows, team administration, and a broad meeting-platform compatibility promise. Private view (FR-13) is in scope: it keeps answers in the user's own Side Panel and never in the meeting page.
+The MVP will not include any operation designed to evade detection or monitoring: hiding the product from screen-capture or screen-sharing APIs, disguising the extension's name, icon, description or process, interfering with proctoring, focus or tab-switch checks, or masking Chrome's capture indicators. It also excludes desktop-wide audio capture, automatic capture of arbitrary native applications, candidate impersonation, automated speaking, coding execution, recruiter-side workflows, team administration, and a broad meeting-platform compatibility promise. Private view (FR-13) is in scope: it keeps answers in the user's own on-page box and never in the meeting page.
 
 ---
 
@@ -124,7 +125,7 @@ The product must support keyboard navigation, reduced motion, screen-reader labe
 - Job description creation from pasted text or supported document upload.
 - Job-context extraction and candidate/job comparison.
 - Interview preparation configuration.
-- Chrome extension installation, authentication connection, and Side Panel.
+- Chrome extension installation, authentication connection, and on-page box.
 - Supported-tab detection and explicit audio disclosure.
 - Tab audio capture using `tabCapture` after extension invocation.
 - Optional microphone capture through a separate permission and state.
@@ -132,7 +133,7 @@ The product must support keyboard navigation, reduced motion, screen-reader labe
 - Streaming transcript display and question detection.
 - A ready-to-say answer for each interviewer question, with source evidence labels.
 - Pairing-code handoff from the web session to the extension (no sign-in inside the panel).
-- Private view: answers shown only in the paired Side Panel, never injected into the meeting page.
+- Private view: answers shown only in the paired on-page box, never injected into the meeting page.
 - Interview-rules acknowledgement before each live session.
 - Pause, resume, stop, reconnect, and safe session termination.
 - Consent-based transcript and notes storage.
@@ -176,7 +177,7 @@ MVP support is limited to Chrome desktop versions selected during release qualif
 | Candidate profile and CV extraction | P0 | Avoid re-entering background information | Include |
 | Job descriptions | P0 | Tailor answers to a specific role | Include |
 | Preparation configuration | P0 | Control answer style and length | Include |
-| Extension Side Panel (Private view) | P0 | See answers beside the meeting tab without leaving it | Include |
+| Extension on-page box (Private view) | P0 | See answers beside the meeting tab without leaving it | Include |
 | Pairing-code handoff | P0 | Connect the extension to a web session without signing in inside the panel | Include |
 | Explicit capture controls | P0 | Understand and control data capture | Include |
 | Tab audio capture | P0 | Hear interviewer audio on supported tabs | Include, subject to compatibility |
@@ -257,13 +258,13 @@ The system produces a preparation summary showing the selected inputs, missing c
 1. On the web dashboard the user selects the profile, job and interview type and clicks **Start live session**. The web app creates the session.
 2. The web page shows the capture disclosure and controls: tab audio, microphone (separate), transcript retention, and the interview-rules acknowledgement (FR-14). All consent choices are made here, not in the extension.
 3. The web page shows a 6-digit pairing code (valid 10 minutes, single use) and a link to open or install the extension.
-4. The user opens a supported browser meeting tab and opens the Vren Side Panel from the toolbar. The panel asks only for the pairing code; it never asks for a password.
+4. The user opens a supported browser meeting tab and opens the Vren on-page box from the toolbar. The panel asks only for the pairing code; it never asks for a password.
 5. Redeeming the code gives the panel a session-scoped token (capture and display for this one session). The panel shows a read-only session summary and a recap of what is captured, where it is sent, and how to stop.
 6. The user clicks **Start capture** in the panel. This click is the capture initiation gesture. If microphone is enabled it is a separate permission prompt. If any permission is denied the session stays stopped and explains why.
 7. The extension opens the backend WebSocket as the capture and display client and waits for `session.ready`.
 8. Audio frames begin only after the panel shows **Listening** and a visible stop control.
 9. The backend transcribes, detects questions, retrieves relevant candidate and job evidence, and generates the answer. None of this runs in the extension.
-10. The answer streams into the Side Panel as it is generated. If the web live page is open, it shows the same feed and transcript.
+10. The answer streams into the on-page box as it is generated. If the web live page is open, it shows the same feed and transcript.
 11. The panel shows the answer as ready-to-say text, an optional key-points strip, and a source label such as “From your experience: project X” or “Direct answer for this role”.
 12. Pause, resume and stop are available from both the panel and the web page. Either one ends the session for both.
 
@@ -357,13 +358,14 @@ The system must not generate a new answer for every partial transcript change. A
 ### FR-8 Question detection
 
 **Description:** Identify meaningful interviewer questions and classify them.  
-**Rules:** use debounce, duplicate fingerprint, transcript stability threshold, and question confidence.  
+**Rules:** use debounce, duplicate fingerprint, transcript stability threshold, and question confidence. Clear questions (a question mark or a cue such as “tell me about”) are accepted by fast heuristics with no model call. Only unclear interviewer turns are sent to an LLM, which decides whether the candidate now has something to answer and returns the question as one self-contained sentence, merging a question split across turns. The model call has a short timeout and a per-minute budget, its output is validated, the transcript is treated as untrusted data, and any failure counts as “not a question” so an outage never produces a false answer. Model-detected questions go through the same duplicate window.  
 **Acceptance criteria:** benchmark covers direct questions, statements, incomplete sentences, follow-ups, interruptions, and repeated questions.
 
 ### FR-9 Ready-to-say answers
 
 **Description:** For each interviewer question or task, generate a short first-person answer the candidate can say aloud as written, across any profession. Use the active CV context when it fits, and direct role or domain expertise when the question goes outside the CV.  
 **Rules:** output schema is validated; the answer is the answer itself, never advice about how to answer (no “Start with…”, “You should…”, “Mention…”); length follows the Brief, Standard or Detailed preference; employers, titles, dates and metrics are never fabricated and unsupported claims are removed or marked; anti-buzzword conversational tone is enforced; the source label reflects what was actually used; when no AI provider is available the panel shows an explicit “Answer unavailable” state and never canned placeholder text.  
+**Spoken style:** the model is told its output is read aloud in real time and is shown good and bad contrasts, not just asked to be “natural”. Answers are answer-first with one concrete detail, in short sentences with contractions, no lists, labels or markdown, and no banned filler (for example “great question”, “passionate”, “leverage”). Length follows the preference: Brief is about 3 sentences (55 words), Standard about 5 (95), Detailed about 7 (160). Guidance depends on the kind of question (a story for behavioural, a plan and trade-off for situational, the approach and reasoning for role tasks, present-past-why for “tell me about yourself”). The prompt carries the job's responsibilities and requirements. If a draft reads like generic AI text or coaching, it is rewritten once, silently, and the better draft is kept. Where the background does not cover a question, the answer says how the candidate would approach it, or makes one honest bridge to related experience, and never claims experience that is not there.  
 **Acceptance criteria:** every detected question receives a usable answer or an explicit unavailable state; p95 time to first words ≤ 4 seconds after a stable question; the unsupported-claim rate in the evaluation set meets the threshold in §25.2.
 
 ### FR-10 Session review
@@ -383,10 +385,10 @@ The system must not generate a new answer for every partial transcript change. A
 
 ### FR-13 Private view
 
-**Description:** By default answers are shown only in the paired Side Panel (and optionally the web live page), outside the meeting page. The user may switch on an **on-page overlay** (below).  
+**Description:** Answers are shown in the **on-page overlay** (below) and optionally the web live page.  
 **Rules:** nothing is injected into any page unless the user turns the overlay on for that tab; no content script is registered for any site (the manifest has no `content_scripts` and no site host permissions; only `activeTab`, `scripting` and `tabCapture`); answers are cleared from the panel when the session stops; the extension's name, icon and store description honestly identify Vren AI; the product does not hide the extension, mask Chrome's capture indicators, or detect, evade or interfere with screen sharing, proctoring, focus or tab-switch monitoring.  
 **On-page overlay (opt-in):** a floating panel injected on request into the one tab the user chose, using `activeTab`. It is labelled “Vren AI · on-page overlay”, has a draggable top bar, text-size and transparency controls and a close button, and its text area is click-through (`pointer-events: none`) so stray clicks reach the page. Text is set only with `textContent`. Because it lives inside the web page it appears in a tab share and the page's own scripts can see it; the panel states this when the user turns it on. It does not survive navigation or a reload of that tab, and the user turns it on again.  
-**Sharing hint:** before capture starts the product states that the Side Panel is part of the browser window, that sharing a single tab does not include it, and that sharing the whole screen or browser window may show it, so the user should check what is being shared.  
+**Sharing hint:** before capture starts the product states that the overlay is part of the web page and shows in a tab share, so the user should check what is being shared.  
 **Acceptance criteria:** code review and automated checks confirm no content script writes answer text to page DOM and no code references capture-exclusion or detection-evasion APIs; the sharing hint appears in the disclosure on web and panel.
 
 ### FR-14 Interview-rules acknowledgement
@@ -587,7 +589,7 @@ FastAPI supports WebSocket routes, dependency-based authorisation, disconnection
 flowchart LR
   W[Web dashboard\nReact + TypeScript\nsession control, live page, review] -->|HTTPS + JWT| API[FastAPI modular monolith]
   W -. pairing code, shown to user .-> E
-  E[Chrome extension\ncapture relay + Side Panel display] -->|HTTPS pairing redeem| API
+  E[Chrome extension\ncapture relay + on-page box display] -->|HTTPS pairing redeem| API
   E -->|WSS audio up, answers down\nsession-scoped token| LIVE[Live session module]
   W -->|WSS events, optional live page| LIVE
   API --> AUTH[Supabase Auth]
@@ -629,7 +631,7 @@ The primary tab-audio path uses `chrome.tabCapture`. Chrome documents that the A
 
 The optional microphone path uses a separate `getUserMedia({audio: true})` request. The system must label the source, permission, mute state, and health independently.
 
-**Roles on a session.** A live session has at most one **capture** client (the extension by default) and up to two **display** clients (the Side Panel and the web live page). The extension holds both roles. A web-only fallback may capture a shared tab through `getDisplayMedia`, which requires the user to pick the tab and tick “share tab audio” each time; it exists for browsers where the extension is not installed.
+**Roles on a session.** A live session has at most one **capture** client (the extension by default) and up to two **display** clients (the on-page box and the web live page). The extension holds both roles. A web-only fallback may capture a shared tab through `getDisplayMedia`, which requires the user to pick the tab and tick “share tab audio” each time; it exists for browsers where the extension is not installed.
 
 ### 15.2 Audio pipeline
 
@@ -637,7 +639,7 @@ The optional microphone path uses a separate `getUserMedia({audio: true})` reque
 sequenceDiagram
   participant U as User
   participant W as Web app (live page)
-  participant X as Extension (capture relay + Side Panel)
+  participant X as Extension (capture relay + on-page box)
   participant B as FastAPI live session
   participant S as STT provider
   participant Q as Question detector
@@ -646,7 +648,7 @@ sequenceDiagram
   U->>W: Start live session, confirm disclosure and rules
   W->>B: Create session, request pairing code
   B-->>W: Pairing code (10 min, single use)
-  U->>X: Open Side Panel, enter pairing code
+  U->>X: Open on-page box, enter pairing code
   X->>B: Redeem code
   B-->>X: Session-scoped token
   U->>X: Click Start capture
@@ -885,7 +887,7 @@ Endpoint: `wss://api.vren.ai/v1/live/{session_id}`. The client authenticates wit
 {"type":"capture.state","source":"tab","state":"listening"}
 {"type":"transcript.delta","item_id":"p_9","source":"tab","text":"Tell me about"}
 {"type":"transcript.completed","item_id":"p_9","sequence":91,"text":"Tell me about a process you improved."}
-{"type":"question.detected","question_id":"q_1","kind":"behavioral","text":"Tell me about a process you improved."}
+{"type":"question.detected","question_id":"q_1","kind":"Behavioral","text":"Tell me about a process you improved.","detection":"heuristic"}
 {"type":"answer.started","question_id":"q_1","question_text":"Tell me about a process you improved."}
 {"type":"answer.delta","question_id":"q_1","delta":"At my last role our reporting took "}
 {"type":"answer.ready","question_id":"q_1","answer":{}}
@@ -982,7 +984,7 @@ Before launch, the product owner must decide intended markets, controller/proces
 
 ### 21.7 Private view and interview rules
 
-Private view is a focus and privacy feature: answers appear only in the user's own panel and are not placed in the meeting page. It is not a guarantee that nobody else can see them. The Side Panel is part of the browser window; sharing a whole screen or browser window can show it, and employers or interviewers may use monitoring that the product does not control.
+Private view is a focus and privacy feature: answers appear in a box the user opens on their own tab. It is not a guarantee that nobody else can see them. The box is part of the web page; sharing the tab, window or screen can show it, and employers or interviewers may use monitoring that the product does not control.
 
 - The product does not verify whether an interviewer or employer permits assistive tools. The user confirms this before each live session (FR-14) and remains responsible for it.
 - The product never advertises itself as invisible, undetectable or unblockable. Marketing copy, the store listing and in-product text are reviewed against this rule.
@@ -1075,7 +1077,7 @@ All errors have stable codes, user-safe messages, request IDs, and internal diag
 - API tests for validation, ownership, rate limits, and error schemas.
 - WebSocket tests for handshake, event ordering, duplicate frames, reconnect, pause/resume, stop, and disconnect.
 - RLS tests for every exposed table and operation.
-- Extension tests for Side Panel states, service-worker restart, storage persistence, permission denial, and messaging.
+- Extension tests for on-page box states, service-worker restart, storage persistence, permission denial, and messaging.
 - Accessibility tests for keyboard paths, labels, focus, contrast, and reduced motion.
 - End-to-end tests for registration through completed review.
 
@@ -1095,7 +1097,7 @@ AI quality gates:
 
 ### 25.3 Compatibility matrix
 
-Qualify supported Chrome versions, operating systems, Side Panel behaviour, meeting tab types, audio output behaviour, microphone devices, and network conditions. Record known unsupported surfaces in product documentation.
+Qualify supported Chrome versions, operating systems, on-page box behaviour, meeting tab types, audio output behaviour, microphone devices, and network conditions. Record known unsupported surfaces in product documentation.
 
 ### 25.4 Security testing
 
@@ -1145,10 +1147,10 @@ Do not log raw audio, full CVs, transcript text, or complete generated answers i
 
 ### Phase 2 — Extension foundation
 
-**Deliverables:** WXT/MV3 build, Side Panel, pairing-code connection, display-only Side Panel (Private view), capture relay, supported-tab detection, disclosure and permission states.  
+**Deliverables:** WXT/MV3 build, on-page box, pairing-code connection, display-only on-page box (Private view), capture relay, supported-tab detection, disclosure and permission states.  
 **Dependencies:** web auth and session APIs.  
 **Acceptance:** extension can authenticate, show preparation context, and handle permission denial without capture.  
-**Complete when:** service-worker restart and Side Panel compatibility tests pass.
+**Complete when:** service-worker restart and on-page box compatibility tests pass.
 
 ### Phase 3 — Real-time processing
 
@@ -1241,7 +1243,7 @@ Do not log raw audio, full CVs, transcript text, or complete generated answers i
 - A user can create, edit, archive, and reuse multiple job descriptions.
 - A user can configure and snapshot an interview session.
 - The extension can authenticate without exposing provider credentials.
-- The extension uses a Side Panel and shows capture disclosure before start.
+- The extension uses a on-page box and shows capture disclosure before start.
 - Tab audio capture requires explicit invocation and is visibly active when running.
 - Microphone capture is separately permissioned and labelled.
 - Live audio reaches the backend only after session start and stops on user stop.
@@ -1269,7 +1271,7 @@ A feature is done only when its UI, API, data model, ownership rules, error stat
 
 [1]: https://developer.chrome.com/docs/extensions/reference/api/tabCapture "Chrome tabCapture API"
 
-[2]: https://developer.chrome.com/docs/extensions/reference/api/sidePanel "Chrome Side Panel API"
+[2]: https://developer.chrome.com/docs/extensions/reference/api/sidePanel "Chrome on-page box API"
 
 [3]: https://developers.openai.com/api/docs/guides/realtime-transcription "OpenAI Realtime transcription"
 
@@ -1309,17 +1311,44 @@ Vren AI is a user-controlled interview preparation and assistance tool. It does 
 
 ---
 
-## Appendix C — Optional visible desktop overlay (deferred idea)
+## Appendix C — Desktop app (built, version 0.1)
 
-**Status:** not in MVP. Recorded for a later decision (open decision 12).
+**Status:** built in `desktop/` (Tauri). Covers interviews in native apps such as Zoom and Teams, which the extension cannot hear.
 
-A lightweight desktop client (for example a small Tauri app) could show answers as floating text for users who cannot or do not want to use the browser Side Panel. It follows the same thin-client rules as the extension:
+It follows the same thin-client rules as the extension:
 
-- **Web app is the brain.** Sign-up, billing, CV, jobs, session control and AI stay in the web app and backend. The client has no login screen of its own.
-- **Pairing handoff.** The web page shows the same 6-digit pairing code, or a deep link (`vren://session/<id>`) that opens the client with a one-time code. The client redeems it for a session-scoped display token.
-- **Display only.** The client attaches as a display client to the live room and renders `answer.delta` and `answer.ready` events. Audio capture stays in the extension or web fallback.
-- **Ergonomics.** A frameless, always-on-top, transparent window with a drag handle to position it and an optional lock-in-place (click-through) mode that the user can switch off with a visible control or hotkey.
-- **Honest identity.** The window title, process name, installer and signing identify Vren AI. Distribution needs code signing so operating-system warnings are not misleading.
-- **Out of scope by rule.** The client does not call operating-system APIs that exclude it from screen capture or sharing, does not use a disguised title or process name, and does not interfere with focus, window-visibility or monitoring signals. Where the window is shown on the screen, it can appear in a screen share, and the same sharing hint applies.
+- **Web app is the brain.** Sign-up, CV, jobs, session control and AI stay in the web app and backend. The app has no login screen of its own; it connects with the same 6-digit pairing code.
+- **Capture and display.** It listens to the computer's sound (Windows loopback, Linux monitor sources, or a virtual device such as BlackHole on a Mac) and optionally the microphone, and shows `answer.delta` and `answer.ready` events in a small always-on-top answers box. A phone or in-person mode uses the microphone to hear the room.
+- **No conflict with the extension.** A session has one capture client. A second one is refused with a plain message. The pairing code can be redeemed with `role: "display"` so the desktop box only shows answers while the extension listens.
+- **Ergonomics.** A frameless transparent answers box that can be dragged, resized and made click-through. Ctrl or Cmd + Shift + L unlocks it.
+- **Honest identity.** The windows use the app's real name, appear in the taskbar, and can appear in a screen share.
+- **Out of scope by rule.** The app does not call operating-system APIs that exclude it from screen capture, does not use a disguised title or process name, and does not interfere with focus, window-visibility or monitoring signals.
 
-Reusable pieces from the design notes: the thin-client split, the pairing code handoff, token streaming into a minimal display, and the draggable reposition-then-lock interaction. These are already part of the extension plan above.
+**Not done:** Windows and macOS builds are untested; there is no built-in capture of a Mac's system sound; installers are not code signed.
+
+---
+
+## Appendix D — Market review (competitor marketing page, reviewed 12 November 2026)
+
+Source: the public feature page of a competing live-interview assistant, supplied by the product owner. Claims are the vendor's own and are not verified.
+
+**Adopted or already covered**
+
+| Competitor claim | Vren AI |
+|---|---|
+| Real-time answers; automatic question detection from live audio; streaming answers | Built (FR-7, FR-8, FR-9). Detection is heuristic first, with an LLM-assisted check for unclear turns (indirect requests, missing punctuation, questions split across turns) |
+| Customisable answer length, style and framework (STAR, CAR, SOAR) | Length and style existed. **CAR and SOAR frameworks added**, with a short description of each given to the model |
+| Separate interview and answer languages; many languages | **Answer language added** (empty means same as interview language). Language list widened from 5 to 34. A speech-to-text language-code bug (names were cut to two letters, so German, Spanish and Portuguese failed) is fixed, and Deepgram switches to a multilingual model for non-English interviews |
+| Behavioural, technical, coding and system-design questions | Question types are classified; coding-specific answers and code snippets remain an open decision (§28, item 9) |
+| Browser client plus other platforms | Web app, Chrome extension and a desktop app (Appendix C). The live page can be opened on any device as an additional display client. Mobile clients are not built |
+| Mock interviews | Built: the Practice page asks questions for a job, scores each answer, and writes a stronger answer from the CV only |
+
+**Declined**
+
+The page advertises a "stealth suite": exclusion from screen-capture APIs, hiding from the dock, taskbar and process lists, process-name masking so it appears as a system process, exclusion from window enumeration, and "zero confirmed detections". Vren AI does not build or claim any of these (see §2.3 and §21.7). The product does not hide from screen sharing, proctoring or monitoring, does not disguise itself, and does not market itself as undetectable.
+
+**Where Vren AI aims to be better**
+
+- Honest about what it does: capture is user-initiated and indicated, and the interview-rules acknowledgement is recorded per session.
+- Answers are checked against the candidate's real CV: unverified figures and employers are removed, and the answer says which part of the CV it used.
+- When the AI provider or speech-to-text is not configured, or fails, the user is told plainly; nothing is faked.

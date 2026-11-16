@@ -37,6 +37,22 @@ describe("panel state reducer", () => {
     expect(s.notice).toMatch(/unavailable/i);
   });
 
+  it("tells the user when the server has no speech-to-text or AI configured", () => {
+    const s = reduceEvent(emptyState(), ev("session.ready", { stt_mode: "offline", answers_ready: false }));
+    expect(s.notice).toMatch(/speech into text/);
+    expect(s.notice).toMatch(/no AI key/);
+    expect(reduceEvent(emptyState(), ev("session.ready", { stt_mode: "deepgram", answers_ready: true })).notice).toBe("");
+  });
+
+  it("keeps the latest sound report and when it arrived", () => {
+    const before = Date.now();
+    const s = reduceEvent(emptyState(), ev("audio.stats", { stt_ready: true, sources: { tab: { level: 40, state: "ok", text_ago: 1.2 } } }));
+    expect(s.audio?.tab?.state).toBe("ok");
+    expect(s.sttReady).toBe(true);
+    expect(s.audioAt).toBeGreaterThanOrEqual(before);
+    expect(reduceEvent(s, ev("audio.stats", { sources: {} })).sttReady).toBe(true); // an unknown value keeps the last known one
+  });
+
   it("marks the session ended on finalise or expiry", () => {
     expect(reduceEvent(emptyState(), ev("session.finalized")).ended).toBe(true);
     expect(reduceEvent(emptyState(), ev("session.expired")).ended).toBe(true);

@@ -106,8 +106,8 @@ function JobDetail() {
             </Button>
             {!job.archived && (
               <Button asChild>
-                <Link to="/app/prepare" search={{ job: job.id }}>
-                  Prepare for this job
+                <Link to="/app/live" search={{ job: job.id }}>
+                  Go live for this job
                   <ArrowRightIcon className="size-4" aria-hidden="true" />
                 </Link>
               </Button>

@@ -15,6 +15,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppLiveRouteImport } from './routes/app.live'
+import { Route as AppMockRouteImport } from './routes/app.mock'
 import { Route as AppPrepareRouteImport } from './routes/app.prepare'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
 import { Route as AppJobsIndexRouteImport } from './routes/app.jobs.index'
@@ -52,6 +53,11 @@ const AppIndexRoute = AppIndexRouteImport.update({
 const AppLiveRoute = AppLiveRouteImport.update({
   id: '/live',
   path: '/live',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppMockRoute = AppMockRouteImport.update({
+  id: '/mock',
+  path: '/mock',
   getParentRoute: () => AppRoute,
 } as any)
 const AppPrepareRoute = AppPrepareRouteImport.update({
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
   '/app/live': typeof AppLiveRoute
+  '/app/mock': typeof AppMockRoute
   '/app/prepare': typeof AppPrepareRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/': typeof AppIndexRoute
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
   '/app/live': typeof AppLiveRoute
+  '/app/mock': typeof AppMockRoute
   '/app/prepare': typeof AppPrepareRoute
   '/app/settings': typeof AppSettingsRoute
   '/app': typeof AppIndexRoute
@@ -133,6 +141,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/onboarding': typeof OnboardingRoute
   '/app/live': typeof AppLiveRoute
+  '/app/mock': typeof AppMockRoute
   '/app/prepare': typeof AppPrepareRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/': typeof AppIndexRoute
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/onboarding'
     | '/app/live'
+    | '/app/mock'
     | '/app/prepare'
     | '/app/settings'
     | '/app/'
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/onboarding'
     | '/app/live'
+    | '/app/mock'
     | '/app/prepare'
     | '/app/settings'
     | '/app'
@@ -182,6 +193,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/onboarding'
     | '/app/live'
+    | '/app/mock'
     | '/app/prepare'
     | '/app/settings'
     | '/app/'
@@ -242,6 +254,13 @@ declare module '@tanstack/react-router' {
       path: '/live'
       fullPath: '/app/live'
       preLoaderRoute: typeof AppLiveRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/mock': {
+      id: '/app/mock'
+      path: '/mock'
+      fullPath: '/app/mock'
+      preLoaderRoute: typeof AppMockRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/prepare': {
@@ -305,6 +324,7 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppLiveRoute: typeof AppLiveRoute
+  AppMockRoute: typeof AppMockRoute
   AppPrepareRoute: typeof AppPrepareRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -318,6 +338,7 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppLiveRoute: AppLiveRoute,
+  AppMockRoute: AppMockRoute,
   AppPrepareRoute: AppPrepareRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppIndexRoute: AppIndexRoute,

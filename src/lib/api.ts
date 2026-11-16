@@ -19,7 +19,7 @@ export class ApiError extends Error {
 }
 
 const TOKEN_STORAGE_KEY = "vren-auth-tokens";
-const API_BASE =
+export const API_BASE =
   (import.meta.env?.["VITE_API_BASE_URL"] as string | undefined)?.replace(/\/+$/, "") ?? "";
 
 let refreshInFlight: Promise<AuthTokens | null> | null = null;

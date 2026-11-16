@@ -48,7 +48,7 @@ function Sessions() {
         description="Interrupted sessions are kept and clearly labelled, never silently hidden or marked complete."
         actions={
           <Button variant="outline" asChild>
-            <Link to="/app/prepare">New preparation</Link>
+            <Link to="/app/live">New live interview</Link>
           </Button>
         }
       />
@@ -90,10 +90,10 @@ function Sessions() {
         <EmptyState
           icon={<ClockCounterClockwiseIcon className="size-5" aria-hidden="true" />}
           title={sessions.length === 0 ? "No sessions yet." : "No sessions match this filter."}
-          description="Prepare an interview and run the companion preview to record a session."
+          description="Start a live interview and it will appear here, ready to review."
         >
           <Button variant="outline" size="sm" asChild>
-            <Link to="/app/prepare">Prepare an interview</Link>
+            <Link to="/app/live">Start a live interview</Link>
           </Button>
         </EmptyState>
       ) : (

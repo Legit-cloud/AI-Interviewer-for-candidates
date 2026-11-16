@@ -22,6 +22,8 @@ class FakeLLMState:
     configured: bool = True
     fail: bool = False
     text: str | None = None  # fixed output; otherwise echo the first relevant background item
+    delay: float = 0.0  # seconds before the first token, to simulate a slow model
+    sequence: list[str] = field(default_factory=list)  # outputs for successive calls, consumed in order
     prompts: list[tuple[str, str]] = field(default_factory=list)
 
 
@@ -39,16 +41,30 @@ class FakeLLM:
         self.state.prompts.append((system_prompt, user_prompt))
         if self.state.fail:
             raise RuntimeError("provider down")
-        if self.state.text is not None:
+        if self.state.delay:
+            import asyncio
+
+            await asyncio.sleep(self.state.delay)
+        if self.state.sequence:
+            out = self.state.sequence.pop(0)
+        elif self.state.text is not None:
             out = self.state.text
         else:
-            match = re.search(r"Relevant background:\n- ([^\n]+)", user_prompt)
+            match = re.search(r"only facts you may use\):\n- ([^\n]+)", user_prompt)
             if match:
                 out = f"- {match.group(1)}\n- I would use the same approach here.\n- I would check the result and adjust.\n"
             else:
                 out = DEFAULT_ANSWER
         for line in out.splitlines(keepends=True):
             yield line
+
+
+@pytest.fixture(autouse=True)
+async def fresh_rate_limits() -> None:
+    """The limiter is in memory and shared by the whole run; without this, a long run starts refusing signups."""
+    from app.core.rate_limit import rate_limiter
+
+    await rate_limiter.reset()
 
 
 @pytest.fixture(autouse=True)

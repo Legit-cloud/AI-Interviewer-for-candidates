@@ -7,6 +7,7 @@ import { ThumbsUpIcon } from "@phosphor-icons/react/ThumbsUp";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { format } from "date-fns";
+import { useState } from "react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -29,6 +30,7 @@ import {
   setSuggestionFeedback,
   updateSession,
   useAppState,
+  writeSessionReview,
   type SuggestionFeedback,
 } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -61,6 +63,7 @@ function SessionReview() {
   const { sessionId } = Route.useParams();
   const { sessions, jobs } = useAppState();
   const navigate = useNavigate();
+  const [reviewing, setReviewing] = useState(false);
   const s = sessions.find((x) => x.id === sessionId);
 
   if (!s) {
@@ -167,7 +170,7 @@ function SessionReview() {
         {s.questions.length === 0 ? (
           <EmptyState title="No questions were detected before the session ended." />
         ) : (
-          s.questions.map((q) => (
+          s.questions.map((q, qi) => (
             <article key={q.id} className="panel space-y-3.5 p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1">
@@ -186,6 +189,19 @@ function SessionReview() {
                   <li key={o}>{o}</li>
                 ))}
               </ul>
+
+              {q.code && (
+                <pre className="overflow-x-auto rounded-lg border bg-background p-3 font-mono text-xs leading-relaxed">
+                  {q.code}
+                </pre>
+              )}
+
+              {s.review?.ai?.perQuestion.find((n) => n.index === qi) && (
+                <p className="rounded-lg border border-primary/20 bg-primary-soft/40 px-3 py-2 text-sm">
+                  <strong className="font-medium">Coach: </strong>
+                  {s.review.ai.perQuestion.find((n) => n.index === qi)?.note}
+                </p>
+              )}
 
               {q.evidence ? (
                 <p className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -242,39 +258,129 @@ function SessionReview() {
         )}
       </section>
 
-      {/* Coaching Insights */}
-      {(s.strengths.length > 0 || s.improvements.length > 0 || s.missedEvidence.length > 0) && (
-        <section className="grid gap-4 md:grid-cols-3">
-          <div className="panel p-5">
-            <p className="eyebrow mb-2.5 text-success">Strengths</p>
-            <ul className="space-y-1.5 text-sm text-foreground">
-              {s.strengths.map((item) => (
-                <li key={item}>• {item}</li>
-              ))}
-            </ul>
+      {/* Review */}
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-base font-semibold">How it went</h2>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={reviewing}
+            onClick={async () => {
+              setReviewing(true);
+              try {
+                await writeSessionReview(s.id);
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Could not write the review.");
+              } finally {
+                setReviewing(false);
+              }
+            }}
+          >
+            {reviewing ? "Writing…" : s.review ? "Write it again" : "Write my review"}
+          </Button>
+        </div>
+
+        {!s.review && (
+          <p className="text-sm text-muted-foreground">
+            Press “Write my review” to see what was asked, which skills came up, and coaching on
+            what to do next time.
+          </p>
+        )}
+
+        {s.review?.ai && (
+          <div className="panel space-y-3 p-5">
+            <p className="text-base leading-relaxed">{s.review.ai.summary}</p>
+            {s.review.ai.nextSteps.length > 0 && (
+              <div>
+                <p className="eyebrow mb-1.5">Practise next</p>
+                <ul className="space-y-1 text-sm">
+                  {s.review.ai.nextSteps.map((n) => (
+                    <li key={n}>• {n}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
-          <div className="panel p-5">
-            <p className="eyebrow mb-2.5">Areas to refine</p>
-            <ul className="space-y-1.5 text-sm text-foreground">
-              {s.improvements.map((item) => (
-                <li key={item}>• {item}</li>
-              ))}
-            </ul>
+        )}
+        {s.review && !s.review.aiAvailable && (
+          <p className="text-sm text-muted-foreground">
+            The coaching summary is not available right now (the AI is not set up or did not
+            answer). The numbers below are still correct.
+          </p>
+        )}
+
+        {s.review && (
+          <div className="panel grid gap-4 p-5 md:grid-cols-3">
+            <div>
+              <p className="eyebrow mb-1.5">What was asked</p>
+              <p className="text-2xl font-semibold tabular">{s.review.stats.questions}</p>
+              <p className="text-xs text-muted-foreground">
+                {Object.entries(s.review.stats.byType)
+                  .map(([k, v]) => `${v} ${k.toLowerCase()}`)
+                  .join(" · ") || "No questions"}
+              </p>
+            </div>
+            <div>
+              <p className="eyebrow mb-1.5">Used your CV</p>
+              <p className="text-2xl font-semibold tabular">
+                {s.review.stats.answersFromCv}/{s.review.stats.questions}
+              </p>
+              <p className="text-xs text-muted-foreground">answers drew on your real experience</p>
+            </div>
+            <div>
+              <p className="eyebrow mb-1.5">Job skills that came up</p>
+              {s.review.stats.requiredSkills.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No job was chosen.</p>
+              ) : (
+                <ul className="space-y-0.5 text-sm">
+                  {s.review.stats.requiredSkills.map((k) => (
+                    <li
+                      key={k}
+                      className={s.review!.stats.skillsCovered.includes(k) ? "" : "text-copper"}
+                    >
+                      {s.review!.stats.skillsCovered.includes(k) ? "✓" : "•"} {k}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
-          <div className="panel p-5">
-            <p className="eyebrow mb-2.5 text-copper">Missed evidence</p>
-            {s.missedEvidence.length > 0 ? (
+        )}
+
+        {(s.strengths.length > 0 || s.improvements.length > 0 || s.missedEvidence.length > 0) && (
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="panel p-5">
+              <p className="eyebrow mb-2.5 text-success">Strengths</p>
               <ul className="space-y-1.5 text-sm text-foreground">
-                {s.missedEvidence.map((item) => (
+                {s.strengths.map((item) => (
                   <li key={item}>• {item}</li>
                 ))}
               </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">None flagged.</p>
-            )}
+            </div>
+            <div className="panel p-5">
+              <p className="eyebrow mb-2.5">Areas to refine</p>
+              <ul className="space-y-1.5 text-sm text-foreground">
+                {s.improvements.map((item) => (
+                  <li key={item}>• {item}</li>
+                ))}
+              </ul>
+            </div>
+            <div className="panel p-5">
+              <p className="eyebrow mb-2.5 text-copper">Did not come up</p>
+              {s.missedEvidence.length > 0 ? (
+                <ul className="space-y-1.5 text-sm text-foreground">
+                  {s.missedEvidence.map((item) => (
+                    <li key={item}>• {item}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">Nothing flagged.</p>
+              )}
+            </div>
           </div>
-        </section>
-      )}
+        )}
+      </section>
 
       {/* Transcript (Consent-gated per FR-10) */}
       <section className="panel space-y-3 p-5">

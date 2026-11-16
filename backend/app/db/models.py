@@ -164,6 +164,8 @@ class InterviewPreferences(Base):
         Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
     )
     language: Mapped[str] = mapped_column(String(64), default="English", nullable=False)
+    # Language the answers are written in. Empty means "same as the interview language".
+    answer_language: Mapped[str] = mapped_column(String(64), default="", nullable=False)
     length: Mapped[str] = mapped_column(String(32), default="Brief", nullable=False)
     style: Mapped[str] = mapped_column(String(32), default="Structured", nullable=False)
     framework: Mapped[str] = mapped_column(String(64), default="STAR", nullable=False)
@@ -234,6 +236,7 @@ class GeneratedSuggestion(UUIDPrimaryKeyMixin, Base):
     outline: Mapped[list[str]] = mapped_column(JSONType, default=list, nullable=False)
     evidence_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
     caveat: Mapped[str | None] = mapped_column(Text, nullable=True)
+    code: Mapped[str | None] = mapped_column(Text, nullable=True)  # a short solution, for coding questions
     feedback: Mapped[str | None] = mapped_column(String(24), nullable=True)  # useful | not_useful | incorrect
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
 
@@ -254,6 +257,27 @@ class PairingCode(UUIDPrimaryKeyMixin, Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     redeemed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class MockInterview(UUIDPrimaryKeyMixin, Base):
+    """A practice interview: questions Vren asks, the user's answers, and the coaching on each."""
+
+    __tablename__ = "mock_interviews"
+    __table_args__ = (Index("ix_mock_interviews_user_created", "user_id", "created_at"),)
+
+    user_id: Mapped[UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    job_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("job_descriptions.id", ondelete="SET NULL"), nullable=True
+    )
+    interview_type: Mapped[str] = mapped_column(String(60), default="Behavioural", nullable=False)
+    title: Mapped[str] = mapped_column(String(200), default="", nullable=False)
+    state: Mapped[str] = mapped_column(String(16), default="active", nullable=False)  # active | finished
+    turns: Mapped[list[dict[str, Any]]] = mapped_column(JSONType, default=list, nullable=False)
+    summary: Mapped[dict[str, Any] | None] = mapped_column(JSONType, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class SessionNote(Base):

@@ -26,6 +26,7 @@ class SuggestionOut(BaseModel):
     outline: list[str]
     evidence_ref: str
     caveat: str
+    code: str = ""
     feedback: FeedbackType
 
 

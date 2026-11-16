@@ -143,7 +143,10 @@ def test_live_websocket_protocol_question_detection_and_stop(tmp_path) -> None:
                 # Send audio frame + duplicate sequence
                 pcm_sample = base64.b64encode(b"\x00\x00" * 160).decode("ascii")
                 ws.send_json({"type": "audio.frame", "source": "tab", "sequence": 1, "payload": pcm_sample})
+                # the level meter report may arrive first; the transcript update follows
                 delta = ws.receive_json()
+                while delta["type"] == "audio.stats":
+                    delta = ws.receive_json()
                 assert delta["type"] == "transcript.delta"
                 # Duplicate frame seq=1 is ignored cleanly without emitting another delta
                 ws.send_json({"type": "audio.frame", "source": "tab", "sequence": 1, "payload": pcm_sample})

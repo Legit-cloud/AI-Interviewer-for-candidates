@@ -4,7 +4,7 @@ from uuid import UUID
 
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,13 +23,17 @@ from app.db.models import (
     InterviewPreferences,
     InterviewSession,
     JobDescription,
+    MockInterview,
     Profile,
     SessionNote,
     TranscriptSegment,
     User,
     UserConsent,
 )
+from app.modules.ai.explain import explain_unavailable
+from app.modules.export.report import build_report_pdf
 from app.modules.sessions.grounding import generate_answer
+from app.modules.sessions.review import build_review
 from app.modules.sessions.retention import purge_expired_transcripts
 from app.modules.sessions.schemas import (
     CleanupExpiredOut,
@@ -401,6 +405,7 @@ async def list_session_suggestions(
             outline=list(s.outline or []),
             evidence_ref=s.evidence_ref,
             caveat=s.caveat,
+            code=s.code or "",
             feedback=s.feedback,  # type: ignore[arg-type]
         )
         for s in suggestions
@@ -454,7 +459,7 @@ async def create_session_suggestion(
     if not answer.available:
         raise AppError(
             code="ANSWER_UNAVAILABLE",
-            message="An answer could not be generated right now.",
+            message=explain_unavailable(answer.reason),
             status_code=503,
             details={"reason": answer.reason},
         )
@@ -488,6 +493,7 @@ async def create_session_suggestion(
         outline=outline,
         evidence_ref=evidence_ref,
         caveat=caveat,
+        code=answer.code,
         feedback="none",
     )
     db.add(suggestion)
@@ -502,8 +508,48 @@ async def create_session_suggestion(
         outline=list(suggestion.outline or []),
         evidence_ref=suggestion.evidence_ref,
         caveat=suggestion.caveat,
+        code=suggestion.code or "",
         feedback=suggestion.feedback,  # type: ignore[arg-type]
     )
+
+
+@router.post(
+    "/{session_id}/review",
+    response_model=SessionOut,
+    dependencies=[Depends(rate_limit("session_review", 20, 3600))],
+)
+async def write_session_review(
+    session_id: UUID,
+    user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> SessionOut:
+    """Builds (or rebuilds) the review: always the numbers, and the coaching summary when the AI is available."""
+    row = await _get_owned_session(session_id, user.id, db)
+    suggestions = (
+        await db.execute(
+            select(GeneratedSuggestion).where(GeneratedSuggestion.session_id == row.id).order_by(GeneratedSuggestion.created_at.asc())
+        )
+    ).scalars().all()
+    segments = (
+        await db.execute(select(TranscriptSegment).where(TranscriptSegment.session_id == row.id))
+    ).scalars().all()
+    job = await db.get(JobDescription, row.job_id) if row.job_id else None
+    experiences = (
+        await db.execute(select(CandidateExperience).where(CandidateExperience.user_id == user.id))
+    ).scalars().all()
+
+    review = await build_review(row, suggestions, segments, job, experiences)
+    row.snapshot = {**(row.snapshot or {}), "review": review}
+    ai = review.get("ai")
+    if ai:
+        row.strengths = ai["strengths"] or list(row.strengths or [])
+        row.improvements = ai["improvements"] or list(row.improvements or [])
+    gaps = review["stats"]["skills_not_covered"]
+    if gaps:
+        row.missed_evidence = [f"“{g}” never came up" for g in gaps[:5]]
+    await db.commit()
+    await db.refresh(row)
+    return await _build_session_out(row, db)
 
 
 @router.patch("/{session_id}", response_model=SessionOut)
@@ -576,6 +622,7 @@ async def set_suggestion_feedback(
         outline=list(suggestion.outline or []),
         evidence_ref=suggestion.evidence_ref,
         caveat=suggestion.caveat,
+        code=suggestion.code or "",
         feedback=suggestion.feedback,  # type: ignore[arg-type]
     )
 
@@ -610,11 +657,7 @@ async def delete_all_sessions(
     return {"status": "deleted"}
 
 
-@export_router.get("/export")
-async def export_user_data(
-    user: User = Depends(get_verified_user),
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
+async def _collect_export(user: User, db: AsyncSession) -> dict[str, Any]:
     profile = await db.get(Profile, user.id)
     prefs = await db.get(InterviewPreferences, user.id)
     docs = (
@@ -712,5 +755,37 @@ async def export_user_data(
             for c in consents
         ],
         "sessions": [s.model_dump(mode="json") for s in exported_sessions],
+        "practice": [
+            {
+                "id": str(m.id), "title": m.title, "interview_type": m.interview_type, "state": m.state,
+                "created_at": m.created_at.isoformat(), "turns": list(m.turns or []), "summary": m.summary,
+            }
+            for m in (
+                await db.execute(select(MockInterview).where(MockInterview.user_id == user.id).order_by(MockInterview.created_at.asc()))
+            ).scalars().all()
+        ],
     }
+
+
+@export_router.get("/export")
+async def export_user_data(
+    user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """The same data as a machine-readable file."""
+    return await _collect_export(user, db)
+
+
+@export_router.get("/export.pdf")
+async def export_user_report(
+    user: User = Depends(get_verified_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """The same data as a readable PDF report."""
+    pdf = build_report_pdf(await _collect_export(user, db))
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="vren-ai-report.pdf"', "Cache-Control": "no-store"},
+    )
 

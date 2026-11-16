@@ -1,0 +1,45 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Vren AI",
+  "version": "0.1.0",
+  "identifier": "ai.vren.desktop",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev:web",
+    "beforeBuildCommand": "npm run build:web"
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Vren AI",
+        "url": "index.html",
+        "width": 420,
+        "height": 640,
+        "resizable": true
+      },
+      {
+        "label": "overlay",
+        "title": "Vren AI answers",
+        "url": "overlay.html",
+        "width": 460,
+        "height": 300,
+        "visible": false,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "resizable": true,
+        "skipTaskbar": false
+      }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "shortDescription": "Live interview answers",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.png"]
+  }
+}

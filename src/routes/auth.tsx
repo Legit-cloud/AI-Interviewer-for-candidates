@@ -130,14 +130,6 @@ function AuthPage() {
     }
   };
 
-  const enterDemo = async () => {
-    setPending(true);
-    await delay(350);
-    auth.signIn("ada.obi@vren.demo");
-    setPending(false);
-    navigate({ to: "/app" });
-  };
-
   const titles: Record<Mode, [string, string]> = {
     signin: ["Welcome back", "Sign in to your interview workspace."],
     signup: ["Create your account", "Set up your profile once and reuse it across roles."],
@@ -360,28 +352,6 @@ function AuthPage() {
                         ? "Create account"
                         : "Send reset link"}
                   </Button>
-
-                  {mode === "signin" && (
-                    <div className="pt-2">
-                      <div className="relative my-3 flex items-center justify-center">
-                        <span className="h-px w-full bg-border" />
-                        <span className="bg-background px-2 font-mono text-[11px] uppercase text-muted-foreground">
-                          or
-                        </span>
-                        <span className="h-px w-full bg-border" />
-                      </div>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        className="w-full"
-                        disabled={pending}
-                        onClick={enterDemo}
-                      >
-                        <SparkleIcon className="size-4 text-primary" aria-hidden="true" />
-                        Load populated demo workspace
-                      </Button>
-                    </div>
-                  )}
                 </form>
               )}
 

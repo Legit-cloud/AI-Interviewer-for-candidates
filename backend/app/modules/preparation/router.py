@@ -52,6 +52,7 @@ async def _prefs_out(user_id: UUID, db: AsyncSession) -> PreferencesOut:
     ).scalars().all()
     return PreferencesOut(
         language=prefs.language,
+        answer_language=prefs.answer_language or "",
         length=prefs.length,
         style=prefs.style if prefs.style in ("Direct", "Conversational", "Structured") else "Direct",
         framework=prefs.framework,

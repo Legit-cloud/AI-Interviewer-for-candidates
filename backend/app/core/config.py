@@ -41,6 +41,11 @@ class Settings(BaseSettings):
     llm_api_key: str | None = None
     llm_model: str = "claude-sonnet-4-5-20250929"
     gemini_api_key: str | None = None
+    gemini_model: str = "gemini-2.5-flash"
+    # Fallback providers, tried in this order after the primary: OpenAI, then Gemini.
+    openai_api_key: str | None = None
+    openai_base_url: str = "https://api.openai.com/v1"
+    openai_model: str = "gpt-4o-mini"
 
     # Speech-to-Text provider configuration (server-side only; raw audio stays in RAM only)
     stt_provider: Literal["deepgram", "openai_compatible", "gemini", "offline"] = "offline"

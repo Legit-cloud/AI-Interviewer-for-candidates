@@ -13,6 +13,7 @@ from contextlib import suppress
 import httpx
 
 from app.core.config import Settings, get_settings
+from app.core.languages import language_code
 
 logger = logging.getLogger(__name__)
 
@@ -101,9 +102,11 @@ class DeepgramStreamingChannel:
         model: str,
         source: str,
         on_transcript: Callable[[str, bool], Awaitable[None]],
+        language: str = "en",
     ) -> None:
         self.api_key = api_key
         self.model = model or "flux-general-en"
+        self.language = language or "en"
         self.source = source
         self.on_transcript = on_transcript
         self._ws: object | None = None
@@ -126,6 +129,7 @@ class DeepgramStreamingChannel:
                     f"wss://api.deepgram.com/v1/listen"
                     f"?model={self.model}&encoding=linear16&sample_rate=16000&channels=1"
                     f"&interim_results=true&endpointing=300&punctuate=true&smart_format=true"
+                    f"&language={self.language}"
                 )
             self._ws = await websockets.connect(
                 url,
@@ -199,27 +203,65 @@ class STTProviderAdapter:
     def __init__(self, settings: Settings | None = None) -> None:
         self.settings = settings or get_settings()
 
+    def _whisper_key(self) -> str | None:
+        """The key for OpenAI-style transcription. STT_API_KEY wins; for OpenAI itself the OpenAI key is reused."""
+        s = self.settings
+        if s.stt_api_key:
+            return s.stt_api_key
+        if s.openai_api_key and s.stt_base_url.startswith("https://api.openai.com"):
+            return s.openai_api_key
+        return None
+
     @property
     def active_provider(self) -> str:
         if "PYTEST_CURRENT_TEST" in os.environ or self.settings.env == "test":
             return "offline"
-        if self.settings.stt_provider == "deepgram" and self.settings.deepgram_api_key:
+        s = self.settings
+        if s.stt_provider == "deepgram" and s.deepgram_api_key:
             return "deepgram"
-        if self.settings.deepgram_api_key and self.settings.stt_provider == "offline":
-            return "deepgram"
-        if self.settings.stt_provider == "gemini":
-            return "gemini" if self.settings.gemini_api_key else "offline"
-        if self.settings.stt_provider == "openai_compatible":
-            if self.settings.stt_api_key:
+        if s.stt_provider == "gemini":
+            return "gemini" if s.gemini_api_key else "offline"
+        if s.stt_provider == "openai_compatible":
+            if self._whisper_key():
                 return "openai_compatible"
-            return "gemini" if self.settings.gemini_api_key else "offline"
-        if self.settings.gemini_api_key:
+            return "gemini" if s.gemini_api_key else "offline"
+        # Nothing chosen: use the best key that is there. Deepgram streams (fastest), then OpenAI Whisper, then Gemini.
+        if s.deepgram_api_key:
+            return "deepgram"
+        if self._whisper_key():
+            return "openai_compatible"
+        if s.gemini_api_key:
             return "gemini"
         return "offline"
 
     @property
     def is_configured(self) -> bool:
         return self.active_provider != "offline"
+
+    async def check(self) -> tuple[str, bool, str]:
+        """(provider, works, a sentence the person can act on). Only checks the key, so it needs no audio."""
+        provider = self.active_provider
+        s = self.settings
+        if provider == "offline":
+            return provider, False, "No speech-to-text key. Add OPENAI_API_KEY, GEMINI_API_KEY or DEEPGRAM_API_KEY to backend/.env."
+        if provider == "gemini":
+            return provider, True, "Uses your Gemini key."
+        url, headers = (
+            ("https://api.deepgram.com/v1/projects", {"Authorization": f"Token {s.deepgram_api_key}"})
+            if provider == "deepgram"
+            else (f"{s.stt_base_url.rstrip('/')}/models", {"Authorization": f"Bearer {self._whisper_key()}"})
+        )
+        who = "Deepgram" if provider == "deepgram" else "OpenAI Whisper"
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                res = await client.get(url, headers=headers)
+        except httpx.HTTPError:
+            return provider, False, f"Could not reach {who}. Check your internet connection."
+        if res.status_code == 200:
+            return provider, True, f"{who} is ready."
+        if res.status_code in (401, 403):
+            return provider, False, f"{who} rejected the key. Create a new key and paste it again."
+        return provider, False, f"{who} answered with an error ({res.status_code})."
 
     async def transcribe_wav(self, wav_bytes: bytes, language: str = "en") -> str | None:
         provider = self.active_provider
@@ -231,8 +273,8 @@ class STTProviderAdapter:
 
     async def _transcribe_openai_compatible(self, wav_bytes: bytes, language: str) -> str | None:
         url = f"{self.settings.stt_base_url.rstrip('/')}/audio/transcriptions"
-        headers = {"Authorization": f"Bearer {self.settings.stt_api_key}"}
-        lang_code = language[:2].lower() if language else "en"
+        headers = {"Authorization": f"Bearer {self._whisper_key()}"}
+        lang_code = language_code(language)
         try:
             async with httpx.AsyncClient(timeout=20.0) as client:
                 res = await client.post(
@@ -254,13 +296,8 @@ class STTProviderAdapter:
             from google.genai import types
 
             client = genai.Client(api_key=self.settings.gemini_api_key)
-            for model in (
-                "gemini-3.5-flash-lite",
-                "gemini-3.5-flash",
-                "gemini-3.8-flash",
-                "gemini-3.7-flash",
-                "gemini-3.1-flash-lite",
-            ):
+            models = [self.settings.gemini_model, "gemini-2.5-flash", "gemini-2.0-flash"]
+            for model in dict.fromkeys(m for m in models if m):
                 try:
                     response = await client.aio.models.generate_content(
                         model=model,

@@ -103,7 +103,7 @@ async def test_prompt_demands_answers_not_coaching(client: AsyncClient, fake_llm
         f"/v1/sessions/{sess.json()['id']}/suggest", headers=headers, json={"question_text": QUESTION}
     )
     system_prompt, _ = fake_llm.prompts[-1]
-    assert "first person" in system_prompt
+    assert "First person" in system_prompt
     assert "Never give advice about how to answer" in system_prompt
 
 
@@ -315,3 +315,163 @@ async def test_unexpected_errors_return_json_and_health_reports_schema(client: A
     assert res.status_code == 500
     assert res.json()["error"]["code"] == "INTERNAL_ERROR"
     assert "request_id" in res.json()["error"]
+
+
+def _speech_frame(loud: bool) -> str:
+    """One 250 ms frame of 16 kHz PCM16: a loud tone (stands in for speech) or near silence."""
+    import base64
+    import math
+    import struct
+
+    n = 4000
+    amp = 8000 if loud else 0
+    samples = [int(amp * math.sin(2 * math.pi * 220 * i / 16000)) for i in range(n)]
+    return base64.b64encode(struct.pack(f"<{n}h", *samples)).decode()
+
+
+def test_audio_frames_become_transcript_question_and_answer(ws_env, monkeypatch) -> None:
+    """The whole server path for captured audio: frames -> end-of-turn -> speech-to-text -> question -> answer."""
+    tc, _ = ws_env
+
+    class FakeSTT:
+        active_provider = "fake"
+        is_configured = True
+        heard: list[int] = []
+
+        async def transcribe_wav(self, wav_bytes: bytes, language: str = "en") -> str | None:
+            self.heard.append(len(wav_bytes))
+            return QUESTION
+
+    stt = FakeSTT()
+    monkeypatch.setattr("app.modules.live.session.get_stt_adapter", lambda: stt)
+
+    headers = _signup(tc, "audio@example.com")
+    sid = tc.post("/v1/sessions", headers=headers, json={"rules_acknowledged": True}).json()["id"]
+    token = tc.post(f"/v1/sessions/{sid}/token", headers=headers).json()["ws_token"]
+
+    with tc.websocket_connect(f"/v1/live/{sid}?token={token}") as ws:
+        ready = ws.receive_json()
+        assert ready["stt_mode"] == "fake" and "answers_ready" in ready
+        ws.send_json({"type": "session.configure", "sources": ["tab"]})
+        assert ws.receive_json()["type"] == "capture.state"
+
+        seq = 0
+        for loud in (True, True, False):  # two frames of speech, then a quiet frame ends the turn
+            seq += 1
+            ws.send_json({"type": "audio.frame", "source": "tab", "sequence": seq, "sample_rate": 16000, "channels": 1, "payload": _speech_frame(loud)})
+        events = _collect_until(ws, "answer.ready")
+
+    types = [e["type"] for e in events]
+    assert "transcript.completed" in types and "question.detected" in types
+    completed = next(e for e in events if e["type"] == "transcript.completed")
+    assert completed["speaker"] == "Interviewer" and completed["text"] == QUESTION
+    assert stt.heard and stt.heard[0] > 16000  # a real WAV of the buffered speech was sent to speech-to-text
+
+
+def test_language_codes_are_correct() -> None:
+    from app.core.languages import language_code, language_name
+
+    # These used to be derived from the first two letters of the name ("ge", "sp", "po"), which is wrong.
+    assert [language_code(n) for n in ("German", "Spanish", "Portuguese", "Japanese", "Chinese")] == ["de", "es", "pt", "ja", "zh"]
+    assert language_code("fr") == "fr" and language_code("klingon") == "en" and language_code(None) == "en"
+    assert language_name("de") == "German"
+
+
+async def test_separate_answer_language_and_framework_reach_the_prompt(client: AsyncClient, fake_llm) -> None:
+    headers = await _verified_headers(client, "lang@example.com")
+    patched = await client.patch(
+        "/v1/preparation/preferences", headers=headers,
+        json={"language": "German", "answer_language": "English", "framework": "SOAR"},
+    )
+    assert patched.status_code == 200 and patched.json()["answer_language"] == "English"
+    sid = (await client.post("/v1/sessions", headers=headers, json={"rules_acknowledged": True})).json()["id"]
+    res = await client.post(f"/v1/sessions/{sid}/suggest", headers=headers, json={"question_text": QUESTION})
+    assert res.status_code == 201
+    _, user_prompt = fake_llm.prompts[-1]
+    assert "Write the answer in English" in user_prompt
+    assert "SOAR" in user_prompt and "Obstacle" in user_prompt
+
+
+def test_deepgram_switches_to_a_multilingual_model_for_non_english(ws_env, monkeypatch) -> None:
+    tc, _ = ws_env
+    seen: dict[str, str] = {}
+
+    class FakeChannel:
+        def __init__(self, api_key, model, source, on_transcript, language="en"):
+            seen.update(model=model, language=language)
+
+        async def connect(self) -> bool:
+            return False  # no real network in tests
+
+        async def close(self) -> None: ...
+
+    class FakeSTT:
+        active_provider = "deepgram"
+        is_configured = True
+
+    monkeypatch.setattr("app.modules.live.session.DeepgramStreamingChannel", FakeChannel)
+    monkeypatch.setattr("app.modules.live.session.get_stt_adapter", lambda: FakeSTT())
+
+    class _S:
+        deepgram_api_key = "k"
+        deepgram_model = "flux-general-en"
+        max_session_minutes = 120
+
+    monkeypatch.setattr("app.modules.live.session.get_settings", lambda: _S())
+
+    headers = _signup(tc, "dg@example.com")
+    assert tc.patch("/v1/preparation/preferences", headers=headers, json={"language": "German"}).status_code == 200
+    sid = tc.post("/v1/sessions", headers=headers, json={"rules_acknowledged": True}).json()["id"]
+    token = tc.post(f"/v1/sessions/{sid}/token", headers=headers).json()["ws_token"]
+    with tc.websocket_connect(f"/v1/live/{sid}?token={token}") as ws:
+        ws.receive_json()
+        ws.send_json({"type": "session.configure", "sources": ["tab"]})
+        ws.receive_json()
+    assert seen == {"model": "nova-3", "language": "de"}
+
+
+@pytest.mark.parametrize(
+    ("configure", "expected_speaker"),
+    [
+        ({"sources": ["microphone"], "room": True}, "Interviewer"),  # phone / in person: the room is the interviewer
+        ({"sources": ["tab", "microphone"]}, "You"),  # normal call: the microphone is the candidate
+        ({"sources": ["tab", "microphone"], "room": True}, "You"),  # room mode only applies when the microphone is the only source
+    ],
+)
+def test_room_mode_treats_the_microphone_as_the_interviewer(ws_env, configure, expected_speaker) -> None:
+    tc, _ = ws_env
+    headers = _signup(tc, "room@example.com")
+    sid = tc.post("/v1/sessions", headers=headers, json={"rules_acknowledged": True}).json()["id"]
+    token = tc.post(f"/v1/sessions/{sid}/token", headers=headers).json()["ws_token"]
+    with tc.websocket_connect(f"/v1/live/{sid}?token={token}") as ws:
+        ws.receive_json()
+        ws.send_json({"type": "session.configure", **configure})
+        ws.receive_json()
+        ws.send_json({"type": "utterance.commit", "source": "microphone", "text": QUESTION})
+        events = _collect_until(ws, "transcript.completed")
+        if expected_speaker == "Interviewer":
+            _collect_until(ws, "answer.ready")  # let the answer finish before closing the socket
+        else:
+            ws.send_json({"type": "client.heartbeat"})
+            assert ws.receive_json()["type"] == "server.heartbeat"  # nothing was detected as a question
+    assert events[-1]["speaker"] == expected_speaker
+
+
+def test_a_display_only_pairing_never_conflicts_with_the_capture_app(ws_env) -> None:
+    """The desktop app can pair to only show answers while the extension is the one listening."""
+    tc, _ = ws_env
+    headers = _signup(tc, "both@example.com")
+    sid = tc.post("/v1/sessions", headers=headers, json={"rules_acknowledged": True}).json()["id"]
+
+    code1 = tc.post(f"/v1/sessions/{sid}/pairing-code", headers=headers).json()["code"]
+    capture = tc.post("/v1/pairing/redeem", json={"code": code1}).json()["ws_token"]
+    code2 = tc.post(f"/v1/sessions/{sid}/pairing-code", headers=headers).json()["code"]
+    display = tc.post("/v1/pairing/redeem", json={"code": code2, "role": "display"}).json()["ws_token"]
+
+    with tc.websocket_connect(f"/v1/live/{sid}?token={capture}") as cap:
+        assert cap.receive_json()["role"] == "capture"
+        with tc.websocket_connect(f"/v1/live/{sid}?token={display}") as disp:
+            assert disp.receive_json()["role"] == "display"
+            cap.send_json({"type": "utterance.commit", "source": "tab", "text": QUESTION})
+            assert _collect_until(disp, "answer.ready")[-1]["answer"]["lines"]  # the display app sees what the capture app heard
+            _collect_until(cap, "answer.ready")
