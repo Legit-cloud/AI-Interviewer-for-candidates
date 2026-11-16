@@ -38,3 +38,9 @@ backend/storage/
 **/__pycache__/
 *.py[cod]
 .pytest_cache/
+
+# Desktop app (Tauri / Rust)
+Desktop app/node_modules/
+Desktop app/dist/
+Desktop app/src-tauri/target/
+**/target/

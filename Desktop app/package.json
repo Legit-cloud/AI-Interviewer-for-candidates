@@ -1,0 +1,22 @@
+{
+    "name": "desktop-client",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "scripts": {
+        "dev": "tauri dev",
+        "dev:web": "vite --port 1420 --strictPort",
+        "build": "tauri build",
+        "build:web": "vite build"
+    },
+    "dependencies": {
+        "@tauri-apps/api": "^1.5.0",
+        "react": "^18.2.0",
+        "react-dom": "^18.2.0"
+    },
+    "devDependencies": {
+        "@tauri-apps/cli": "^1.5.0",
+        "@vitejs/plugin-react": "^4.2.0",
+        "vite": "^5.0.0"
+    }
+}

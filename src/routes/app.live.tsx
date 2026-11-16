@@ -1,12 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { MicrophoneIcon } from "@phosphor-icons/react/Microphone";
+import { StopIcon } from "@phosphor-icons/react/Stop";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PageTransition } from "@/components/motion";
 import { apiFetch } from "@/lib/api";
 import { PageHeader, Status } from "@/components/vren";
 import { readMeter, type SoundReport } from "@/lib/sound";
+import { DualAudioCapture } from "@/lib/audioCapture";
+import { AudioVisualizer } from "@/components/AudioVisualizer";
 import {
   ANSWER_LENGTHS,
   endSessionById,
@@ -128,8 +132,15 @@ function LiveSessionPage() {
   const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
   const [notice, setNotice] = useState("");
   const [ai, setAi] = useState<{ answers: boolean; transcription: string } | null>(null);
+  const [backendOffline, setBackendOffline] = useState(false);
+  const [checkingBackend, setCheckingBackend] = useState(false);
   const [testText, setTestText] = useState("");
   const [sound, setSound] = useState<SoundReport | null>(null);
+  const [liveSpoken, setLiveSpoken] = useState("");
+  const [capturingAudio, setCapturingAudio] = useState(false);
+  const [tabAnalyser, setTabAnalyser] = useState<AnalyserNode | null>(null);
+  const [micAnalyser, setMicAnalyser] = useState<AnalyserNode | null>(null);
+  const audioCaptureRef = useRef<DualAudioCapture | null>(null);
   const [, setTick] = useState(0);
   useEffect(() => {
     const t = window.setInterval(() => setTick((n) => n + 1), 1000);
@@ -156,16 +167,30 @@ function LiveSessionPage() {
     return () => window.removeEventListener("paste", onPaste);
   }, [phase]);
 
-  // Pre-flight: tell the user up front if the server has no AI or speech-to-text keys.
-  useEffect(() => {
+  // Pre-flight: check backend connection and AI / speech-to-text readiness.
+  const checkHealth = useCallback(() => {
+    setCheckingBackend(true);
     apiFetch<{ ai?: { answers: boolean; transcription: string } }>(
       "/v1/health",
       {},
       { auth: false },
     )
-      .then((h) => setAi(h.ai ?? null))
-      .catch(() => setAi(null));
+      .then((h) => {
+        setAi(h.ai ?? null);
+        setBackendOffline(false);
+      })
+      .catch(() => {
+        setAi(null);
+        setBackendOffline(true);
+      })
+      .finally(() => {
+        setCheckingBackend(false);
+      });
   }, []);
+
+  useEffect(() => {
+    checkHealth();
+  }, [checkHealth]);
 
   // Warn before closing the tab while a live session is running.
   useEffect(() => {
@@ -207,12 +232,20 @@ function LiveSessionPage() {
         setSound({ sources: src, sttReady: evt["stt_ready"] !== false, at: Date.now() });
         break;
       }
+      case "transcript.delta": {
+        const text = String(evt["text"] ?? "");
+        const src = String(evt["source"] ?? "tab");
+        const speaker = src === "microphone" ? "You" : "Interviewer";
+        setLiveSpoken(text ? `${speaker}: ${text}` : "");
+        break;
+      }
       case "transcript.completed": {
+        setLiveSpoken("");
         setTranscript((t) => [
           ...t.slice(-39),
           {
             id: String(evt["item_id"] ?? evt.event_id),
-            speaker: String(evt["speaker"] ?? ""),
+            speaker: String(evt["speaker"] ?? (evt["source"] === "microphone" ? "You" : "Interviewer")),
             text: String(evt["text"] ?? ""),
             at: String(evt["timestamp"] ?? ""),
           },
@@ -297,6 +330,51 @@ function LiveSessionPage() {
     }
   };
 
+  const startAudioCapture = async () => {
+    try {
+      const capture = new DualAudioCapture({
+        onAudioFrame: (frame) => {
+          handle.current?.sendAudioFrame(frame);
+        },
+        onError: (err) => {
+          toast.error(err.message);
+        },
+        onInterviewerTrackEnded: () => {
+          toast.info("Interviewer audio capture ended.");
+          setCapturingAudio(false);
+        },
+      });
+
+      await capture.start({ captureTab: true, captureMic: true });
+      audioCaptureRef.current = capture;
+      setTabAnalyser(capture.getTabAnalyser());
+      setMicAnalyser(capture.getMicAnalyser());
+      setCapturingAudio(true);
+      handle.current?.configureCapture(["tab", "microphone"]);
+      toast.success("Live audio capture active! Listening to meeting and microphone.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not start audio capture.");
+    }
+  };
+
+  const stopAudioCapture = () => {
+    if (audioCaptureRef.current) {
+      audioCaptureRef.current.stop();
+      audioCaptureRef.current = null;
+    }
+    setTabAnalyser(null);
+    setMicAnalyser(null);
+    setCapturingAudio(false);
+    toast.info("Audio capture stopped.");
+  };
+
+  // Clean up audio capture when leaving live session or unmounting
+  useEffect(() => {
+    return () => {
+      audioCaptureRef.current?.stop();
+    };
+  }, []);
+
   const newCode = async () => {
     try {
       setPairing(await handle.current!.refreshPairingCode());
@@ -331,6 +409,36 @@ function LiveSessionPage() {
           description="Pick the job, press Start, then type the code in the Vren box on your meeting tab."
         />
 
+        {backendOffline && (
+          <section
+            role="alert"
+            aria-label="Backend status"
+            className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-sm"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="font-semibold text-rose-400">Backend server is not running</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={checkHealth}
+                disabled={checkingBackend}
+                className="h-7 px-2.5 text-xs"
+              >
+                {checkingBackend ? "Checking…" : "Retry"}
+              </Button>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Starting a live interview requires the FastAPI backend running on port 8000. In your terminal, run:
+            </p>
+            <pre className="mt-2 rounded bg-black/40 p-2 font-mono text-xs text-muted-foreground select-all">
+              npm run dev:api
+            </pre>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Or start both the web app and backend together with: <code className="font-mono text-foreground font-medium">npm run dev</code>
+            </p>
+          </section>
+        )}
+
         {problem && (
           <section
             role="status"
@@ -355,7 +463,7 @@ function LiveSessionPage() {
           >
             <p className="text-sm font-medium">You have an interview in progress</p>
             <div className="flex gap-2">
-              <Button onClick={() => void start(resumable.id)} disabled={starting}>
+              <Button onClick={() => void start(resumable.id)} disabled={starting || backendOffline}>
                 Resume
               </Button>
               <Button variant="outline" onClick={() => void endOld(resumable.id)}>
@@ -407,11 +515,15 @@ function LiveSessionPage() {
 
           <Button
             onClick={() => void start()}
-            disabled={!ackRules || starting}
+            disabled={!ackRules || starting || backendOffline}
             size="lg"
             className="w-full"
           >
-            {starting ? "Starting…" : "Start"}
+            {backendOffline
+              ? "Backend is offline (run npm run dev:api)"
+              : starting
+                ? "Starting…"
+                : "Start"}
           </Button>
 
           <details className="text-sm">
@@ -521,6 +633,25 @@ function LiveSessionPage() {
 
       {phase === "live" && (
         <div className="flex flex-wrap items-center gap-2.5">
+          {!capturingAudio ? (
+            <Button
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-sm inline-flex items-center gap-2"
+              onClick={startAudioCapture}
+            >
+              <MicrophoneIcon className="size-4" weight="bold" />
+              <span>Start Audio Capture (Meeting + Mic)</span>
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              className="inline-flex items-center gap-2"
+              onClick={stopAudioCapture}
+            >
+              <StopIcon className="size-4 text-rose-500" weight="fill" />
+              <span>Stop Audio Capture</span>
+            </Button>
+          )}
+
           {capture === "paused" ? (
             <Button variant="outline" onClick={() => handle.current?.resume()}>
               Resume
@@ -538,6 +669,7 @@ function LiveSessionPage() {
             variant="destructive"
             onClick={() => {
               if (window.confirm("End this session? Capture stops and the session is finalised.")) {
+                stopAudioCapture();
                 handle.current?.stop();
               }
             }}
@@ -545,6 +677,14 @@ function LiveSessionPage() {
             Stop session
           </Button>
         </div>
+      )}
+
+      {phase === "live" && (
+        <AudioVisualizer
+          tabAnalyser={tabAnalyser}
+          micAnalyser={micAnalyser}
+          capturing={capturingAudio}
+        />
       )}
 
       {phase === "live" && paired && (
@@ -602,7 +742,7 @@ function LiveSessionPage() {
                   {pairing.code}
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Enter it in the Vren extension panel. Expires in {Math.floor(countdown / 60)}:
+                  Enter it in the AudioCore Desktop App to mirror live answers in your transparent overlay. Expires in {Math.floor(countdown / 60)}:
                   {String(countdown % 60).padStart(2, "0")}. It works once.
                 </p>
               </div>
@@ -719,19 +859,39 @@ function LiveSessionPage() {
             </form>
           )}
           <div className="rounded-xl border bg-card p-4">
-            <p className="mb-2 text-sm font-medium">Transcript</p>
-            {transcript.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nothing yet.</p>
+            <p className="mb-2 text-sm font-medium">Live Transcript</p>
+            {liveSpoken && (
+              <div className="mb-3 rounded-lg border border-sky-500/30 bg-sky-500/10 p-2.5 text-xs text-sky-300 animate-pulse">
+                <span className="font-semibold">Speaking:</span> {liveSpoken}
+              </div>
+            )}
+            {transcript.length === 0 && !liveSpoken ? (
+              <p className="text-sm text-muted-foreground">
+                Start audio capture above to see live transcript as each person speaks.
+              </p>
             ) : (
-              <ul className="max-h-80 space-y-2 overflow-auto text-sm">
-                {transcript.map((t) => (
-                  <li key={t.id}>
-                    <span className="font-mono text-[11px] text-muted-foreground">
-                      {t.at} {t.speaker}
-                    </span>
-                    <p>{t.text}</p>
-                  </li>
-                ))}
+              <ul className="max-h-80 space-y-2.5 overflow-auto text-sm">
+                {transcript.map((t) => {
+                  const isYou = t.speaker === "You";
+                  return (
+                    <li key={t.id} className="rounded-lg bg-background/50 p-2 border border-border/50">
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span
+                          className={cn(
+                            "px-1.5 py-0.5 rounded font-semibold",
+                            isYou
+                              ? "bg-sky-500/15 text-sky-400"
+                              : "bg-emerald-500/15 text-emerald-400",
+                          )}
+                        >
+                          {t.speaker}
+                        </span>
+                        <span className="font-mono text-muted-foreground">{t.at}</span>
+                      </div>
+                      <p className="text-foreground/90">{t.text}</p>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>

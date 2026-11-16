@@ -1,7 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { SpinnerGapIcon } from "@phosphor-icons/react/SpinnerGap";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
+import { UploadSimpleIcon } from "@phosphor-icons/react/UploadSimple";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -12,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DetailSkeleton } from "@/components/loading";
 import { PageTransition } from "@/components/motion";
 import { ConfidenceBar, EmptyState, OriginBadge, PageHeader } from "@/components/vren";
-import { saveVerifiedProfile, updateProfile, useAppState } from "@/lib/store";
+import { addDocument, saveVerifiedProfile, updateProfile, useAppState } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/app/profile/review")({
@@ -31,10 +34,14 @@ export const Route = createFileRoute("/app/profile/review")({
 });
 
 function Review() {
-  const { profile } = useAppState();
+  const { profile, jobs } = useAppState();
   const navigate = useNavigate();
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   if (!profile) return null;
+
+  const activeJobs = jobs.filter((j) => !j.archived);
+  const hasJobs = activeJobs.length > 0;
 
   const setExp = (id: string, key: "role" | "employer" | "dates" | "summary", v: string) =>
     updateProfile({
@@ -50,6 +57,28 @@ function Review() {
     profile.skills.some((s) => s.origin === "missing") ||
     profile.experience.some((e) => e.origin === "missing" || !e.summary.trim());
 
+  const handleUpload = async (file: File | null) => {
+    if (!file) return;
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (ext !== "pdf" && ext !== "docx") {
+      toast.error("Unsupported file type. Upload a PDF or DOCX document.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File exceeds the 5 MB / 10-page limit.");
+      return;
+    }
+    setUploading(true);
+    try {
+      await addDocument({ name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)), file });
+      toast.success("New CV uploaded and extracted! Review the updated fields below.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not process this CV document.");
+    } finally {
+      setUploading(false);
+    }
+  };
+
   return (
     <PageTransition className="space-y-8">
       <PageHeader
@@ -57,9 +86,33 @@ function Review() {
         title="Check what we extracted"
         description="Edit or remove anything inaccurate. Only verified fields are used with confidence in live answers."
         actions={
-          <Button variant="outline" asChild>
-            <Link to="/app/profile">Back to profile</Link>
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex cursor-pointer">
+              <Button variant="default" asChild disabled={uploading}>
+                <span>
+                  {uploading ? (
+                    <SpinnerGapIcon className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <UploadSimpleIcon className="size-4" aria-hidden="true" />
+                  )}
+                  {uploading ? "Importing..." : "Upload different CV"}
+                </span>
+              </Button>
+              <input
+                type="file"
+                accept=".pdf,.docx"
+                className="sr-only"
+                disabled={uploading}
+                onChange={(e) => {
+                  handleUpload(e.target.files?.[0] ?? null);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            <Button variant="outline" asChild>
+              <Link to="/app/profile">Back to profile</Link>
+            </Button>
+          </div>
         }
       />
 
@@ -67,11 +120,35 @@ function Review() {
         <EmptyState
           icon={<FileTextIcon className="size-5" aria-hidden="true" />}
           title="Nothing extracted yet"
-          description="Upload a CV in your profile or add experience manually to verify it here."
+          description="Upload a CV in PDF or DOCX format to automatically extract your background, or add experience manually."
         >
-          <Button variant="outline" asChild>
-            <Link to="/app/profile">Go to profile</Link>
-          </Button>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <label className="inline-flex cursor-pointer">
+              <Button asChild disabled={uploading}>
+                <span>
+                  {uploading ? (
+                    <SpinnerGapIcon className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <UploadSimpleIcon className="size-4" aria-hidden="true" />
+                  )}
+                  {uploading ? "Importing..." : "Upload CV now"}
+                </span>
+              </Button>
+              <input
+                type="file"
+                accept=".pdf,.docx"
+                className="sr-only"
+                disabled={uploading}
+                onChange={(e) => {
+                  handleUpload(e.target.files?.[0] ?? null);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            <Button variant="outline" asChild>
+              <Link to="/app/profile">Go to profile</Link>
+            </Button>
+          </div>
         </EmptyState>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
@@ -211,18 +288,54 @@ function Review() {
               </div>
             )}
 
-            <Button
-              size="lg"
-              className="w-full"
-              onClick={() => {
-                saveVerifiedProfile(profile);
-                toast.success("Profile verified and ready for preparation.");
-                navigate({ to: "/app/profile" });
-              }}
-            >
-              <CheckCircleIcon className="size-4" aria-hidden="true" />
-              Save verified profile
-            </Button>
+            {/* What Comes Next Guide Card */}
+            <div className="panel space-y-3 p-5 bg-card/60 border-primary/20">
+              <p className="eyebrow text-primary">What comes next after CV review?</p>
+              <ol className="list-decimal space-y-2 pl-4 text-xs text-muted-foreground">
+                <li>
+                  <strong className="text-foreground">Step 1: Save Verified Profile (Here)</strong> — Locks in your verified facts so Vren never invents false claims.
+                </li>
+                <li>
+                  <strong className="text-foreground">Step 2: Add Target Job Description</strong> — Paste the job spec on the Jobs page so Vren analyzes skill matches, gaps, and likely questions.
+                </li>
+                <li>
+                  <strong className="text-foreground">Step 3: Practice Mock Interview or Go Live</strong> — Test with AI-scored questions or connect live during your call.
+                </li>
+              </ol>
+            </div>
+
+            <div className="space-y-2.5 pt-2">
+              <Button
+                size="lg"
+                className="w-full"
+                onClick={() => {
+                  saveVerifiedProfile(profile);
+                  toast.success(
+                    hasJobs
+                      ? "Profile verified! Continuing to your target jobs."
+                      : "Profile verified! Next step: add your target job description."
+                  );
+                  navigate({ to: "/app/jobs" });
+                }}
+              >
+                <CheckCircleIcon className="size-4" aria-hidden="true" />
+                {hasJobs ? "Save verified profile & Continue to Jobs" : "Save verified profile & Add Target Job"}
+                <ArrowRightIcon className="size-4 ml-1" aria-hidden="true" />
+              </Button>
+
+              <Button
+                size="default"
+                variant="outline"
+                className="w-full"
+                onClick={() => {
+                  saveVerifiedProfile(profile);
+                  toast.success("Profile verified and saved.");
+                  navigate({ to: "/app/profile" });
+                }}
+              >
+                Save & Stay on Profile
+              </Button>
+            </div>
           </section>
         </div>
       )}

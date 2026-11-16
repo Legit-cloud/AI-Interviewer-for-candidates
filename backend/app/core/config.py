@@ -36,10 +36,10 @@ class Settings(BaseSettings):
     max_cv_pages: int = 10
 
     # Server-side AI provider configuration (never sent to browser)
-    llm_provider: Literal["openai_compatible", "gemini", "offline"] = "openai_compatible"
-    llm_base_url: str = "https://agentrouter.org/v1"
+    llm_provider: Literal["gemini", "openai_compatible", "offline"] = "gemini"
+    llm_base_url: str = "https://api.openai.com/v1"
     llm_api_key: str | None = None
-    llm_model: str = "claude-sonnet-4-5-20250929"
+    llm_model: str = "gpt-4o"
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-2.5-flash"
     # Fallback providers, tried in this order after the primary: OpenAI, then Gemini.

@@ -137,7 +137,7 @@ def _is_auth_failure(exc: Exception) -> bool:
 
 @dataclass(frozen=True)
 class CompatProvider:
-    """An OpenAI-compatible chat API (AgentRouter, OpenAI, Groq and similar)."""
+    """An OpenAI-compatible chat API (OpenAI, Groq and similar)."""
 
     name: str
     base_url: str
@@ -148,8 +148,8 @@ class CompatProvider:
 class LLMProviderAdapter:
     """Server-side LLM adapter with a fallback chain.
 
-    Order: the primary provider (LLM_PROVIDER, normally an OpenAI-compatible gateway such as AgentRouter), then
-    OpenAI directly, then Gemini. A provider with no key is skipped. If one fails or returns nothing, the next
+    Order: the primary provider (LLM_PROVIDER, default Gemini), then OpenAI fallback.
+    A provider with no key is skipped. If one fails or returns nothing, the next
     one is tried, so an outage at one provider does not stop the interview.
     """
 

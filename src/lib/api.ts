@@ -143,7 +143,18 @@ export async function apiFetch<T>(
     }
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  } catch (err) {
+    if (err instanceof ApiError) throw err;
+    throw new ApiError(
+      "backend_unavailable",
+      "The backend API server on port 8000 is not reachable. Start it with: npm run dev:api (or run 'npm run dev' to start both web and backend).",
+      0,
+    );
+  }
+
   if (res.status === 401 && useAuth && retryOn401) {
     const refreshed = await tryRefreshToken();
     if (refreshed?.access_token) {

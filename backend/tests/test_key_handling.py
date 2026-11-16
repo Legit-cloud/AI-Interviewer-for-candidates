@@ -19,7 +19,7 @@ def clean(monkeypatch):
 
 def llm(**kw) -> LLMProviderAdapter:
     os.environ.pop("PYTEST_CURRENT_TEST", None)  # pytest sets it for each phase; the adapters treat it as "offline"
-    base = dict(env="development", llm_api_key=None, openai_api_key=None, gemini_api_key=None)
+    base = dict(env="development", llm_provider="openai_compatible", llm_api_key=None, openai_api_key=None, gemini_api_key=None)
     return LLMProviderAdapter(Settings(**{**base, **kw}))
 
 

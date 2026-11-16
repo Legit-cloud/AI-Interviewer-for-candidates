@@ -1319,6 +1319,9 @@ export interface LiveSessionHandle {
   pairing: PairingCode;
   /** Answers already generated when resuming an existing session. */
   history: LiveAnswer[];
+  sendRaw: (msg: Record<string, unknown>) => void;
+  sendAudioFrame: (frame: Record<string, unknown>) => void;
+  configureCapture: (sources: ("tab" | "microphone")[]) => void;
   refreshPairingCode: () => Promise<PairingCode>;
   revokePairing: () => Promise<void>;
   /** Types a question as if the interviewer had asked it, to test the flow without audio. */
@@ -1345,10 +1348,12 @@ export async function startLiveSession(
     retainTranscript: boolean;
     interviewType?: string;
     resumeSessionId?: string;
+    role?: "capture" | "display";
   },
   onEvent: (event: LiveServerEvent) => void,
   onConnection: (state: LiveConnection) => void,
 ): Promise<LiveSessionHandle> {
+  const wsRole = opts.role ?? "capture";
   // Resuming re-attaches to a session that is still running; otherwise a new one is created.
   let createdHere = false;
   let sessionId = opts.resumeSessionId ?? "";
@@ -1380,7 +1385,7 @@ export async function startLiveSession(
   try {
     pairing = await fetchCode();
     tokenRes = await apiFetch<{ ws_token: string; ws_path: string }>(
-      `/v1/sessions/${sessionId}/token?role=display`,
+      `/v1/sessions/${sessionId}/token?role=${wsRole}`,
       { method: "POST" },
     );
     if (opts.resumeSessionId) {
@@ -1465,6 +1470,11 @@ export async function startLiveSession(
     sessionId,
     pairing,
     history,
+    sendRaw: send,
+    sendAudioFrame: send,
+    configureCapture: (sources: ("tab" | "microphone")[]) => {
+      send({ type: "session.configure", sources });
+    },
     refreshPairingCode: fetchCode,
     revokePairing: async () => {
       await apiFetch(`/v1/sessions/${sessionId}/pairing/revoke`, { method: "POST" });

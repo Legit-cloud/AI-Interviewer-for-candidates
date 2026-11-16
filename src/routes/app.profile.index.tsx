@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { CheckCircleIcon } from "@phosphor-icons/react/CheckCircle";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { GraduationCapIcon } from "@phosphor-icons/react/GraduationCap";
@@ -65,9 +65,11 @@ function patch(fn: (p: Profile) => Profile) {
 
 function ProfilePage() {
   const { profile } = useAppState();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<(typeof tabs)[number]>("Overview");
   const [newSkill, setNewSkill] = useState("");
   const [docError, setDocError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
   if (!profile) return null;
 
   const unverified = unverifiedCount(profile);
@@ -78,18 +80,28 @@ function ProfilePage() {
     if (!file) return;
     const ext = file.name.split(".").pop()?.toLowerCase();
     if (ext !== "pdf" && ext !== "docx") {
-      setDocError("Unsupported file type. Upload a PDF or DOCX document.");
+      const msg = "Unsupported file type. Upload a PDF or DOCX document.";
+      setDocError(msg);
+      toast.error(msg);
       return;
     }
     if (file.size > MAX_BYTES) {
-      setDocError("File exceeds the 5 MB / 10-page limit.");
+      const msg = "File exceeds the 5 MB / 10-page limit.";
+      setDocError(msg);
+      toast.error(msg);
       return;
     }
+    setUploading(true);
     try {
       await addDocument({ name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)), file });
-      toast.success("CV uploaded and sorted into your profile.");
+      toast.success("CV imported and extracted! Opening CV review...");
+      navigate({ to: "/app/profile/review" });
     } catch (err) {
-      setDocError(err instanceof Error ? err.message : "Could not process this CV document.");
+      const msg = err instanceof Error ? err.message : "Could not process this CV document.";
+      setDocError(msg);
+      toast.error(msg);
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -100,16 +112,40 @@ function ProfilePage() {
         title={profile.name}
         description="Only information you verify is used with confidence in live answers. Empty fields are never inferred."
         actions={
-          <Button variant={unverified > 0 ? "default" : "outline"} asChild>
-            <Link to="/app/profile/review">
-              Open CV review
-              {unverified > 0 && (
-                <span className="ml-1 rounded-full bg-white/20 px-1.5 py-0.2 font-mono text-[11px]">
-                  {unverified}
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="inline-flex cursor-pointer">
+              <Button variant="default" asChild disabled={uploading}>
+                <span>
+                  {uploading ? (
+                    <SpinnerGapIcon className="size-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <UploadSimpleIcon className="size-4" aria-hidden="true" />
+                  )}
+                  {uploading ? "Importing CV..." : "Import new CV"}
                 </span>
-              )}
-            </Link>
-          </Button>
+              </Button>
+              <input
+                type="file"
+                accept=".pdf,.docx"
+                className="sr-only"
+                disabled={uploading}
+                onChange={(e) => {
+                  handleUpload(e.target.files?.[0] ?? null);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            <Button variant={unverified > 0 ? "default" : "outline"} asChild>
+              <Link to="/app/profile/review">
+                Open CV review
+                {unverified > 0 && (
+                  <span className="ml-1 rounded-full bg-white/20 px-1.5 py-0.2 font-mono text-[11px]">
+                    {unverified}
+                  </span>
+                )}
+              </Link>
+            </Button>
+          </div>
         }
       />
 
@@ -150,6 +186,67 @@ function ProfilePage() {
         <div className="space-y-4">
           {tab === "Overview" && (
             <div className="panel space-y-5 p-6">
+              {/* CV Source & Re-import Quick Banner */}
+              <div className="rounded-xl border bg-muted/40 p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-lg bg-primary/10 p-2.5 text-primary mt-0.5">
+                    <FileTextIcon className="size-5" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-semibold text-foreground">
+                        {profile.documents[0]?.name ?? "No CV imported yet"}
+                      </p>
+                      {profile.documents[0] && (
+                        <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[11px] text-primary">
+                          Active CV
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {profile.documents[0]
+                        ? `Uploaded ${format(new Date(profile.documents[0].uploadedAt), "d MMM yyyy")} · ${profile.documents[0].sizeKb ?? 0} KB · ${profile.experience.length} roles extracted`
+                        : "Upload your CV/resume to auto-extract roles, skills, education, and achievements."}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+                  <label className="inline-flex cursor-pointer">
+                    <Button variant="default" size="sm" asChild disabled={uploading}>
+                      <span>
+                        {uploading ? (
+                          <SpinnerGapIcon className="size-3.5 animate-spin" aria-hidden="true" />
+                        ) : (
+                          <UploadSimpleIcon className="size-3.5" aria-hidden="true" />
+                        )}
+                        {profile.documents.length > 0 ? "Replace / Import CV" : "Import CV"}
+                      </span>
+                    </Button>
+                    <input
+                      type="file"
+                      accept=".pdf,.docx"
+                      className="sr-only"
+                      disabled={uploading}
+                      onChange={(e) => {
+                        handleUpload(e.target.files?.[0] ?? null);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/app/profile/review">
+                      Review fields
+                      {unverified > 0 && (
+                        <span className="ml-1 rounded-full bg-primary/20 px-1.5 py-0.2 font-mono text-[10px] text-primary">
+                          {unverified}
+                        </span>
+                      )}
+                    </Link>
+                  </Button>
+                </div>
+              </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="name">Full name</Label>

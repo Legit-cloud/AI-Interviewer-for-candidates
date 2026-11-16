@@ -1,6 +1,6 @@
 {
   "name": "vren-ai",
-  "description": "Live interview answers in your own words: a web app, Chrome extension and desktop app that listen to the interviewer and write a short answer from your real CV.",
+  "description": "Live interview answers in your own words: a web app that listens to the interviewer and writes a short answer from your real CV.",
   "private": true,
   "sideEffects": false,
   "type": "module",
@@ -15,12 +15,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "ext:install": "npm --prefix extension install",
-    "ext:build": "npm --prefix extension run build",
     "test:api": "uv --directory backend run pytest -q",
-    "test:ext": "npm --prefix extension test",
-    "test:all": "npm test && npm run test:api && npm run test:ext",
-    "ext:package": "npm --prefix extension run zip && node scripts/copy-extension-zip.mjs"
+    "test:all": "npm test && npm run test:api"
   },
   "overrides": {
     "rolldown": "1.2.1"
@@ -78,7 +74,7 @@
     "tw-animate-css": "^1.3.4",
     "vaul": "^1.1.2",
     "vite-tsconfig-paths": "^6.0.2",
-    "zod": "^3.25.76"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
@@ -99,8 +95,8 @@
     "nitro": "3.0.260603-beta",
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
-    "typescript-eslint": "^8.56.1",
-    "vite": "8.1.5",
+    "typescript-eslint": "^8.36.0",
+    "vite": "^8.3.8",
     "vitest": "^4.1.10"
   }
 }
