@@ -42,6 +42,7 @@ export class DualAudioCapture {
   private tabSeq = 0;
   private micSeq = 0;
   private active = false;
+  private paused = false;
 
   constructor(private callbacks: AudioCaptureCallbacks) {}
 
@@ -55,6 +56,18 @@ export class DualAudioCapture {
 
   public isActive(): boolean {
     return this.active;
+  }
+
+  public isPaused(): boolean {
+    return this.paused;
+  }
+
+  public pause(): void {
+    this.paused = true;
+  }
+
+  public resume(): void {
+    this.paused = false;
   }
 
   /**
@@ -115,7 +128,7 @@ export class DualAudioCapture {
         this.tabProcessor.connect(this.audioCtx.destination);
 
         this.tabProcessor.onaudioprocess = (e) => {
-          if (!this.active) return;
+          if (!this.active || this.paused) return;
           const inputData = e.inputBuffer.getChannelData(0);
           this.processAndSendFrame(inputData, e.inputBuffer.sampleRate, "tab");
         };
@@ -150,7 +163,7 @@ export class DualAudioCapture {
         this.micProcessor.connect(this.audioCtx.destination);
 
         this.micProcessor.onaudioprocess = (e) => {
-          if (!this.active) return;
+          if (!this.active || this.paused) return;
           const inputData = e.inputBuffer.getChannelData(0);
           this.processAndSendFrame(inputData, e.inputBuffer.sampleRate, "microphone");
         };
@@ -274,6 +287,10 @@ export class DualAudioCapture {
   }
 
   public getLevels(): AudioLevels {
+    if (this.paused) {
+      return { tabRms: 0, micRms: 0, tabSpeaking: false, micSpeaking: false };
+    }
+
     let tabRms = 0;
     let micRms = 0;
 

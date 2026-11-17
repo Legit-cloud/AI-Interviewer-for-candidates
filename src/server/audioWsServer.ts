@@ -36,6 +36,15 @@ wss.on("connection", (ws: WebSocket) => {
     smart_format: true,
   });
 
+  deepgram.on("error", (err: Error) => {
+    console.warn("[audio-ws] Deepgram session error:", err.message);
+    try {
+      ws.send(JSON.stringify({ type: "stt_error", message: err.message }));
+    } catch {
+      // client socket may already be closed
+    }
+  });
+
   const state: SessionState = {
     deepgram,
     answerBuffer: "",

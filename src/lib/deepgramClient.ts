@@ -81,7 +81,11 @@ export class DeepgramSession extends EventEmitter {
     });
 
     this.ws.on("error", (err) => {
-      this.emit("error", err);
+      if (this.listenerCount("error") > 0) {
+        this.emit("error", err);
+      } else {
+        console.warn("[deepgram] connection error:", err.message);
+      }
       // 'close' event typically follows error, but if not closed:
       if (!this.isExplicitlyClosed && this.ws?.readyState !== WebSocket.OPEN) {
         this.scheduleReconnect();
@@ -93,10 +97,14 @@ export class DeepgramSession extends EventEmitter {
     if (this.isExplicitlyClosed || this.reconnectTimer) return;
 
     if (this.retryCount >= this.maxRetries) {
-      this.emit(
-        "error",
-        new Error(`Deepgram WebSocket failed after ${this.maxRetries} reconnection attempts`),
+      const err = new Error(
+        `Deepgram WebSocket failed after ${this.maxRetries} reconnection attempts`,
       );
+      if (this.listenerCount("error") > 0) {
+        this.emit("error", err);
+      } else {
+        console.warn("[deepgram]", err.message);
+      }
       return;
     }
 
