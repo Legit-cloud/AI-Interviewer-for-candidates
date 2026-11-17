@@ -33,7 +33,18 @@ if (busy) {
 } else {
   const child = spawn(
     "uv",
-    ["--directory", "backend", "run", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000", "--reload"],
+    [
+      "--directory",
+      "backend",
+      "run",
+      "uvicorn",
+      "app.main:app",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "8000",
+      "--reload",
+    ],
     { stdio: "inherit", shell: process.platform === "win32" },
   );
   child.on("exit", (code) => process.exit(code ?? 0));

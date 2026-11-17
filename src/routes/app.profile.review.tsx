@@ -46,7 +46,9 @@ function Review() {
   const setExp = (id: string, key: "role" | "employer" | "dates" | "summary", v: string) =>
     updateProfile({
       experience: profile.experience.map((e) =>
-        e.id === id ? { ...e, [key]: v, origin: key === "summary" && !v.trim() ? "missing" : e.origin } : e,
+        e.id === id
+          ? { ...e, [key]: v, origin: key === "summary" && !v.trim() ? "missing" : e.origin }
+          : e,
       ),
     });
 
@@ -70,7 +72,11 @@ function Review() {
     }
     setUploading(true);
     try {
-      await addDocument({ name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)), file });
+      await addDocument({
+        name: file.name,
+        sizeKb: Math.max(1, Math.round(file.size / 1024)),
+        file,
+      });
       toast.success("New CV uploaded and extracted! Review the updated fields below.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not process this CV document.");
@@ -155,9 +161,7 @@ function Review() {
           {/* Left Pane: Source Document Preview */}
           <section className="panel h-fit bg-muted/50 p-6 lg:sticky lg:top-6">
             <div className="mb-4 flex items-center justify-between border-b pb-3">
-              <p className="eyebrow">
-                Source · {profile.documents[0]?.name ?? "Manual profile"}
-              </p>
+              <p className="eyebrow">Source · {profile.documents[0]?.name ?? "Manual profile"}</p>
               {profile.documents[0]?.pages && (
                 <span className="font-mono text-[11px] text-muted-foreground">
                   {profile.documents[0].pages} pages
@@ -166,7 +170,9 @@ function Review() {
             </div>
             <div className="space-y-4 font-mono text-xs leading-relaxed text-muted-foreground">
               <div>
-                <p className="text-sm font-semibold text-foreground">{profile.name.toUpperCase()}</p>
+                <p className="text-sm font-semibold text-foreground">
+                  {profile.name.toUpperCase()}
+                </p>
                 {profile.headline && <p className="text-foreground/80">{profile.headline}</p>}
               </div>
               {profile.summary && <p>{profile.summary}</p>}
@@ -179,7 +185,8 @@ function Review() {
                     key={e.id}
                     className={cn(
                       "rounded-md p-2 transition-colors",
-                      activeId === e.id && "bg-primary-soft/70 text-foreground ring-1 ring-primary/30",
+                      activeId === e.id &&
+                        "bg-primary-soft/70 text-foreground ring-1 ring-primary/30",
                     )}
                   >
                     <p className="font-medium text-foreground">
@@ -203,7 +210,9 @@ function Review() {
                 </div>
               )}
               <div className="border-t pt-3">
-                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">Skills</p>
+                <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                  Skills
+                </p>
                 <p className="mt-1">
                   {profile.skills
                     .filter((s) => s.origin !== "missing")
@@ -227,11 +236,7 @@ function Review() {
             </div>
 
             {profile.experience.map((e) => (
-              <div
-                key={e.id}
-                onFocus={() => setActiveId(e.id)}
-                className="panel space-y-3 p-5"
-              >
+              <div key={e.id} onFocus={() => setActiveId(e.id)} className="panel space-y-3 p-5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2.5">
                     <OriginBadge origin={e.origin} confidence={e.confidence} />
@@ -280,7 +285,11 @@ function Review() {
 
             {hasMissing && (
               <div className="flex items-start gap-2.5 rounded-xl border border-warning/35 bg-warning/8 p-4 text-sm text-warning">
-                <WarningCircleIcon className="mt-0.5 size-4 shrink-0" weight="fill" aria-hidden="true" />
+                <WarningCircleIcon
+                  className="mt-0.5 size-4 shrink-0"
+                  weight="fill"
+                  aria-hidden="true"
+                />
                 <p>
                   Some roles or skills have missing evidence. Add real outcomes above or leave them
                   unclaimed; Vren AI will never fabricate them during an interview.
@@ -293,13 +302,19 @@ function Review() {
               <p className="eyebrow text-primary">What comes next after CV review?</p>
               <ol className="list-decimal space-y-2 pl-4 text-xs text-muted-foreground">
                 <li>
-                  <strong className="text-foreground">Step 1: Save Verified Profile (Here)</strong> — Locks in your verified facts so Vren never invents false claims.
+                  <strong className="text-foreground">Step 1: Save Verified Profile (Here)</strong>{" "}
+                  — Locks in your verified facts so Vren never invents false claims.
                 </li>
                 <li>
-                  <strong className="text-foreground">Step 2: Add Target Job Description</strong> — Paste the job spec on the Jobs page so Vren analyzes skill matches, gaps, and likely questions.
+                  <strong className="text-foreground">Step 2: Add Target Job Description</strong> —
+                  Paste the job spec on the Jobs page so Vren analyzes skill matches, gaps, and
+                  likely questions.
                 </li>
                 <li>
-                  <strong className="text-foreground">Step 3: Practice Mock Interview or Go Live</strong> — Test with AI-scored questions or connect live during your call.
+                  <strong className="text-foreground">
+                    Step 3: Practice Mock Interview or Go Live
+                  </strong>{" "}
+                  — Test with AI-scored questions or connect live during your call.
                 </li>
               </ol>
             </div>
@@ -313,13 +328,15 @@ function Review() {
                   toast.success(
                     hasJobs
                       ? "Profile verified! Continuing to your target jobs."
-                      : "Profile verified! Next step: add your target job description."
+                      : "Profile verified! Next step: add your target job description.",
                   );
                   navigate({ to: "/app/jobs" });
                 }}
               >
                 <CheckCircleIcon className="size-4" aria-hidden="true" />
-                {hasJobs ? "Save verified profile & Continue to Jobs" : "Save verified profile & Add Target Job"}
+                {hasJobs
+                  ? "Save verified profile & Continue to Jobs"
+                  : "Save verified profile & Add Target Job"}
                 <ArrowRightIcon className="size-4 ml-1" aria-hidden="true" />
               </Button>
 

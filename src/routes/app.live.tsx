@@ -245,7 +245,9 @@ function LiveSessionPage() {
           ...t.slice(-39),
           {
             id: String(evt["item_id"] ?? evt.event_id),
-            speaker: String(evt["speaker"] ?? (evt["source"] === "microphone" ? "You" : "Interviewer")),
+            speaker: String(
+              evt["speaker"] ?? (evt["source"] === "microphone" ? "You" : "Interviewer"),
+            ),
             text: String(evt["text"] ?? ""),
             at: String(evt["timestamp"] ?? ""),
           },
@@ -428,13 +430,15 @@ function LiveSessionPage() {
               </Button>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Starting a live interview requires the FastAPI backend running on port 8000. In your terminal, run:
+              Starting a live interview requires the FastAPI backend running on port 8000. In your
+              terminal, run:
             </p>
             <pre className="mt-2 rounded bg-black/40 p-2 font-mono text-xs text-muted-foreground select-all">
               npm run dev:api
             </pre>
             <p className="mt-1 text-xs text-muted-foreground">
-              Or start both the web app and backend together with: <code className="font-mono text-foreground font-medium">npm run dev</code>
+              Or start both the web app and backend together with:{" "}
+              <code className="font-mono text-foreground font-medium">npm run dev</code>
             </p>
           </section>
         )}
@@ -463,7 +467,10 @@ function LiveSessionPage() {
           >
             <p className="text-sm font-medium">You have an interview in progress</p>
             <div className="flex gap-2">
-              <Button onClick={() => void start(resumable.id)} disabled={starting || backendOffline}>
+              <Button
+                onClick={() => void start(resumable.id)}
+                disabled={starting || backendOffline}
+              >
                 Resume
               </Button>
               <Button variant="outline" onClick={() => void endOld(resumable.id)}>
@@ -750,7 +757,8 @@ function LiveSessionPage() {
                   {pairing.code}
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Enter it in the AudioCore Desktop App to mirror live answers in your transparent overlay. Expires in {Math.floor(countdown / 60)}:
+                  Enter it in the AudioCore Desktop App to mirror live answers in your transparent
+                  overlay. Expires in {Math.floor(countdown / 60)}:
                   {String(countdown % 60).padStart(2, "0")}. It works once.
                 </p>
               </div>
@@ -841,7 +849,10 @@ function LiveSessionPage() {
                 {transcript.map((t) => {
                   const isYou = t.speaker === "You";
                   return (
-                    <li key={t.id} className="rounded-lg bg-background/50 p-2 border border-border/50">
+                    <li
+                      key={t.id}
+                      className="rounded-lg bg-background/50 p-2 border border-border/50"
+                    >
                       <div className="flex items-center justify-between text-[11px] mb-1">
                         <span
                           className={cn(

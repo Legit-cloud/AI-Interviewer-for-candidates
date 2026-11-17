@@ -13,6 +13,44 @@
 - **Review.** After each interview: what was asked, which job skills came up, how much of your CV was used, and an AI coaching summary on request.
 - **Resilient AI fallback.** Uses **Gemini** (`GEMINI_API_KEY`) as primary and **OpenAI** (`OPENAI_API_KEY`) as automatic fallback.
 
+## Real-time Interview Architecture
+
+```mermaid
+flowchart TD
+    subgraph Client["Candidate Environment"]
+        Mic["Microphone + Tab Audio (Dual Capture)"]
+        UI["Web Live Page & AudioCore Tauri Overlay"]
+    end
+
+    subgraph BackendWS["Audio WebSocket Server (:8081)"]
+        Buffer["PCM16 Frame Buffer & Offline Queue"]
+        Context["Compact Context & History Manager"]
+        Router["Transcript & Question Router"]
+    end
+
+    subgraph Deepgram["Deepgram STT (Nova-3)"]
+        DG_Stream["Live Streaming WebSocket"]
+    end
+
+    subgraph Gemini["Gemini Intelligence (Flash)"]
+        Gemini_Stream["models/gemini-3.8-flash (Streaming REST)"]
+    end
+
+    Mic -->|16kHz PCM Frames| Buffer
+    Buffer -->|Continuous Audio Stream| DG_Stream
+    DG_Stream -->|Interim Captions| Router
+    Router -->|Live Subtitles| UI
+    DG_Stream -->|Speech Finalized Utterance| Context
+    Context -->|Completed Answer + Compact Context| Gemini_Stream
+    Gemini_Stream -->|Streamed Answer Tokens| UI
+```
+
+### Alternative: Gemini Live API Architecture
+
+Vren AI implements a dual **Deepgram Nova-3 + Gemini Flash** pipeline, which is optimal when you need accurate real-time transcription, auditable interview logs, STAR/CAR/SOAR structured answer scoring, and fine-grained control over prompt context.
+
+If you prefer a direct speech-to-speech interaction model without separate STT, you can alternatively switch to Google's **Gemini Live API** over WebSockets, which listens to native PCM and responds directly.
+
 ## How the pieces fit
 
 ```
@@ -30,12 +68,12 @@
 
 ## What is where
 
-| Folder | What it is | Start here |
-|---|---|---|
-| `src/` | Web app (TanStack Start, React 19): CV profile, jobs, **Live interview**, **Practice**, history, settings | `src/routes/` |
-| `backend/` | API (FastAPI, SQLAlchemy): speech-to-text, question detection, grounded answers, pairing, practice, review | `backend/app/modules/` |
+| Folder         | What it is                                                                                                                    | Start here                                    |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `src/`         | Web app (TanStack Start, React 19): CV profile, jobs, **Live interview**, **Practice**, history, settings                     | `src/routes/`                                 |
+| `backend/`     | API (FastAPI, SQLAlchemy): speech-to-text, question detection, grounded answers, pairing, practice, review                    | `backend/app/modules/`                        |
 | `Desktop app/` | AudioCore Tauri desktop overlay (React + Rust/Win32): PIN pairing, live answer stream, drag/close controls, capture exclusion | `Desktop app/src/` & `Desktop app/src-tauri/` |
-| `docs/` | Product requirements and design notes | [`docs/PRD.md`](docs/PRD.md) |
+| `docs/`        | Product requirements and design notes                                                                                         | [`docs/PRD.md`](docs/PRD.md)                  |
 
 ## Run it
 
@@ -66,18 +104,18 @@ npm run build
 ```
 
 Built installers and executables are output to:
+
 - `Desktop app/src-tauri/target/release/AudioCore.exe`
 - `Desktop app/src-tauri/target/release/bundle/nsis/AudioCore_0.1.0_x64-setup.exe`
 - `Desktop app/src-tauri/target/release/bundle/msi/AudioCore_0.1.0_x64_en-US.msi`
 
 ### Keys (`backend/.env`)
 
-| You want | Set |
-|---|---|
-| Answers | `GEMINI_API_KEY` (primary) and/or `OPENAI_API_KEY` (fallback). |
-| Speech to text | `DEEPGRAM_API_KEY` with `STT_PROVIDER=deepgram` for real-time streaming, or reuses your OpenAI / Gemini key automatically. |
-
-Keys stay on the server and are never sent to the browser. You can verify active providers at `http://localhost:8000/v1/health`.
+| You want                 | Set                                                                                                                        | How to obtain                                                                        |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Answers & Analysis       | `GEMINI_API_KEY` (primary) and/or `OPENAI_API_KEY` (fallback).                                                             | Get a free Gemini key from [Google AI Studio](https://aistudio.google.com).          |
+| Real-time Speech-to-Text | `DEEPGRAM_API_KEY` with `STT_PROVIDER=deepgram` for real-time streaming, or reuses your OpenAI / Gemini key automatically. | Get API credits and a key from the [Deepgram Console](https://console.deepgram.com). |
+| Audio WebSocket Port     | `AUDIO_WS_PORT=8081` (default: 8081).                                                                                      | Configurable port for the Node.js audio pipeline.                                    |
 
 ### Use it
 

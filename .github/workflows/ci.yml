@@ -33,7 +33,7 @@ jobs:
         env:
           ENV: test
           SECRET_KEY: test_secret_key_for_testing_purposes_only_32_bytes_minimum
-          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
 
   web-test:
     name: Web App Tests & Typecheck
@@ -49,6 +49,9 @@ jobs:
 
       - name: Install web dependencies
         run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint
 
       - name: Run TypeScript typecheck
         run: npx tsc --noEmit

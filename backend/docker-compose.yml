@@ -12,11 +12,10 @@ services:
     volumes:
       - vren_pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres -d vren_ai" ]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d vren_ai"]
       interval: 5s
       timeout: 5s
       retries: 10
 
 volumes:
   vren_pg_data:
-

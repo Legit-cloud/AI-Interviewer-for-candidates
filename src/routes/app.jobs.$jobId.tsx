@@ -89,7 +89,9 @@ function JobDetail() {
               variant="outline"
               onClick={() => {
                 updateJob(job.id, { archived: !job.archived });
-                toast(job.archived ? "Job restored." : "Job archived. Historical sessions stay intact.");
+                toast(
+                  job.archived ? "Job restored." : "Job archived. Historical sessions stay intact.",
+                );
               }}
             >
               {job.archived ? (
@@ -207,7 +209,10 @@ function JobDetail() {
               <p className="eyebrow mb-2">Required</p>
               <ul className="flex flex-wrap gap-1.5 text-sm">
                 {job.required.map((r) => (
-                  <li key={r} className="rounded-md border bg-background px-2.5 py-1 text-xs font-medium">
+                  <li
+                    key={r}
+                    className="rounded-md border bg-background px-2.5 py-1 text-xs font-medium"
+                  >
                     {r}
                   </li>
                 ))}

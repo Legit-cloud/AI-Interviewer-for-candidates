@@ -23,12 +23,7 @@ export default defineConfig(({ command, isPreview }) => ({
   },
   server: {
     watch: {
-      ignored: [
-        "**/Desktop app/**",
-        "**/backend/**",
-        "**/.venv/**",
-        "**/target/**",
-      ],
+      ignored: ["**/Desktop app/**", "**/backend/**", "**/.venv/**", "**/target/**"],
     },
     proxy: {
       "/v1": {

@@ -74,7 +74,9 @@ export function Stagger({
       className={className}
       variants={variants}
       initial="hidden"
-      {...(inView ? { whileInView: "show", viewport: { once: true, amount: 0.1 } } : { animate: "show" })}
+      {...(inView
+        ? { whileInView: "show", viewport: { once: true, amount: 0.1 } }
+        : { animate: "show" })}
     >
       {children}
     </motion.div>
@@ -99,7 +101,13 @@ export function StaggerItem({
 }
 
 /** Wraps page content for a soft enter transition between routes. */
-export function PageTransition({ children, className }: { children: ReactNode; className?: string }) {
+export function PageTransition({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
   return (
     <motion.div
       className={className}
@@ -113,4 +121,3 @@ export function PageTransition({ children, className }: { children: ReactNode; c
 }
 
 export { motion, AnimatePresence } from "motion/react";
-

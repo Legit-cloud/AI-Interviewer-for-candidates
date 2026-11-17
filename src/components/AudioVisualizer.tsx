@@ -8,7 +8,12 @@ interface AudioVisualizerProps {
   className?: string;
 }
 
-export function AudioVisualizer({ tabAnalyser, micAnalyser, capturing, className }: AudioVisualizerProps) {
+export function AudioVisualizer({
+  tabAnalyser,
+  micAnalyser,
+  capturing,
+  className,
+}: AudioVisualizerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [tabSpeaking, setTabSpeaking] = useState(false);
   const [micSpeaking, setMicSpeaking] = useState(false);
@@ -125,7 +130,9 @@ export function AudioVisualizer({ tabAnalyser, micAnalyser, capturing, className
   }, [tabAnalyser, micAnalyser, capturing]);
 
   return (
-    <div className={cn("rounded-xl border border-border bg-card/60 p-4 backdrop-blur-sm", className)}>
+    <div
+      className={cn("rounded-xl border border-border bg-card/60 p-4 backdrop-blur-sm", className)}
+    >
       <div className="mb-3 flex items-center justify-between text-xs font-medium">
         {/* Interviewer status */}
         <div className="flex items-center gap-2">
@@ -139,10 +146,14 @@ export function AudioVisualizer({ tabAnalyser, micAnalyser, capturing, className
                   : "bg-muted-foreground/30",
             )}
           />
-          <span className={cn(tabSpeaking ? "text-emerald-400 font-semibold" : "text-muted-foreground")}>
+          <span
+            className={cn(tabSpeaking ? "text-emerald-400 font-semibold" : "text-muted-foreground")}
+          >
             Interviewer (Meeting Audio)
           </span>
-          {tabSpeaking && <span className="text-[10px] uppercase tracking-wide text-emerald-400">Speaking…</span>}
+          {tabSpeaking && (
+            <span className="text-[10px] uppercase tracking-wide text-emerald-400">Speaking…</span>
+          )}
         </div>
 
         {/* Candidate status */}
@@ -157,10 +168,14 @@ export function AudioVisualizer({ tabAnalyser, micAnalyser, capturing, className
                   : "bg-muted-foreground/30",
             )}
           />
-          <span className={cn(micSpeaking ? "text-sky-300 font-semibold" : "text-muted-foreground")}>
+          <span
+            className={cn(micSpeaking ? "text-sky-300 font-semibold" : "text-muted-foreground")}
+          >
             You (Microphone)
           </span>
-          {micSpeaking && <span className="text-[10px] uppercase tracking-wide text-sky-400">Speaking…</span>}
+          {micSpeaking && (
+            <span className="text-[10px] uppercase tracking-wide text-sky-400">Speaking…</span>
+          )}
         </div>
       </div>
 
@@ -203,4 +218,3 @@ export function AudioVisualizer({ tabAnalyser, micAnalyser, capturing, className
     </div>
   );
 }
-

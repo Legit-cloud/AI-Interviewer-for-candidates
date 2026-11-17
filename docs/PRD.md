@@ -9,7 +9,7 @@
 **Audience:** Product, design, frontend, extension, backend, AI, security, QA, and operations teams
 
 **Revision 1.2:** the extension is now only the on-page box (no on-page box). Added the Sound check (audio.stats), `POST /v1/ai/check` ("Test the AI"), a readable PDF export (`/v1/me/export.pdf`) and an extension download placeholder in the web app. Where this document says on-page box, read "on-page box".  
-**Revision 1.1:** (1) The product returns a ready-to-say answer to each interviewer question instead of coaching-style guidance. (2) The web app does the heavy lifting (account, CV, jobs, session control, AI, review); the Chrome extension is a thin client that relays tab audio on user action and displays answers in its on-page box. (3) The extension connects through a short-lived pairing code created in the web app. (4) A **Private view** mode keeps answers in the user's own on-page box only. (5) Explicit boundary: the product does not hide itself from, or evade, screen sharing, proctoring or monitoring. (6) The "Coaching" response style is removed. (7) An optional visible desktop overlay is recorded as a deferred idea in Appendix C.  
+**Revision 1.1:** (1) The product returns a ready-to-say answer to each interviewer question instead of coaching-style guidance. (2) The web app does the heavy lifting (account, CV, jobs, session control, AI, review); the Chrome extension is a thin client that relays tab audio on user action and displays answers in its on-page box. (3) The extension connects through a short-lived pairing code created in the web app. (4) A **Private view** mode keeps answers in the user's own on-page box only. (5) Explicit boundary: the product does not hide itself from, or evade, screen sharing, proctoring or monitoring. (6) The "Coaching" response style is removed. (7) An optional visible desktop overlay is recorded as a deferred idea in Appendix C.
 
 ---
 
@@ -49,15 +49,15 @@ Vren AI should feel like a calm, capable interview partner for candidates across
 
 ### 2.2 Product objectives
 
-| Objective | Measurement direction | MVP target |
-|---|---|---|
-| Make setup reusable | A candidate can reuse one profile across jobs | No repeated CV upload for each job |
-| Make live assistance useful | Answers respond to the active question and candidate context | At least 80% of evaluated answers are relevant in an internal benchmark |
-| Keep answers speakable | Answers are short enough to say aloud naturally | Default answer is 2–4 spoken sentences, with an optional key-points strip |
-| Protect user control | Capture is user-initiated, stoppable, disclosed and clearly indicated; answers appear only in the paired panel | Zero hidden capture paths in release testing |
-| Protect sensitive data | Private content is isolated per user and deletable | RLS, signed URLs, deletion flows, and audit events pass security tests |
-| Make sessions dependable | Connection and provider failures are recoverable | Session state is never silently marked complete after disconnect |
-| Control operating cost | AI and transcription usage is bounded | Per-session quota, duration cap, and provider usage telemetry |
+| Objective                   | Measurement direction                                                                                          | MVP target                                                                |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Make setup reusable         | A candidate can reuse one profile across jobs                                                                  | No repeated CV upload for each job                                        |
+| Make live assistance useful | Answers respond to the active question and candidate context                                                   | At least 80% of evaluated answers are relevant in an internal benchmark   |
+| Keep answers speakable      | Answers are short enough to say aloud naturally                                                                | Default answer is 2–4 spoken sentences, with an optional key-points strip |
+| Protect user control        | Capture is user-initiated, stoppable, disclosed and clearly indicated; answers appear only in the paired panel | Zero hidden capture paths in release testing                              |
+| Protect sensitive data      | Private content is isolated per user and deletable                                                             | RLS, signed URLs, deletion flows, and audit events pass security tests    |
+| Make sessions dependable    | Connection and provider failures are recoverable                                                               | Session state is never silently marked complete after disconnect          |
+| Control operating cost      | AI and transcription usage is bounded                                                                          | Per-session quota, duration cap, and provider usage telemetry             |
 
 ### 2.3 Non-objectives for MVP
 
@@ -171,28 +171,28 @@ MVP support is limited to Chrome desktop versions selected during release qualif
 
 ## 6. MVP and Feature Prioritisation
 
-| Feature | Priority | User objective | MVP decision |
-|---|---:|---|---|
-| Authentication | P0 | Access the same account from web and extension | Include |
-| Candidate profile and CV extraction | P0 | Avoid re-entering background information | Include |
-| Job descriptions | P0 | Tailor answers to a specific role | Include |
-| Preparation configuration | P0 | Control answer style and length | Include |
-| Extension on-page box (Private view) | P0 | See answers beside the meeting tab without leaving it | Include |
-| Pairing-code handoff | P0 | Connect the extension to a web session without signing in inside the panel | Include |
-| Explicit capture controls | P0 | Understand and control data capture | Include |
-| Tab audio capture | P0 | Hear interviewer audio on supported tabs | Include, subject to compatibility |
-| Optional microphone capture | P0 | Add candidate audio when desired | Include as separate permission |
-| Streaming transcription | P0 | Turn live audio into usable text | Include |
-| Question detection | P0 | Avoid reacting to ordinary conversation | Include |
-| Ready-to-say answers | P0 | Get a speakable answer to each question | Include |
-| Reconnect and safe stop | P0 | Avoid silent session loss | Include |
-| Transcript retention controls | P0 | Decide what remains after the session | Include |
-| Post-session feedback | P1 | Learn from the interview | Include in lightweight form |
-| Mock interviews | P1 | Practise before a real session | Phase 2 |
-| Speaker diarization | P1 | Distinguish interviewer and candidate speech | Phase 2, provider-dependent |
-| Automatic meeting-platform detection | P1 | Improve setup guidance | Phase 2 |
-| Native desktop capture | P2 | Support non-browser interviews | Future |
-| Auto-speaking | P2 | Respond on user's behalf | Out of scope |
+| Feature                              | Priority | User objective                                                             | MVP decision                      |
+| ------------------------------------ | -------: | -------------------------------------------------------------------------- | --------------------------------- |
+| Authentication                       |       P0 | Access the same account from web and extension                             | Include                           |
+| Candidate profile and CV extraction  |       P0 | Avoid re-entering background information                                   | Include                           |
+| Job descriptions                     |       P0 | Tailor answers to a specific role                                          | Include                           |
+| Preparation configuration            |       P0 | Control answer style and length                                            | Include                           |
+| Extension on-page box (Private view) |       P0 | See answers beside the meeting tab without leaving it                      | Include                           |
+| Pairing-code handoff                 |       P0 | Connect the extension to a web session without signing in inside the panel | Include                           |
+| Explicit capture controls            |       P0 | Understand and control data capture                                        | Include                           |
+| Tab audio capture                    |       P0 | Hear interviewer audio on supported tabs                                   | Include, subject to compatibility |
+| Optional microphone capture          |       P0 | Add candidate audio when desired                                           | Include as separate permission    |
+| Streaming transcription              |       P0 | Turn live audio into usable text                                           | Include                           |
+| Question detection                   |       P0 | Avoid reacting to ordinary conversation                                    | Include                           |
+| Ready-to-say answers                 |       P0 | Get a speakable answer to each question                                    | Include                           |
+| Reconnect and safe stop              |       P0 | Avoid silent session loss                                                  | Include                           |
+| Transcript retention controls        |       P0 | Decide what remains after the session                                      | Include                           |
+| Post-session feedback                |       P1 | Learn from the interview                                                   | Include in lightweight form       |
+| Mock interviews                      |       P1 | Practise before a real session                                             | Phase 2                           |
+| Speaker diarization                  |       P1 | Distinguish interviewer and candidate speech                               | Phase 2, provider-dependent       |
+| Automatic meeting-platform detection |       P1 | Improve setup guidance                                                     | Phase 2                           |
+| Native desktop capture               |       P2 | Support non-browser interviews                                             | Future                            |
+| Auto-speaking                        |       P2 | Respond on user's behalf                                                   | Out of scope                      |
 
 For every P0 feature, a release build requires a happy-path acceptance test and at least one permission, provider, or network failure test.
 
@@ -401,19 +401,19 @@ The system must not generate a new answer for every partial transcript change. A
 
 ## 9. Non-Functional Requirements
 
-| Area | Requirement | Proposed target or rule |
-|---|---|---|
-| Availability | Dashboard | 99.5% monthly target for MVP, excluding planned maintenance |
-| Live latency | First useful answer | Product target: p95 ≤ 4 seconds after a stable question; benchmark before launch |
-| Transcription | Partial update | Product target: first partial within 2 seconds under normal network; verify on target audio |
-| API | Read/write request | p95 ≤ 500 ms excluding document processing and AI calls |
-| WebSocket | Recovery | Reconnect attempt within 3 seconds; session recovery within 10 seconds when backend state exists |
-| Audio | Stability | No silent capture state; dropped frames surfaced as degraded state |
-| Data isolation | Ownership | No cross-user reads or writes; RLS tests required for each exposed table |
-| Accessibility | Web and extension | WCAG 2.2 AA target; keyboard and reduced-motion paths required |
-| Security | Transport | TLS in production; secrets server-side only |
-| Cost | Usage control | Max session duration, max concurrent sessions, and provider budgets per account |
-| Observability | Operations | Correlation ID across extension, API, WebSocket, provider, and session records |
+| Area           | Requirement         | Proposed target or rule                                                                          |
+| -------------- | ------------------- | ------------------------------------------------------------------------------------------------ |
+| Availability   | Dashboard           | 99.5% monthly target for MVP, excluding planned maintenance                                      |
+| Live latency   | First useful answer | Product target: p95 ≤ 4 seconds after a stable question; benchmark before launch                 |
+| Transcription  | Partial update      | Product target: first partial within 2 seconds under normal network; verify on target audio      |
+| API            | Read/write request  | p95 ≤ 500 ms excluding document processing and AI calls                                          |
+| WebSocket      | Recovery            | Reconnect attempt within 3 seconds; session recovery within 10 seconds when backend state exists |
+| Audio          | Stability           | No silent capture state; dropped frames surfaced as degraded state                               |
+| Data isolation | Ownership           | No cross-user reads or writes; RLS tests required for each exposed table                         |
+| Accessibility  | Web and extension   | WCAG 2.2 AA target; keyboard and reduced-motion paths required                                   |
+| Security       | Transport           | TLS in production; secrets server-side only                                                      |
+| Cost           | Usage control       | Max session duration, max concurrent sessions, and provider budgets per account                  |
+| Observability  | Operations          | Correlation ID across extension, API, WebSocket, provider, and session records                   |
 
 These are proposed product targets, not verified provider benchmarks. OpenAI documents configurable delay levels and recommends benchmarking on representative audio; it also states that its live transcription path does not provide speaker labels, word timestamps, or confidence scores in the described mode. [3]
 
@@ -514,19 +514,19 @@ Vren AI should feel like a composed interview workspace: editorial, precise, qui
 
 ### 12.2 Colour tokens
 
-| Token | Hex | Use |
-|---|---|---|
-| Ink | `#1C2430` | Primary text and dark controls |
-| Canvas | `#F6F7F4` | Main background |
-| Surface | `#FFFFFF` | Panels and inputs |
-| Surface-muted | `#ECEFEA` | Secondary background and selected rows |
-| Brand teal | `#0F766E` | Primary action and focus accent |
-| Brand teal-dark | `#115E59` | Hover and pressed state |
-| Text-muted | `#667085` | Supporting copy |
-| Border | `#D7DDD7` | Dividers and controls |
-| Success | `#2F7D5B` | Completed, connected, safe |
-| Warning | `#A96B16` | Degraded, needs attention |
-| Error | `#B54747` | Blocking errors and destructive states |
+| Token           | Hex       | Use                                    |
+| --------------- | --------- | -------------------------------------- |
+| Ink             | `#1C2430` | Primary text and dark controls         |
+| Canvas          | `#F6F7F4` | Main background                        |
+| Surface         | `#FFFFFF` | Panels and inputs                      |
+| Surface-muted   | `#ECEFEA` | Secondary background and selected rows |
+| Brand teal      | `#0F766E` | Primary action and focus accent        |
+| Brand teal-dark | `#115E59` | Hover and pressed state                |
+| Text-muted      | `#667085` | Supporting copy                        |
+| Border          | `#D7DDD7` | Dividers and controls                  |
+| Success         | `#2F7D5B` | Completed, connected, safe             |
+| Warning         | `#A96B16` | Degraded, needs attention              |
+| Error           | `#B54747` | Blocking errors and destructive states |
 
 Semantic colours are used only for meaning. Focus indicators must remain visible in every theme state, and text contrast must meet WCAG 2.2 AA.
 
@@ -554,20 +554,20 @@ The extension reuses tokens and components but not the full desktop navigation. 
 
 ## 13. Technology Stack and Justification
 
-| Layer | Selection | Why | Alternative / decision note |
-|---|---|---|---|
-| Web | React + TypeScript + Vite | Small, explicit SPA architecture with shared types | Next.js is not required for MVP unless SEO or server rendering becomes a requirement |
-| Web state | TanStack Query + typed API client | Clear server-state caching and invalidation | Avoid global state for server data |
-| Extension | WXT + TypeScript + MV3 (no UI framework) | Practical build structure for extension entrypoints and shared code; the panel is small enough for plain DOM | Keep browser APIs behind adapters |
-| UI | Tailwind CSS + custom tokens | Fast consistent implementation with deliberate visual system | No generic component library as the brand layer |
-| Backend | Python + FastAPI + Pydantic | Async HTTP/WebSocket support, typed validation, modular monolith | No microservices until measured need |
-| Database | Supabase PostgreSQL | Relational model, migrations, RLS, operational simplicity | Keep domain access behind backend for sensitive operations |
-| Auth | Supabase Auth | Integrated session lifecycle and JWT verification | Re-evaluate if enterprise SSO becomes a requirement |
-| Storage | Supabase Storage | Private buckets and policy-based access | Use signed URLs, never public CV paths |
-| Live transport | WebSockets | Bidirectional audio/events and explicit session protocol | Do not use database realtime for audio |
-| STT | Provider adapter; OpenAI initial candidate | Live deltas, final events, context hints, server WebSocket path | AssemblyAI is a credible fallback with turn events and explicit termination |
-| LLM | Server-side structured-output provider adapter | Enforce response schema and provider replacement | No provider key in web or extension |
-| Deployment | Docker + managed web/backend hosting | Reproducible builds and suitable MVP operations | No Kubernetes for initial scale |
+| Layer          | Selection                                      | Why                                                                                                          | Alternative / decision note                                                          |
+| -------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| Web            | React + TypeScript + Vite                      | Small, explicit SPA architecture with shared types                                                           | Next.js is not required for MVP unless SEO or server rendering becomes a requirement |
+| Web state      | TanStack Query + typed API client              | Clear server-state caching and invalidation                                                                  | Avoid global state for server data                                                   |
+| Extension      | WXT + TypeScript + MV3 (no UI framework)       | Practical build structure for extension entrypoints and shared code; the panel is small enough for plain DOM | Keep browser APIs behind adapters                                                    |
+| UI             | Tailwind CSS + custom tokens                   | Fast consistent implementation with deliberate visual system                                                 | No generic component library as the brand layer                                      |
+| Backend        | Python + FastAPI + Pydantic                    | Async HTTP/WebSocket support, typed validation, modular monolith                                             | No microservices until measured need                                                 |
+| Database       | Supabase PostgreSQL                            | Relational model, migrations, RLS, operational simplicity                                                    | Keep domain access behind backend for sensitive operations                           |
+| Auth           | Supabase Auth                                  | Integrated session lifecycle and JWT verification                                                            | Re-evaluate if enterprise SSO becomes a requirement                                  |
+| Storage        | Supabase Storage                               | Private buckets and policy-based access                                                                      | Use signed URLs, never public CV paths                                               |
+| Live transport | WebSockets                                     | Bidirectional audio/events and explicit session protocol                                                     | Do not use database realtime for audio                                               |
+| STT            | Provider adapter; OpenAI initial candidate     | Live deltas, final events, context hints, server WebSocket path                                              | AssemblyAI is a credible fallback with turn events and explicit termination          |
+| LLM            | Server-side structured-output provider adapter | Enforce response schema and provider replacement                                                             | No provider key in web or extension                                                  |
+| Deployment     | Docker + managed web/backend hosting           | Reproducible builds and suitable MVP operations                                                              | No Kubernetes for initial scale                                                      |
 
 ### 13.1 Speech-to-text decision
 
@@ -743,22 +743,22 @@ Background jobs are appropriate for document extraction and post-session analysi
 
 ### 17.1 Core tables
 
-| Table | Purpose | Key ownership/indexes |
-|---|---|---|
-| `profiles` | User-level candidate profile metadata | PK `user_id`; owner is `auth.uid()` |
-| `candidate_documents` | CV metadata and private storage path | FK `user_id`; index `(user_id, created_at desc)` |
-| `candidate_experiences` | Structured roles, projects, education, certifications | FK `user_id`, optional `document_id`; index `(user_id, active)` |
-| `candidate_skills` | Normalised skills and evidence refs | FK `user_id`; index `(user_id, normalized_name)` |
-| `job_descriptions` | Canonical job text and extracted context | FK `user_id`; index `(user_id, archived, updated_at desc)` |
-| `interview_preferences` | Reusable defaults | FK `user_id`; one current default plus versioning if needed |
-| `interview_sessions` | Session snapshot and lifecycle | FK `user_id`, optional `job_id`; index `(user_id, started_at desc)` |
-| `transcript_segments` | Consent-retained final transcript rows | FK `session_id`, `user_id`; index `(session_id, sequence)` |
-| `generated_answers` | Generated answers and evidence refs. The table is still named `generated_suggestions` in the current schema; renaming it is a later migration | FK `session_id`, `user_id`; index `(session_id, created_at)` |
-| `pairing_codes` | Hashed single-use pairing codes | FK `session_id`, `user_id`; `expires_at`, `redeemed_at`; index on `code_hash` |
-| `session_notes` | User-authored notes | FK `session_id`, `user_id` |
-| `user_consents` | Versioned capture/retention consent events | FK `user_id`; index `(user_id, consent_type, created_at desc)` |
-| `extension_connections` | Revocable extension connection metadata | FK `user_id`; index `(user_id, revoked_at)` |
-| `audit_events` | Security and deletion audit events | FK `user_id`; restricted write path |
+| Table                   | Purpose                                                                                                                                       | Key ownership/indexes                                                         |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `profiles`              | User-level candidate profile metadata                                                                                                         | PK `user_id`; owner is `auth.uid()`                                           |
+| `candidate_documents`   | CV metadata and private storage path                                                                                                          | FK `user_id`; index `(user_id, created_at desc)`                              |
+| `candidate_experiences` | Structured roles, projects, education, certifications                                                                                         | FK `user_id`, optional `document_id`; index `(user_id, active)`               |
+| `candidate_skills`      | Normalised skills and evidence refs                                                                                                           | FK `user_id`; index `(user_id, normalized_name)`                              |
+| `job_descriptions`      | Canonical job text and extracted context                                                                                                      | FK `user_id`; index `(user_id, archived, updated_at desc)`                    |
+| `interview_preferences` | Reusable defaults                                                                                                                             | FK `user_id`; one current default plus versioning if needed                   |
+| `interview_sessions`    | Session snapshot and lifecycle                                                                                                                | FK `user_id`, optional `job_id`; index `(user_id, started_at desc)`           |
+| `transcript_segments`   | Consent-retained final transcript rows                                                                                                        | FK `session_id`, `user_id`; index `(session_id, sequence)`                    |
+| `generated_answers`     | Generated answers and evidence refs. The table is still named `generated_suggestions` in the current schema; renaming it is a later migration | FK `session_id`, `user_id`; index `(session_id, created_at)`                  |
+| `pairing_codes`         | Hashed single-use pairing codes                                                                                                               | FK `session_id`, `user_id`; `expires_at`, `redeemed_at`; index on `code_hash` |
+| `session_notes`         | User-authored notes                                                                                                                           | FK `session_id`, `user_id`                                                    |
+| `user_consents`         | Versioned capture/retention consent events                                                                                                    | FK `user_id`; index `(user_id, consent_type, created_at desc)`                |
+| `extension_connections` | Revocable extension connection metadata                                                                                                       | FK `user_id`; index `(user_id, revoked_at)`                                   |
+| `audit_events`          | Security and deletion audit events                                                                                                            | FK `user_id`; restricted write path                                           |
 
 ### 17.2 ER diagram
 
@@ -806,52 +806,52 @@ All endpoints are under `/v1`. JSON errors use:
 
 ### 18.1 Identity and extension
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `GET` | `/v1/me` | Return current user and profile summary |
-| `POST` | `/v1/auth/change-password` | Change password for the signed-in user; signs out other sessions and returns fresh tokens |
-| `GET` | `/v1/health` | Liveness, database connection and `schema` status (`ok`, `needs_migration`, `unknown`) |
-| `POST` | `/v1/sessions/{id}/pairing-code` | Web only: issue a 6-digit, 10-minute, single-use pairing code |
-| `POST` | `/v1/pairing/redeem` | Extension: exchange a valid code for a session-scoped capture and display token |
-| `POST` | `/v1/extensions/{id}/revoke` | Revoke extension access |
-| `GET` | `/v1/extensions` | List active extension connections |
+| Method | Endpoint                         | Purpose                                                                                   |
+| ------ | -------------------------------- | ----------------------------------------------------------------------------------------- |
+| `GET`  | `/v1/me`                         | Return current user and profile summary                                                   |
+| `POST` | `/v1/auth/change-password`       | Change password for the signed-in user; signs out other sessions and returns fresh tokens |
+| `GET`  | `/v1/health`                     | Liveness, database connection and `schema` status (`ok`, `needs_migration`, `unknown`)    |
+| `POST` | `/v1/sessions/{id}/pairing-code` | Web only: issue a 6-digit, 10-minute, single-use pairing code                             |
+| `POST` | `/v1/pairing/redeem`             | Extension: exchange a valid code for a session-scoped capture and display token           |
+| `POST` | `/v1/extensions/{id}/revoke`     | Revoke extension access                                                                   |
+| `GET`  | `/v1/extensions`                 | List active extension connections                                                         |
 
 ### 18.2 Candidate and documents
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `GET` | `/v1/profile` | Get structured profile |
-| `PATCH` | `/v1/profile` | Update editable profile fields |
-| `POST` | `/v1/documents` | Create upload intent and metadata |
-| `POST` | `/v1/documents/{id}/complete` | Mark upload complete and enqueue extraction |
-| `GET` | `/v1/documents/{id}` | Get status and extraction summary |
-| `DELETE` | `/v1/documents/{id}` | Delete source document and derived references |
+| Method   | Endpoint                      | Purpose                                       |
+| -------- | ----------------------------- | --------------------------------------------- |
+| `GET`    | `/v1/profile`                 | Get structured profile                        |
+| `PATCH`  | `/v1/profile`                 | Update editable profile fields                |
+| `POST`   | `/v1/documents`               | Create upload intent and metadata             |
+| `POST`   | `/v1/documents/{id}/complete` | Mark upload complete and enqueue extraction   |
+| `GET`    | `/v1/documents/{id}`          | Get status and extraction summary             |
+| `DELETE` | `/v1/documents/{id}`          | Delete source document and derived references |
 
 ### 18.3 Jobs and preparation
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `GET` | `/v1/jobs` | List active and archived jobs |
-| `POST` | `/v1/jobs` | Create from text or upload reference |
-| `GET` | `/v1/jobs/{id}` | Get structured job context and match summary |
-| `PATCH` | `/v1/jobs/{id}` | Edit job context |
-| `POST` | `/v1/jobs/{id}/archive` | Archive job |
-| `GET` | `/v1/preferences` | Get defaults |
-| `PATCH` | `/v1/preferences` | Update defaults |
+| Method  | Endpoint                | Purpose                                      |
+| ------- | ----------------------- | -------------------------------------------- |
+| `GET`   | `/v1/jobs`              | List active and archived jobs                |
+| `POST`  | `/v1/jobs`              | Create from text or upload reference         |
+| `GET`   | `/v1/jobs/{id}`         | Get structured job context and match summary |
+| `PATCH` | `/v1/jobs/{id}`         | Edit job context                             |
+| `POST`  | `/v1/jobs/{id}/archive` | Archive job                                  |
+| `GET`   | `/v1/preferences`       | Get defaults                                 |
+| `PATCH` | `/v1/preferences`       | Update defaults                              |
 
 ### 18.4 Sessions and review
 
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `POST` | `/v1/sessions` | Create session from selected context. `rules_acknowledged: true` records the interview-rules acknowledgement |
-| `GET` | `/v1/sessions/{id}` | Get session state |
-| `POST` | `/v1/sessions/{id}/token` | Issue short-lived WebSocket token |
-| `POST` | `/v1/sessions/{id}/stop` | Request server-side stop/finalisation |
-| `GET` | `/v1/sessions/{id}/transcript` | Retrieve retained transcript only |
-| `GET` | `/v1/sessions/{id}/answers` | Retrieve generated answers (`/suggestions` kept as an alias for one release) |
-| `POST` | `/v1/sessions/{id}/notes` | Create or update notes |
-| `POST` | `/v1/sessions/{id}/feedback` | Submit answer/session feedback |
-| `DELETE` | `/v1/sessions/{id}` | Delete session and retained derivatives |
+| Method   | Endpoint                       | Purpose                                                                                                      |
+| -------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `POST`   | `/v1/sessions`                 | Create session from selected context. `rules_acknowledged: true` records the interview-rules acknowledgement |
+| `GET`    | `/v1/sessions/{id}`            | Get session state                                                                                            |
+| `POST`   | `/v1/sessions/{id}/token`      | Issue short-lived WebSocket token                                                                            |
+| `POST`   | `/v1/sessions/{id}/stop`       | Request server-side stop/finalisation                                                                        |
+| `GET`    | `/v1/sessions/{id}/transcript` | Retrieve retained transcript only                                                                            |
+| `GET`    | `/v1/sessions/{id}/answers`    | Retrieve generated answers (`/suggestions` kept as an alias for one release)                                 |
+| `POST`   | `/v1/sessions/{id}/notes`      | Create or update notes                                                                                       |
+| `POST`   | `/v1/sessions/{id}/feedback`   | Submit answer/session feedback                                                                               |
+| `DELETE` | `/v1/sessions/{id}`            | Delete session and retained derivatives                                                                      |
 
 ### 18.5 Validation and limits
 
@@ -1047,22 +1047,22 @@ Do not introduce Kubernetes, sharding, multi-region routing, or microservices wi
 
 ## 24. Error Handling and Recovery
 
-| Failure | Expected behaviour | Recovery |
-|---|---|---|
-| Tab permission denied | Session remains stopped with explanation | User reviews permission and retries |
-| Microphone denied | Tab-only mode remains available | User can continue without microphone |
-| Unsupported tab | Start disabled with reason | User opens supported browser meeting tab |
-| Meeting tab closed | Capture ends; session marked interrupted | Review partial retained data if consented |
-| Browser navigation | Detect capture state; preserve if Chrome maintains stream, otherwise warn | User confirms current tab and resumes or stops |
-| Internet loss | Show reconnecting; pause new generation | Reconnect with last event/sequence; otherwise safe stop |
-| WebSocket disconnect | Do not silently mark complete | Retry with bounded exponential backoff, then interrupted state |
-| STT unavailable | Show transcription degraded | Retry provider adapter; allow safe stop |
-| LLM timeout | Keep transcript; show “No answer available for this question — try again or continue” | Retry once if question still current; avoid duplicate output |
-| Invalid transcript | Do not generate an answer | Wait for stable/final text or ask user to continue manually |
-| Expired auth | Stop new processing safely | Reauthenticate; do not expose transcript in signed-out state |
-| Quota exceeded | Stop new AI work and explain limit | User can end session or upgrade/renew according to business model |
-| Extension closes | Backend timeout and final state | Reopen extension to recover within grace period where possible |
-| Provider termination required | Finalise and close provider stream | Explicit termination; avoid billing/resource leak |
+| Failure                       | Expected behaviour                                                                    | Recovery                                                          |
+| ----------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Tab permission denied         | Session remains stopped with explanation                                              | User reviews permission and retries                               |
+| Microphone denied             | Tab-only mode remains available                                                       | User can continue without microphone                              |
+| Unsupported tab               | Start disabled with reason                                                            | User opens supported browser meeting tab                          |
+| Meeting tab closed            | Capture ends; session marked interrupted                                              | Review partial retained data if consented                         |
+| Browser navigation            | Detect capture state; preserve if Chrome maintains stream, otherwise warn             | User confirms current tab and resumes or stops                    |
+| Internet loss                 | Show reconnecting; pause new generation                                               | Reconnect with last event/sequence; otherwise safe stop           |
+| WebSocket disconnect          | Do not silently mark complete                                                         | Retry with bounded exponential backoff, then interrupted state    |
+| STT unavailable               | Show transcription degraded                                                           | Retry provider adapter; allow safe stop                           |
+| LLM timeout                   | Keep transcript; show “No answer available for this question — try again or continue” | Retry once if question still current; avoid duplicate output      |
+| Invalid transcript            | Do not generate an answer                                                             | Wait for stable/final text or ask user to continue manually       |
+| Expired auth                  | Stop new processing safely                                                            | Reauthenticate; do not expose transcript in signed-out state      |
+| Quota exceeded                | Stop new AI work and explain limit                                                    | User can end session or upgrade/renew according to business model |
+| Extension closes              | Backend timeout and final state                                                       | Reopen extension to recover within grace period where possible    |
+| Provider termination required | Finalise and close provider stream                                                    | Explicit termination; avoid billing/resource leak                 |
 
 All errors have stable codes, user-safe messages, request IDs, and internal diagnostic context without sensitive content.
 
@@ -1270,23 +1270,14 @@ A feature is done only when its UI, API, data model, ownership rules, error stat
 ## 30. Research References
 
 [1]: https://developer.chrome.com/docs/extensions/reference/api/tabCapture "Chrome tabCapture API"
-
 [2]: https://developer.chrome.com/docs/extensions/reference/api/sidePanel "Chrome on-page box API"
-
 [3]: https://developers.openai.com/api/docs/guides/realtime-transcription "OpenAI Realtime transcription"
-
 [4]: https://www.assemblyai.com/docs/streaming/getting-started/transcribe-streaming-audio "AssemblyAI streaming transcription"
-
 [5]: https://fastapi.tiangolo.com/advanced/websockets/ "FastAPI WebSockets"
-
 [6]: https://supabase.com/docs/guides/database/postgres/row-level-security "Supabase Row Level Security"
-
 [7]: https://developer.chrome.com/docs/webstore/program-policies/limited-use "Chrome Web Store Limited Use policy"
-
 [8]: https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle "Chrome extension service worker lifecycle"
-
 [9]: https://wxt.dev/ "WXT extension framework"
-
 [10]: https://developer.chrome.com/docs/webstore/program-policies/policies "Chrome Web Store Developer Program Policies"
 
 ---
@@ -1307,7 +1298,6 @@ A feature is done only when its UI, API, data model, ownership rules, error stat
 ## Appendix B — Product boundary statement
 
 Vren AI is a user-controlled interview preparation and assistance tool. It does not guarantee interview outcomes, replace candidate judgement, determine hiring decisions, or authorise the user to violate an interviewer's rules. The product must present capture and processing honestly and must not claim to be invisible, undetectable, or universally compatible. Private view keeps answers in the user's own panel; it is a focus and privacy feature and is not a guarantee against being seen or detected.
-
 
 ---
 
@@ -1334,14 +1324,14 @@ Source: the public feature page of a competing live-interview assistant, supplie
 
 **Adopted or already covered**
 
-| Competitor claim | Vren AI |
-|---|---|
-| Real-time answers; automatic question detection from live audio; streaming answers | Built (FR-7, FR-8, FR-9). Detection is heuristic first, with an LLM-assisted check for unclear turns (indirect requests, missing punctuation, questions split across turns) |
-| Customisable answer length, style and framework (STAR, CAR, SOAR) | Length and style existed. **CAR and SOAR frameworks added**, with a short description of each given to the model |
-| Separate interview and answer languages; many languages | **Answer language added** (empty means same as interview language). Language list widened from 5 to 34. A speech-to-text language-code bug (names were cut to two letters, so German, Spanish and Portuguese failed) is fixed, and Deepgram switches to a multilingual model for non-English interviews |
-| Behavioural, technical, coding and system-design questions | Question types are classified; coding-specific answers and code snippets remain an open decision (§28, item 9) |
-| Browser client plus other platforms | Web app, Chrome extension and a desktop app (Appendix C). The live page can be opened on any device as an additional display client. Mobile clients are not built |
-| Mock interviews | Built: the Practice page asks questions for a job, scores each answer, and writes a stronger answer from the CV only |
+| Competitor claim                                                                   | Vren AI                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Real-time answers; automatic question detection from live audio; streaming answers | Built (FR-7, FR-8, FR-9). Detection is heuristic first, with an LLM-assisted check for unclear turns (indirect requests, missing punctuation, questions split across turns)                                                                                                                             |
+| Customisable answer length, style and framework (STAR, CAR, SOAR)                  | Length and style existed. **CAR and SOAR frameworks added**, with a short description of each given to the model                                                                                                                                                                                        |
+| Separate interview and answer languages; many languages                            | **Answer language added** (empty means same as interview language). Language list widened from 5 to 34. A speech-to-text language-code bug (names were cut to two letters, so German, Spanish and Portuguese failed) is fixed, and Deepgram switches to a multilingual model for non-English interviews |
+| Behavioural, technical, coding and system-design questions                         | Question types are classified; coding-specific answers and code snippets remain an open decision (§28, item 9)                                                                                                                                                                                          |
+| Browser client plus other platforms                                                | Web app, Chrome extension and a desktop app (Appendix C). The live page can be opened on any device as an additional display client. Mobile clients are not built                                                                                                                                       |
+| Mock interviews                                                                    | Built: the Practice page asks questions for a job, scores each answer, and writes a stronger answer from the CV only                                                                                                                                                                                    |
 
 **Declined**
 
