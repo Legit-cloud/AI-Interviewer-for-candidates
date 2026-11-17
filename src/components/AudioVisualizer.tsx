@@ -43,7 +43,8 @@ export function AudioVisualizer({ tabAnalyser, micAnalyser, capturing, className
         tabAnalyser.getByteTimeDomainData(tabData);
         let sum = 0;
         for (let i = 0; i < tabData.length; i++) {
-          const val = (tabData[i] - 128) / 128;
+          const byteVal = tabData[i] ?? 128;
+          const val = (byteVal - 128) / 128;
           sum += val * val;
         }
         curTabRms = Math.sqrt(sum / tabData.length);
@@ -57,7 +58,8 @@ export function AudioVisualizer({ tabAnalyser, micAnalyser, capturing, className
         micAnalyser.getByteTimeDomainData(micData);
         let sum = 0;
         for (let i = 0; i < micData.length; i++) {
-          const val = (micData[i] - 128) / 128;
+          const byteVal = micData[i] ?? 128;
+          const val = (byteVal - 128) / 128;
           sum += val * val;
         }
         curMicRms = Math.sqrt(sum / micData.length);
@@ -80,7 +82,7 @@ export function AudioVisualizer({ tabAnalyser, micAnalyser, capturing, className
 
       if (tabData && capturing) {
         for (let i = 0; i < tabData.length; i++) {
-          const v = tabData[i] / 128.0;
+          const v = (tabData[i] ?? 128) / 128.0;
           const y = topCenterY + (v - 1) * (height * 0.2);
           if (i === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);
@@ -103,7 +105,7 @@ export function AudioVisualizer({ tabAnalyser, micAnalyser, capturing, className
 
       if (micData && capturing) {
         for (let i = 0; i < micData.length; i++) {
-          const v = micData[i] / 128.0;
+          const v = (micData[i] ?? 128) / 128.0;
           const y = bottomCenterY + (v - 1) * (height * 0.2);
           if (i === 0) ctx.moveTo(x, y);
           else ctx.lineTo(x, y);

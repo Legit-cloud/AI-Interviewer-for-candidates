@@ -96,25 +96,28 @@ export class DualAudioCapture {
       }
 
       this.tabStream = stream;
-      audioTracks[0].addEventListener("ended", () => {
-        this.callbacks.onInterviewerTrackEnded?.();
-      });
+      const tabTrack = audioTracks[0];
+      if (tabTrack) {
+        tabTrack.addEventListener("ended", () => {
+          this.callbacks.onInterviewerTrackEnded?.();
+        });
 
-      // Set up pipeline for Interviewer
-      this.tabSourceNode = this.audioCtx.createMediaStreamSource(new MediaStream([audioTracks[0]]));
-      this.tabAnalyser = this.audioCtx.createAnalyser();
-      this.tabAnalyser.fftSize = 256;
-      this.tabSourceNode.connect(this.tabAnalyser);
+        // Set up pipeline for Interviewer
+        this.tabSourceNode = this.audioCtx.createMediaStreamSource(new MediaStream([tabTrack]));
+        this.tabAnalyser = this.audioCtx.createAnalyser();
+        this.tabAnalyser.fftSize = 256;
+        this.tabSourceNode.connect(this.tabAnalyser);
 
-      this.tabProcessor = this.audioCtx.createScriptProcessor(4096, 1, 1);
-      this.tabSourceNode.connect(this.tabProcessor);
-      this.tabProcessor.connect(this.audioCtx.destination);
+        this.tabProcessor = this.audioCtx.createScriptProcessor(4096, 1, 1);
+        this.tabSourceNode.connect(this.tabProcessor);
+        this.tabProcessor.connect(this.audioCtx.destination);
 
-      this.tabProcessor.onaudioprocess = (e) => {
-        if (!this.active) return;
-        const inputData = e.inputBuffer.getChannelData(0);
-        this.processAndSendFrame(inputData, e.inputBuffer.sampleRate, "tab");
-      };
+        this.tabProcessor.onaudioprocess = (e) => {
+          if (!this.active) return;
+          const inputData = e.inputBuffer.getChannelData(0);
+          this.processAndSendFrame(inputData, e.inputBuffer.sampleRate, "tab");
+        };
+      }
     }
 
     // 3. Capture Candidate Audio via getUserMedia
@@ -133,8 +136,9 @@ export class DualAudioCapture {
 
       this.micStream = stream;
       const micTracks = stream.getAudioTracks();
-      if (micTracks.length) {
-        this.micSourceNode = this.audioCtx.createMediaStreamSource(new MediaStream([micTracks[0]]));
+      const micTrack = micTracks[0];
+      if (micTrack) {
+        this.micSourceNode = this.audioCtx.createMediaStreamSource(new MediaStream([micTrack]));
         this.micAnalyser = this.audioCtx.createAnalyser();
         this.micAnalyser.fftSize = 256;
         this.micSourceNode.connect(this.micAnalyser);
@@ -165,7 +169,7 @@ export class DualAudioCapture {
     // Convert Float32 [-1.0, 1.0] to Int16 [-32768, 32767]
     const pcm16 = new Int16Array(resampled.length);
     for (let i = 0; i < resampled.length; i++) {
-      const s = Math.max(-1, Math.min(1, resampled[i]));
+      const s = Math.max(-1, Math.min(1, resampled[i] ?? 0));
       pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
     }
 
@@ -193,7 +197,9 @@ export class DualAudioCapture {
       const low = Math.floor(srcIdx);
       const high = Math.min(low + 1, input.length - 1);
       const frac = srcIdx - low;
-      result[i] = input[low] * (1 - frac) + input[high] * frac;
+      const valLow = input[low] ?? 0;
+      const valHigh = input[high] ?? 0;
+      result[i] = valLow * (1 - frac) + valHigh * frac;
     }
     return result;
   }
@@ -202,7 +208,7 @@ export class DualAudioCapture {
     let binary = "";
     const len = bytes.byteLength;
     for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(bytes[i]);
+      binary += String.fromCharCode(bytes[i] ?? 0);
     }
     return btoa(binary);
   }
@@ -216,7 +222,8 @@ export class DualAudioCapture {
       this.tabAnalyser.getByteTimeDomainData(data);
       let sum = 0;
       for (let i = 0; i < data.length; i++) {
-        const val = (data[i] - 128) / 128;
+        const byteVal = data[i] ?? 128;
+        const val = (byteVal - 128) / 128;
         sum += val * val;
       }
       tabRms = Math.sqrt(sum / data.length);
@@ -227,7 +234,8 @@ export class DualAudioCapture {
       this.micAnalyser.getByteTimeDomainData(data);
       let sum = 0;
       for (let i = 0; i < data.length; i++) {
-        const val = (data[i] - 128) / 128;
+        const byteVal = data[i] ?? 128;
+        const val = (byteVal - 128) / 128;
         sum += val * val;
       }
       micRms = Math.sqrt(sum / data.length);

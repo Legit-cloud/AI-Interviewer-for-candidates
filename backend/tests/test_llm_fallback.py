@@ -88,4 +88,4 @@ def test_models_come_from_settings(monkeypatch) -> None:
     a = _adapter(monkeypatch, gemini_api_key="g", gemini_model="gemini-test", llm_model="claude-x")
     assert a._gemini_models() == ["gemini-test"]
     a = _adapter(monkeypatch, gemini_api_key="g", llm_model="gemini-custom")
-    assert a._gemini_models()[0] == "gemini-2.5-flash" and "gemini-custom" in a._gemini_models()
+    assert a._gemini_models()[0] == "gemini-3.8-flash" and "gemini-custom" in a._gemini_models()

@@ -36,12 +36,18 @@ const tauriInvoke = async (cmd, args) => {
 function MacTrafficLights({ onClose, onMinimize, onMaximize }) {
     return (
         <div
+            data-tauri-drag-region="false"
             onMouseDown={(e) => e.stopPropagation()}
-            style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', zIndex: 50 }}
         >
             <button
                 type="button"
-                onClick={onClose}
+                data-tauri-drag-region="false"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onClose?.();
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
                 title="Close window"
                 aria-label="Close"
                 style={{
@@ -61,7 +67,12 @@ function MacTrafficLights({ onClose, onMinimize, onMaximize }) {
             />
             <button
                 type="button"
-                onClick={onMinimize}
+                data-tauri-drag-region="false"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onMinimize?.();
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
                 title="Toggle opacity"
                 aria-label="Minimize"
                 style={{
@@ -81,7 +92,12 @@ function MacTrafficLights({ onClose, onMinimize, onMaximize }) {
             />
             <button
                 type="button"
-                onClick={onMaximize}
+                data-tauri-drag-region="false"
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onMaximize?.();
+                }}
+                onMouseDown={(e) => e.stopPropagation()}
                 title="Quick expand"
                 aria-label="Expand"
                 style={{
@@ -146,19 +162,36 @@ function StealthBadge({ stealth }) {
     );
 }
 
-// Initiate native window dragging in Tauri
-const safeStartDragging = async (e) => {
-    if (e.button !== 0) return;
-    try {
-        if (window.__TAURI__?.window?.appWindow?.startDragging) {
-            await window.__TAURI__.window.appWindow.startDragging();
-            return;
-        }
-        const { appWindow } = await import('@tauri-apps/api/window');
-        await appWindow.startDragging();
-    } catch (err) {
-        console.warn('startDragging unavailable:', err);
+// Pre-cache appWindow to avoid async dynamic import lag during dragging
+let cachedAppWindow = null;
+if (typeof window !== 'undefined') {
+    if (window.__TAURI__?.window?.appWindow) {
+        cachedAppWindow = window.__TAURI__.window.appWindow;
+    } else {
+        import('@tauri-apps/api/window')
+            .then((m) => { cachedAppWindow = m.appWindow; })
+            .catch(() => {});
     }
+}
+
+// Initiate native window dragging in Tauri smoothly without async stutter
+const safeStartDragging = (e) => {
+    if (e.button !== 0) return;
+    // Don't drag when clicking interactive elements or explicit non-drag zones
+    if (e.target.closest('button, input, textarea, a, [role="button"], [data-tauri-drag-region="false"]')) {
+        return;
+    }
+    const win = window.__TAURI__?.window?.appWindow || cachedAppWindow;
+    if (win?.startDragging) {
+        win.startDragging().catch(() => {});
+        return;
+    }
+    import('@tauri-apps/api/window')
+        .then((m) => {
+            cachedAppWindow = m.appWindow;
+            m.appWindow.startDragging().catch(() => {});
+        })
+        .catch(() => {});
 };
 
 export default function App() {
@@ -233,8 +266,9 @@ export default function App() {
             }
             const res = await tauriInvoke('close_app');
             if (!res.ok) {
-                if (window.__TAURI__?.window?.appWindow?.close) {
-                    await window.__TAURI__.window.appWindow.close();
+                const win = window.__TAURI__?.window?.appWindow || cachedAppWindow;
+                if (win?.close) {
+                    await win.close();
                     return;
                 }
                 const { appWindow } = await import('@tauri-apps/api/window');
@@ -566,31 +600,57 @@ export default function App() {
                                 </div>
                             </div>
 
-                            <motion.button
-                                whileHover={{ scale: 1.015 }}
-                                whileTap={{ scale: 0.985 }}
-                                type="submit"
-                                style={{
-                                    padding: '12px',
-                                    width: '100%',
-                                    background: '#2e5a44',
-                                    color: '#ffffff',
-                                    border: 'none',
-                                    borderRadius: '10px',
-                                    fontWeight: 600,
-                                    fontSize: '13px',
-                                    letterSpacing: '0.03em',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '8px',
-                                    boxShadow: '0 4px 14px rgba(46, 90, 68, 0.45)',
-                                }}
-                            >
-                                <span>Connect & Launch HUD</span>
-                                <ArrowRight size={15} weight="bold" />
-                            </motion.button>
+                            <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                                <motion.button
+                                    whileHover={{ scale: 1.015 }}
+                                    whileTap={{ scale: 0.985 }}
+                                    type="submit"
+                                    style={{
+                                        flex: 1,
+                                        padding: '12px',
+                                        background: '#2e5a44',
+                                        color: '#ffffff',
+                                        border: 'none',
+                                        borderRadius: '10px',
+                                        fontWeight: 600,
+                                        fontSize: '13px',
+                                        letterSpacing: '0.03em',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        boxShadow: '0 4px 14px rgba(46, 90, 68, 0.45)',
+                                    }}
+                                >
+                                    <span>Connect & Launch HUD</span>
+                                    <ArrowRight size={15} weight="bold" />
+                                </motion.button>
+                                <motion.button
+                                    whileHover={{ scale: 1.015 }}
+                                    whileTap={{ scale: 0.985 }}
+                                    type="button"
+                                    onClick={closeWindow}
+                                    title="Close AudioCore"
+                                    style={{
+                                        padding: '12px 14px',
+                                        background: 'rgba(239, 68, 68, 0.12)',
+                                        color: '#f87171',
+                                        border: '1px solid rgba(239, 68, 68, 0.28)',
+                                        borderRadius: '10px',
+                                        fontWeight: 600,
+                                        fontSize: '13px',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '6px',
+                                    }}
+                                >
+                                    <X size={15} weight="bold" />
+                                    <span>Close</span>
+                                </motion.button>
+                            </div>
                         </form>
 
                         {statusText && (
@@ -653,7 +713,7 @@ export default function App() {
                             }}
                         >
                             <Sliders size={13} weight="regular" />
-                            <span>{showAdvanced ? 'Hide Terminal Settings' : 'Terminal Preferences (Opacity & API)'}</span>
+                            <span>{showAdvanced ? 'Hide Terminal Settings' : 'Terminal Preferences (Opacity)'}</span>
                         </button>
 
                         <AnimatePresence>
@@ -670,28 +730,6 @@ export default function App() {
                                         fontSize: '11px',
                                     }}
                                 >
-                                    <div>
-                                        <label style={{ display: 'block', color: '#94a3b8', marginBottom: '4px', fontFamily: 'var(--font-mono)' }}>
-                                            API Gateway
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={serverUrl}
-                                            onChange={(e) => setServerUrl(e.target.value)}
-                                            style={{
-                                                padding: '7px 10px',
-                                                width: '100%',
-                                                backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                                                color: '#e2e8f0',
-                                                border: '1px solid rgba(255, 255, 255, 0.12)',
-                                                borderRadius: '6px',
-                                                fontSize: '11px',
-                                                fontFamily: 'var(--font-mono)',
-                                                outline: 'none',
-                                            }}
-                                        />
-                                    </div>
-
                                     <div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', color: '#94a3b8', marginBottom: '4px' }}>
                                             <span>Glassmorphism Opacity</span>

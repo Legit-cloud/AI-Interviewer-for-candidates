@@ -93,8 +93,9 @@ fn set_click_through(window: Window, ignore: bool) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn close_app(window: Window) {
+fn close_app(app_handle: tauri::AppHandle, window: Window) {
     let _ = window.close();
+    app_handle.exit(0);
 }
 
 fn main() {

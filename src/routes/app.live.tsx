@@ -726,6 +726,14 @@ function LiveSessionPage() {
               );
             })}
           </div>
+
+          {liveSpoken && (
+            <div className="mt-3 flex items-center gap-2.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-xs text-sky-200 animate-pulse">
+              <span className="h-2 w-2 rounded-full bg-sky-400" />
+              <span className="font-semibold text-sky-300">Live Speaking:</span>
+              <span className="font-medium text-foreground">{liveSpoken}</span>
+            </div>
+          )}
         </section>
       )}
 
@@ -809,6 +817,52 @@ function LiveSessionPage() {
         </section>
 
         <aside className="space-y-4">
+          <div className="rounded-xl border bg-card p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium">Live Transcript</p>
+              {capture === "listening" && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-emerald-500">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Listening
+                </span>
+              )}
+            </div>
+            {liveSpoken && (
+              <div className="mb-3 rounded-lg border border-sky-500/30 bg-sky-500/10 p-2.5 text-xs text-sky-300 animate-pulse">
+                <span className="font-semibold">Speaking:</span> {liveSpoken}
+              </div>
+            )}
+            {transcript.length === 0 && !liveSpoken ? (
+              <p className="text-sm text-muted-foreground">
+                Start audio capture above to see live transcript as each person speaks.
+              </p>
+            ) : (
+              <ul className="max-h-80 space-y-2.5 overflow-auto text-sm">
+                {transcript.map((t) => {
+                  const isYou = t.speaker === "You";
+                  return (
+                    <li key={t.id} className="rounded-lg bg-background/50 p-2 border border-border/50">
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span
+                          className={cn(
+                            "px-1.5 py-0.5 rounded font-semibold",
+                            isYou
+                              ? "bg-sky-500/15 text-sky-400"
+                              : "bg-emerald-500/15 text-emerald-400",
+                          )}
+                        >
+                          {t.speaker}
+                        </span>
+                        <span className="font-mono text-muted-foreground">{t.at}</span>
+                      </div>
+                      <p className="text-foreground/90">{t.text}</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
           {phase === "live" && (
             <div className="space-y-2 rounded-xl border bg-card p-4">
               <p className="text-sm font-medium">Question on screen?</p>
@@ -858,43 +912,6 @@ function LiveSessionPage() {
               </Button>
             </form>
           )}
-          <div className="rounded-xl border bg-card p-4">
-            <p className="mb-2 text-sm font-medium">Live Transcript</p>
-            {liveSpoken && (
-              <div className="mb-3 rounded-lg border border-sky-500/30 bg-sky-500/10 p-2.5 text-xs text-sky-300 animate-pulse">
-                <span className="font-semibold">Speaking:</span> {liveSpoken}
-              </div>
-            )}
-            {transcript.length === 0 && !liveSpoken ? (
-              <p className="text-sm text-muted-foreground">
-                Start audio capture above to see live transcript as each person speaks.
-              </p>
-            ) : (
-              <ul className="max-h-80 space-y-2.5 overflow-auto text-sm">
-                {transcript.map((t) => {
-                  const isYou = t.speaker === "You";
-                  return (
-                    <li key={t.id} className="rounded-lg bg-background/50 p-2 border border-border/50">
-                      <div className="flex items-center justify-between text-[11px] mb-1">
-                        <span
-                          className={cn(
-                            "px-1.5 py-0.5 rounded font-semibold",
-                            isYou
-                              ? "bg-sky-500/15 text-sky-400"
-                              : "bg-emerald-500/15 text-emerald-400",
-                          )}
-                        >
-                          {t.speaker}
-                        </span>
-                        <span className="font-mono text-muted-foreground">{t.at}</span>
-                      </div>
-                      <p className="text-foreground/90">{t.text}</p>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
         </aside>
       </div>
     </PageTransition>

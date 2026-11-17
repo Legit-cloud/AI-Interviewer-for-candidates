@@ -409,7 +409,14 @@ class LLMProviderAdapter:
         for name in (self.settings.gemini_model, self.settings.llm_model if self.settings.llm_model.startswith("gemini-") else ""):
             if name and name not in candidates:
                 candidates.append(name)
-        return candidates or ["gemini-2.5-flash"]
+        return candidates or ["gemini-3.8-flash"]
+
+    def _gemini_fallback_models(self) -> list[str]:
+        models = list(self._gemini_models())
+        for fallback in ("gemini-3.8-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash"):
+            if fallback not in models:
+                models.append(fallback)
+        return models
 
     async def _stream_gemini(
         self,
@@ -423,19 +430,31 @@ class LLMProviderAdapter:
             from google.genai import types
 
             client = genai.Client(api_key=self.settings.gemini_api_key)
-            stream = await client.aio.models.generate_content_stream(
-                model=self._gemini_models()[0],
-                contents=user_prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    temperature=temperature,
-                    max_output_tokens=max_tokens,
-                ),
-            )
-            async for chunk in stream:
-                text = getattr(chunk, "text", None)
-                if text:
-                    yield str(text)
+            last_exc = None
+            for model in self._gemini_fallback_models():
+                try:
+                    stream = await client.aio.models.generate_content_stream(
+                        model=model,
+                        contents=user_prompt,
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_prompt,
+                            temperature=temperature,
+                            max_output_tokens=max_tokens,
+                        ),
+                    )
+                    any_yielded = False
+                    async for chunk in stream:
+                        text = getattr(chunk, "text", None)
+                        if text:
+                            any_yielded = True
+                            yield str(text)
+                    if any_yielded:
+                        return
+                except Exception as inner_exc:
+                    last_exc = inner_exc
+                    logger.warning("Gemini LLM model=%s stream failed: %s", model, inner_exc)
+            if last_exc:
+                raise last_exc
         except Exception as exc:
             if _is_auth_failure(exc):
                 mark_provider_rejected("gemini")
