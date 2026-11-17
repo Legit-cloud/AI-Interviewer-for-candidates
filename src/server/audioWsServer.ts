@@ -1,6 +1,6 @@
 import { WebSocketServer, WebSocket } from "ws";
-import { DeepgramSession } from "../lib/deepgramClient";
-import { generateInterviewResponse } from "../lib/geminiClient";
+import { DeepgramSession } from "../lib/deepgramClient.ts";
+import { generateInterviewResponse } from "../lib/geminiClient.ts";
 import * as dotenv from "dotenv";
 
 dotenv.config({ path: "backend/.env" });

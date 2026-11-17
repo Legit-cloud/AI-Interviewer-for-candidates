@@ -35,8 +35,11 @@ export class DeepgramSession extends EventEmitter {
   private pendingAudioQueue: Uint8Array[] = [];
   private readonly maxQueueSize = 50;
 
-  constructor(private readonly config: DeepgramConfig) {
+  private readonly config: DeepgramConfig;
+
+  constructor(config: DeepgramConfig) {
     super();
+    this.config = config;
     const key = process.env["DEEPGRAM_API_KEY"];
     if (!key) {
       throw new Error("DEEPGRAM_API_KEY not set in backend/.env");

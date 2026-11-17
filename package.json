@@ -5,9 +5,10 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n web,api -c cyan,green \"vite dev\" \"node scripts/dev-api.mjs\"",
+    "dev": "concurrently -k -n web,api,audio -c cyan,green,magenta \"vite dev\" \"node scripts/dev-api.mjs\" \"node scripts/dev-audio.mjs\"",
     "dev:web": "vite dev",
     "dev:api": "uv --directory backend run uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload",
+    "dev:audio": "node scripts/dev-audio.mjs",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",

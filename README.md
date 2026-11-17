@@ -86,7 +86,7 @@ npm install
 cp backend/.env.example backend/.env       # then add your GEMINI_API_KEY / OPENAI_API_KEY
 uv --directory backend sync
 uv --directory backend run alembic upgrade head
-npm run dev                                 # web on :5173, API on :8000
+npm run dev                                 # starts web (:5173), FastAPI backend (:8000), and audio WS (:8081)
 ```
 
 For a quick start without Postgres, set `DATABASE_URL=sqlite+aiosqlite:///./storage/vren_local.db` in `backend/.env`.
