@@ -18,7 +18,7 @@ def test_prompt_makes_the_model_write_speech_not_text() -> None:
     p = system_prompt(budget_for("Standard"))
     assert "out loud" in p and "Contractions" in p
     assert "Answer first" in p
-    assert "No lists, bullets" in p
+    assert "bullets" in p and "NO_ANSWER" in p
     assert "Never invent employers" in p
     assert "Too generic:" in p and "Human:" in p  # contrast examples, not just "be natural"
     assert "leverage" in p  # banned words are listed

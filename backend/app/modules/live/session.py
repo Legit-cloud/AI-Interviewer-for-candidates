@@ -472,6 +472,9 @@ class LiveSession:
 
         # Per-channel attribution: tab audio is the interviewer, microphone is the candidate.
         speaker = "You" if source == "microphone" and not self.room_mode else "Interviewer"
+        if speaker == "You" and self._answer_task and not self._answer_task.done():
+            self._answer_task.cancel()
+            await self.emit("answer.cancelled", question_id=self._answer_qid)
         if source in self.stats:
             self.stats[source].on_text(time.monotonic())
         ts_label = _elapsed_label(row.started_at)
@@ -655,6 +658,9 @@ class LiveSession:
             result = AnswerResult(available=False, reason="AI_PROVIDER_ERROR")
 
         if result is None or not result.available:
+            if result and result.reason == "NO_ANSWER":
+                logger.info("Answer skipped: input was not a question or NO_ANSWER session_id=%s", self.session_id)
+                return
             await self.emit(
                 "answer.unavailable",
                 question_id=question_id,
@@ -689,6 +695,7 @@ class LiveSession:
             "Answer timing session=%s kind=%s first_word_ms=%d total_ms=%d",
             self.session_id, question_kind, timing["first_word_ms"], timing["total_ms"],
         )
+        formatted_answer = "\n".join(f"• {line}" for line in result.lines) if result.lines else ""
         await self.emit(
             "answer.ready",
             question_id=question_id,
@@ -698,7 +705,7 @@ class LiveSession:
                 "question_type": question_kind,
                 "asked_at": ts_label,
                 "framework": result.framework,
-                "answer": " ".join(result.lines),
+                "answer": formatted_answer,
                 "lines": list(result.lines),
                 "key_points": list(result.key_points),
                 "source_label": result.source_label,

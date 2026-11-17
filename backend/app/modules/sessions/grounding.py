@@ -258,6 +258,8 @@ async def stream_answer(
     max_tokens = int(budget.max_words * 2.2) + 80 + (700 if coding else 0)
 
     collected: list[str] = []
+    started_streaming = False
+    buffered_prefix = ""
     try:
         async for chunk in llm.stream_text(
             system_prompt=system_prompt,
@@ -266,9 +268,24 @@ async def stream_answer(
             max_tokens=max_tokens,
         ):
             collected.append(chunk)
-            yield ("delta", chunk)
+            if not started_streaming:
+                buffered_prefix += chunk
+                trimmed = buffered_prefix.strip()
+                if "NO_ANSWER".startswith(trimmed) and len(trimmed) < len("NO_ANSWER"):
+                    continue
+                if trimmed.startswith("NO_ANSWER"):
+                    continue
+                started_streaming = True
+                yield ("delta", buffered_prefix)
+            else:
+                yield ("delta", chunk)
     except Exception:
         yield ("done", AnswerResult(available=False, reason="AI_PROVIDER_ERROR"))
+        return
+
+    full_raw = "".join(collected).strip()
+    if full_raw.startswith("NO_ANSWER") or full_raw == "NO_ANSWER":
+        yield ("done", AnswerResult(available=False, reason="NO_ANSWER"))
         return
 
     spoken_text, code = answer_style.split_code("".join(collected)) if coding else ("".join(collected), "")
