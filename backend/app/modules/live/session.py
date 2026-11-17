@@ -117,6 +117,10 @@ class LiveSession:
         self.dg_channels: dict[str, DeepgramStreamingChannel] = {}
         self.history: deque[dict[str, Any]] = deque(maxlen=HISTORY_LIMIT)
         self.expires_at: datetime | None = None
+        self._image_timestamps: deque[float] = deque()
+        self._simulate_timestamps: deque[float] = deque()
+        self.answers_count: int = 0
+        self._cached_profile: dict[str, Any] | None = None
         self.lock = asyncio.Lock()
         self._capture_db: AsyncSession | None = None
         self._answer_task: asyncio.Task[None] | None = None
@@ -423,6 +427,21 @@ class LiveSession:
             await self._complete_utterance(db, text, src, item_id)
 
     async def _commit_or_flush(self, db: AsyncSession, msg: dict[str, Any]) -> None:
+        msg_type = str(msg.get("type") or "")
+        if msg_type == "transcript.simulate":
+            now = time.monotonic()
+            while self._simulate_timestamps and self._simulate_timestamps[0] <= now - 60.0:
+                self._simulate_timestamps.popleft()
+            if len(self._simulate_timestamps) >= 15:
+                logger.warning("Session %s simulate rate limit exceeded", self.session_id)
+                await self.emit(
+                    "session.degraded",
+                    code="RATE_LIMIT_EXCEEDED",
+                    message="Simulation rate limit reached. Please wait a moment before sending another question.",
+                )
+                return
+            self._simulate_timestamps.append(now)
+
         src = str(msg.get("source") or "tab")
         direct_text = str(msg.get("text") or msg.get("utterance") or "").strip()
         item_id = f"turn_{uuid4().hex[:8]}"
@@ -565,6 +584,21 @@ class LiveSession:
         """Reads a screenshot of a question or problem and answers it. Runs in the background."""
         if self.stopped:
             return
+        now = time.monotonic()
+        while self._image_timestamps and self._image_timestamps[0] <= now - 60.0:
+            self._image_timestamps.popleft()
+        if len(self._image_timestamps) >= 5:
+            logger.warning("Session %s screenshot rate limit exceeded", self.session_id)
+            asyncio.create_task(
+                self.emit(
+                    "answer.unavailable",
+                    question_id="",
+                    reason="RATE_LIMIT_EXCEEDED",
+                    message="Screenshot rate limit reached (max 5/min). Please wait a moment before sending another image.",
+                )
+            )
+            return
+        self._image_timestamps.append(now)
         self._image_task = asyncio.create_task(self._read_image_and_ask(image_b64, mime))
 
     async def _read_image_and_ask(self, image_b64: str, mime: str) -> None:
@@ -615,6 +649,25 @@ class LiveSession:
                 task.cancel()
         await self._cancel_tasks()
 
+    async def _get_profile_context(self, db: AsyncSession, user_id: UUID, job_id: UUID | None) -> dict[str, Any]:
+        if self._cached_profile is not None:
+            return self._cached_profile
+        prefs = await db.get(InterviewPreferences, user_id) or InterviewPreferences(user_id=user_id)
+        job = await db.get(JobDescription, job_id) if job_id else None
+        experiences = (
+            await db.execute(select(CandidateExperience).where(CandidateExperience.user_id == user_id))
+        ).scalars().all()
+        skills = (
+            await db.execute(select(CandidateSkill).where(CandidateSkill.user_id == user_id))
+        ).scalars().all()
+        self._cached_profile = {
+            "prefs": prefs,
+            "job": job,
+            "experiences": list(experiences),
+            "skills": list(skills),
+        }
+        return self._cached_profile
+
     async def _generate_answer(
         self,
         db: AsyncSession,
@@ -627,14 +680,23 @@ class LiveSession:
     ) -> None:
         started = started or time.monotonic()
         first_word: float | None = None
-        prefs = await db.get(InterviewPreferences, row.user_id) or InterviewPreferences(user_id=row.user_id)
-        job = await db.get(JobDescription, row.job_id) if row.job_id else None
-        experiences = (
-            await db.execute(select(CandidateExperience).where(CandidateExperience.user_id == row.user_id))
-        ).scalars().all()
-        skills = (
-            await db.execute(select(CandidateSkill).where(CandidateSkill.user_id == row.user_id))
-        ).scalars().all()
+        settings = get_settings()
+        if self.answers_count >= settings.max_answers_per_session:
+            logger.warning("Session %s reached maximum answers per session (%d)", self.session_id, settings.max_answers_per_session)
+            await self.emit(
+                "answer.unavailable",
+                question_id=question_id,
+                reason="SESSION_ANSWER_LIMIT",
+                message=f"Session answer limit reached ({settings.max_answers_per_session} answers). Start a new session if needed.",
+            )
+            return
+        self.answers_count += 1
+
+        profile = await self._get_profile_context(db, row.user_id, row.job_id)
+        prefs = profile["prefs"]
+        job = profile["job"]
+        experiences = profile["experiences"]
+        skills = profile["skills"]
 
         result: AnswerResult | None = None
         try:

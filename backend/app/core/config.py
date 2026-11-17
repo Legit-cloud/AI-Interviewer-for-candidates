@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     rate_limit_enabled: bool = True
     max_session_minutes: int = 120
     daily_session_quota: int = 40
+    max_answers_per_session: int = 100
 
     @property
     def cors_origin_list(self) -> list[str]:

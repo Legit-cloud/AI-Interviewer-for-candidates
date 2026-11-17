@@ -40,6 +40,7 @@ def _extract_json_object(raw: str) -> dict[str, Any] | None:
 
 # A provider whose key was rejected (401/403) is skipped for a while, so one bad key does not slow every answer.
 _AUTH_BAN_SECONDS = 600
+_RATE_LIMIT_COOLDOWN_SECONDS = 30
 _banned_until: dict[str, float] = {}
 
 
@@ -47,6 +48,17 @@ def mark_provider_rejected(name: str) -> None:
     if _banned_until.get(name, 0) < time.monotonic():
         logger.error("LLM provider %s rejected its key (401/403). Skipping it for %d minutes. Check the key in backend/.env.", name, _AUTH_BAN_SECONDS // 60)
     _banned_until[name] = time.monotonic() + _AUTH_BAN_SECONDS
+
+
+def mark_provider_rate_limited(name: str, seconds: int = _RATE_LIMIT_COOLDOWN_SECONDS) -> None:
+    until = time.monotonic() + seconds
+    if _banned_until.get(name, 0) < until:
+        logger.warning(
+            "LLM provider %s temporarily rate-limited or overloaded (429/503). Cooling down for %d seconds; switching to fallback.",
+            name,
+            seconds,
+        )
+    _banned_until[name] = max(_banned_until.get(name, 0), until)
 
 
 def reset_rejected_providers() -> None:
@@ -87,7 +99,29 @@ def reset_problems() -> None:
     _last_problem.clear()
 
 
+def _is_rate_limit_failure(exc: Exception) -> bool:
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in (429, 503)
+    text = str(exc).upper()
+    return any(
+        m in text
+        for m in (
+            "429",
+            "RESOURCE_EXHAUSTED",
+            "RATE_LIMIT",
+            "RATE LIMIT",
+            "QUOTA_EXCEEDED",
+            "503",
+            "UNAVAILABLE",
+            "OVERLOADED",
+            "HIGH DEMAND",
+        )
+    )
+
+
 def _remember_failure(name: str, exc: Exception) -> None:
+    if _is_rate_limit_failure(exc):
+        mark_provider_rate_limited(name)
     if isinstance(exc, httpx.HTTPStatusError):
         try:
             detail = exc.response.text
@@ -493,6 +527,8 @@ class LLMProviderAdapter:
                         mark_provider_rejected("gemini")
                         _remember_failure("gemini", inner_exc)
                         return None
+                    if _is_rate_limit_failure(inner_exc):
+                        mark_provider_rate_limited("gemini")
                     _last_problem["gemini"] = f"Gemini did not accept the model “{model}”. Set GEMINI_MODEL in backend/.env to one your key can use." if "404" in str(inner_exc) or "NOT_FOUND" in str(inner_exc).upper() else plain_problem("gemini", None)
                     logger.warning("Gemini LLM model=%s failed: %s", model, inner_exc)
             return None

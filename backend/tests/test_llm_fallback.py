@@ -89,3 +89,14 @@ def test_models_come_from_settings(monkeypatch) -> None:
     assert a._gemini_models() == ["gemini-test"]
     a = _adapter(monkeypatch, gemini_api_key="g", llm_model="gemini-custom")
     assert a._gemini_models()[0] == "gemini-3.8-flash" and "gemini-custom" in a._gemini_models()
+
+
+def test_rate_limit_cooldown_triggers_fallback(monkeypatch) -> None:
+    from app.adapters.llm import mark_provider_rate_limited, reset_rejected_providers
+    reset_rejected_providers()
+    a = _adapter(monkeypatch, llm_api_key="p", openai_api_key="o")
+    assert a.provider_names() == ["primary", "openai"]
+    mark_provider_rate_limited("primary", seconds=10)
+    assert a.provider_names() == ["openai"]
+    reset_rejected_providers()
+    assert a.provider_names() == ["primary", "openai"]
