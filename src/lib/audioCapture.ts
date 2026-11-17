@@ -162,6 +162,17 @@ export class DualAudioCapture {
    * Resamples float32 PCM to 16kHz, converts to PCM16 Int16Array, and dispatches base64 frame.
    */
   private processAndSendFrame(input: Float32Array, inputSampleRate: number, source: "tab" | "microphone") {
+    // Ensure a WebSocket to the backend audio server exists (singleton per page load)
+    if (typeof window !== 'undefined') {
+      if (!(window as any)._audioWs) {
+        const wsPort = Number(import.meta.env?.["VITE_AUDIO_WS_PORT"] ?? 8081);
+        (window as any)._audioWs = new WebSocket(`ws://localhost:${wsPort}`);
+        (window as any)._audioWs.addEventListener('open', () => console.log('[audio-ws] connected'));
+        (window as any)._audioWs.addEventListener('close', () => console.log('[audio-ws] disconnected'));
+        (window as any)._audioWs.addEventListener('error', (e: any) => console.error('[audio-ws] error', e));
+      }
+    }
+
     const targetSampleRate = 16000;
     const resampled = this.resampleTo16k(input, inputSampleRate, targetSampleRate);
     if (!resampled.length) return;
@@ -175,6 +186,11 @@ export class DualAudioCapture {
 
     const uint8 = new Uint8Array(pcm16.buffer);
     const b64 = this.uint8ToBase64(uint8);
+
+    // Forward raw PCM bytes to backend audio WebSocket (if ready)
+    if (typeof window !== 'undefined' && (window as any)._audioWs && (window as any)._audioWs.readyState === WebSocket.OPEN) {
+      (window as any)._audioWs.send(uint8);
+    }
 
     const seq = source === "tab" ? ++this.tabSeq : ++this.micSeq;
     this.callbacks.onAudioFrame({
