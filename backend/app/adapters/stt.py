@@ -267,9 +267,43 @@ class STTProviderAdapter:
         provider = self.active_provider
         if not wav_bytes or provider == "offline":
             return None
+        if provider == "deepgram":
+            return await self._transcribe_deepgram(wav_bytes, language)
         if provider == "gemini":
             return await self._transcribe_gemini(wav_bytes, language)
         return await self._transcribe_openai_compatible(wav_bytes, language)
+
+    async def _transcribe_deepgram(self, wav_bytes: bytes, language: str) -> str | None:
+        """Transcribe a WAV buffer via Deepgram's pre-recorded REST API (Nova / Flux)."""
+        s = self.settings
+        lang_code = language_code(language)
+        model = s.deepgram_model or "nova-3"
+        # Flux models are English-only and don't accept a language param
+        is_flux = model.startswith("flux")
+        url = f"https://api.deepgram.com/v1/listen?model={model}&punctuate=true&smart_format=true"
+        if not is_flux:
+            url += f"&language={lang_code}"
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                res = await client.post(
+                    url,
+                    headers={
+                        "Authorization": f"Token {s.deepgram_api_key}",
+                        "Content-Type": "audio/wav",
+                    },
+                    content=wav_bytes,
+                )
+                res.raise_for_status()
+                data = res.json()
+                channels = (data.get("results") or {}).get("channels") or []
+                if channels:
+                    alts = (channels[0].get("alternatives") or [{}])
+                    text = (alts[0].get("transcript") or "").strip()
+                    return text or None
+                return None
+        except Exception as exc:
+            logger.warning("Deepgram REST transcription failed: %s", exc)
+            return None
 
     async def _transcribe_openai_compatible(self, wav_bytes: bytes, language: str) -> str | None:
         url = f"{self.settings.stt_base_url.rstrip('/')}/audio/transcriptions"
