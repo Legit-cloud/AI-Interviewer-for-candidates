@@ -103,18 +103,22 @@ class DeepgramStreamingChannel:
         source: str,
         on_transcript: Callable[[str, bool], Awaitable[None]],
         language: str = "en",
+        keywords: list[str] | None = None,
+        **kwargs: object,
     ) -> None:
         self.api_key = api_key
         self.model = model or "flux-general-en"
         self.language = language or "en"
         self.source = source
         self.on_transcript = on_transcript
+        self.keywords = keywords or []
         self._ws: object | None = None
         self._recv_task: asyncio.Task[None] | None = None
         self._closed = False
 
     async def connect(self) -> bool:
         try:
+            import urllib.parse
             import websockets
 
             is_flux = self.model.startswith("flux")
@@ -128,9 +132,12 @@ class DeepgramStreamingChannel:
                 url = (
                     f"wss://api.deepgram.com/v1/listen"
                     f"?model={self.model}&encoding=linear16&sample_rate=16000&channels=1"
-                    f"&interim_results=true&endpointing=300&punctuate=true&smart_format=true"
+                    f"&interim_results=true&endpointing=500&punctuate=true&smart_format=true"
                     f"&language={self.language}"
                 )
+                if self.keywords:
+                    kw_params = "&".join(f"keywords={urllib.parse.quote_plus(kw)}" for kw in self.keywords[:50])
+                    url += f"&{kw_params}"
             self._ws = await websockets.connect(
                 url,
                 additional_headers={"Authorization": f"Token {self.api_key}"},

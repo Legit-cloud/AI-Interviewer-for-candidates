@@ -233,10 +233,12 @@ function LiveSessionPage() {
         break;
       }
       case "transcript.delta": {
-        const text = String(evt["text"] ?? "");
+        const interim = String(evt["text"] ?? "");
+        const committed = String(evt["committed"] ?? "");
         const src = String(evt["source"] ?? "tab");
         const speaker = src === "microphone" ? "You" : "Interviewer";
-        setLiveSpoken(text ? `${speaker}: ${text}` : "");
+        const combined = `${committed} ${interim}`.trim();
+        setLiveSpoken(combined ? `${speaker}: ${combined}` : "");
         break;
       }
       case "transcript.completed": {

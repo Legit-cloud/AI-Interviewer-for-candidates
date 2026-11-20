@@ -115,6 +115,8 @@ class LiveSession:
         self.stopped = False
         self.recent_turns: list[str] = []
         self.dg_channels: dict[str, DeepgramStreamingChannel] = {}
+        self._committed_clauses: dict[str, str] = {"tab": "", "microphone": ""}
+        self._endpoint_tasks: dict[str, asyncio.Task[None]] = {}
         self.history: deque[dict[str, Any]] = deque(maxlen=HISTORY_LIMIT)
         self.expires_at: datetime | None = None
         self.lock = asyncio.Lock()
@@ -223,6 +225,11 @@ class LiveSession:
             live_registry.drop(self.session_id)
 
     async def _close_capture_resources(self) -> None:
+        for task in self._endpoint_tasks.values():
+            task.cancel()
+        self._endpoint_tasks.clear()
+        for src in self._committed_clauses:
+            self._committed_clauses[src] = ""
         for ch in self.dg_channels.values():
             await ch.close()
         self.dg_channels.clear()
@@ -306,6 +313,34 @@ class LiveSession:
             model = settings.deepgram_model
             if lang != "en" and model.startswith("flux"):
                 model = "nova-3"
+
+            # Dynamic keyterm boosting from CV skills and Job Description
+            boost_terms: list[str] = []
+            skills = (
+                await db.execute(select(CandidateSkill.name).where(CandidateSkill.user_id == self.user_id))
+            ).scalars().all()
+            boost_terms.extend(skills)
+
+            session_row = await db.get(InterviewSession, self.session_id)
+            if session_row and session_row.job_id:
+                job_row = await db.get(JobDescription, session_row.job_id)
+                if job_row:
+                    if job_row.company:
+                        boost_terms.append(job_row.company)
+                    if job_row.title:
+                        boost_terms.extend(job_row.title.split())
+                    if job_row.required_skills:
+                        boost_terms.extend(job_row.required_skills)
+
+            keywords_list: list[str] = []
+            seen_kw: set[str] = set()
+            for kw in boost_terms:
+                import re
+                cleaned = re.sub(r"[^\w\s\.\+#\-]", "", kw).strip()
+                if len(cleaned) >= 2 and cleaned.lower() not in seen_kw:
+                    seen_kw.add(cleaned.lower())
+                    keywords_list.append(f"{cleaned}:2.0")
+
             for src in self.active_sources:
                 if src in self.dg_channels:
                     continue
@@ -315,6 +350,7 @@ class LiveSession:
                     source=src,
                     on_transcript=lambda text, is_final, s=src: self._on_deepgram(s, text, is_final),
                     language=lang,
+                    keywords=keywords_list[:50],
                 )
                 if await channel.connect():
                     self.dg_channels[src] = channel
@@ -339,24 +375,107 @@ class LiveSession:
         if self.paused or self.stopped:
             return
         self.stats[src].on_text(time.monotonic())
+
+        # If speech arrived, cancel any pending silence endpointing timer for this source
+        task = self._endpoint_tasks.pop(src, None)
+        if task and not task.done():
+            task.cancel()
+
         if not is_final:
-            await self.emit("transcript.delta", item_id=f"live_{src}", source=src, text=text)
+            # Active hypothesis (is_final=False): emit in-place mutating delta
+            await self.emit(
+                "transcript.delta",
+                item_id=f"live_{src}",
+                source=src,
+                text=text,
+                committed=self._committed_clauses.get(src, ""),
+                is_final=False,
+            )
             return
+
+        # is_final=True: Lock stabilized clause into committed turn buffer
+        clause = text.strip()
+        if clause:
+            curr = self._committed_clauses.get(src, "").strip()
+            self._committed_clauses[src] = f"{curr} {clause}".strip() if curr else clause
+
+        await self.emit(
+            "transcript.delta",
+            item_id=f"live_{src}",
+            source=src,
+            text="",
+            committed=self._committed_clauses.get(src, ""),
+            is_final=True,
+        )
+
+        assembled = self._committed_clauses.get(src, "")
+        if not assembled:
+            return
+
+        # Adaptive silence endpointing: 900ms for semantic questions / prompt cues, 1500ms for open statements
+        lower_assembled = assembled.lower().strip()
+        is_question = lower_assembled.endswith("?") or any(
+            cue in lower_assembled
+            for cue in (
+                "tell me about",
+                "walk me through",
+                "how would you",
+                "how did you",
+                "how do you",
+                "what would you",
+                "describe a time",
+                "give me an example",
+                "explain how",
+                "why did you",
+                "what is your",
+                "can you tell",
+                "what are your",
+            )
+        )
+        delay = 0.9 if is_question else 1.5
+        self._endpoint_tasks[src] = asyncio.create_task(self._wait_and_flush_turn(src, delay))
+
+    async def _wait_and_flush_turn(self, src: str, delay: float) -> None:
+        try:
+            await asyncio.sleep(delay)
+            async with self.lock:
+                await self._flush_assembled_turn(src)
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("Endpointing flush failed for source %s", src)
+        finally:
+            self._endpoint_tasks.pop(src, None)
+
+    async def _flush_assembled_turn(self, src: str) -> None:
+        turn_text = self._committed_clauses.get(src, "").strip()
+        self._committed_clauses[src] = ""
+        if not turn_text:
+            return
+
         db = self._capture_db
         if db is None:
+            if self._bind is not None:
+                async with AsyncSession(bind=self._bind, expire_on_commit=False) as sdb:
+                    await self._complete_utterance(sdb, turn_text, src, f"dg_{src}_{uuid4().hex[:8]}")
             return
-        async with self.lock:
+
+        try:
+            await self._complete_utterance(db, turn_text, src, f"dg_{src}_{uuid4().hex[:8]}")
+        finally:
             try:
-                await self._complete_utterance(db, text, src, f"dg_{src}_{uuid4().hex[:8]}")
-            finally:
-                try:
-                    await db.rollback()
-                except Exception:
-                    pass
+                await db.rollback()
+            except Exception:
+                pass
 
     async def _set_paused(self, db: AsyncSession, paused: bool) -> None:
         self.paused = paused
         if paused:
+            for task in list(self._endpoint_tasks.values()):
+                task.cancel()
+            self._endpoint_tasks.clear()
+            for src in self._committed_clauses:
+                self._committed_clauses[src] = ""
             for buf in self.buffers.values():
                 buf.clear()
         row = await db.get(InterviewSession, self.session_id)
@@ -593,15 +712,17 @@ class LiveSession:
         self._answer_task = asyncio.create_task(self._answer_job(question_id, text, kind, ts_label))
 
     async def _cancel_tasks(self) -> None:
-        for task in (self._worker, self._answer_task, self._image_task):
+        all_tasks = [self._worker, self._answer_task, self._image_task, *self._endpoint_tasks.values()]
+        for task in all_tasks:
             if task and not task.done():
                 task.cancel()
-        for task in (self._worker, self._answer_task, self._image_task):
+        for task in all_tasks:
             if task:
                 try:
                     await task
                 except (asyncio.CancelledError, Exception):
                     pass
+        self._endpoint_tasks.clear()
 
     async def _drain_for_stop(self) -> None:
         """On stop: give a running answer a few seconds to be saved, then cancel whatever is left."""

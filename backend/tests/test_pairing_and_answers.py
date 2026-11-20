@@ -397,7 +397,7 @@ def test_deepgram_switches_to_a_multilingual_model_for_non_english(ws_env, monke
     seen: dict[str, str] = {}
 
     class FakeChannel:
-        def __init__(self, api_key, model, source, on_transcript, language="en"):
+        def __init__(self, api_key, model, source, on_transcript, language="en", *args, **kwargs):
             seen.update(model=model, language=language)
 
         async def connect(self) -> bool:

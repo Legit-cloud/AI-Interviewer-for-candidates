@@ -109,6 +109,7 @@ def system_prompt(budget: Budget) -> str:
         "- Final bullet gives the verification, measure, or result.\n"
         "- Say 'I' for what the candidate did themselves. Use the vocabulary of the role at the seniority of the role.\n"
         "- Use only facts in the background or job description. Never invent employers, titles, dates, numbers, results or tools.\n"
+        "- The input is transcribed from live conversational speech and may contain minor acoustic homophones. Cross-reference the attached background and job description to silently resolve misheard technical terms before generating the answer.\n"
         "- If the background does not cover the question, do not claim you did it. Say how you would approach it ('I'd start by...'), or make one honest bridge to related experience in the background ('I haven't run that directly, but...').\n"
         "- Never give advice about how to answer ('Start with', 'You should', 'Mention', 'Explain how').\n\n"
         f"Never use these words or phrases: {BANNED_WORDS}.\n\n"

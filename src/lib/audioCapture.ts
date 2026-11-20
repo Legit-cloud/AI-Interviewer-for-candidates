@@ -41,6 +41,8 @@ export class DualAudioCapture {
   private micAnalyser: AnalyserNode | null = null;
   private tabSeq = 0;
   private micSeq = 0;
+  private tabSilenceHangover = 0;
+  private micSilenceHangover = 0;
   private active = false;
 
   constructor(private callbacks: AudioCaptureCallbacks) {}
@@ -161,6 +163,36 @@ export class DualAudioCapture {
     const targetSampleRate = 16000;
     const resampled = this.resampleTo16k(input, inputSampleRate, targetSampleRate);
     if (!resampled.length) return;
+
+    // Client-side VAD energy gate: suppress streaming silence frames
+    let sumSquares = 0;
+    for (let i = 0; i < resampled.length; i++) {
+      sumSquares += resampled[i] * resampled[i];
+    }
+    const rms = Math.sqrt(sumSquares / resampled.length);
+    const threshold = source === "microphone" ? 0.012 : 0.008;
+
+    if (rms >= threshold) {
+      if (source === "tab") {
+        this.tabSilenceHangover = 4;
+      } else {
+        this.micSilenceHangover = 4;
+      }
+    } else {
+      if (source === "tab") {
+        if (this.tabSilenceHangover > 0) {
+          this.tabSilenceHangover--;
+        } else {
+          return; // Suppress silence packet
+        }
+      } else {
+        if (this.micSilenceHangover > 0) {
+          this.micSilenceHangover--;
+        } else {
+          return; // Suppress silence packet
+        }
+      }
+    }
 
     // Convert Float32 [-1.0, 1.0] to Int16 [-32768, 32767]
     const pcm16 = new Int16Array(resampled.length);

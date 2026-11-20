@@ -333,10 +333,12 @@ export default function App() {
                     }
 
                     if (data.type === 'transcript.delta') {
-                        const text = String(data.text || '');
+                        const interim = String(data.text || '');
+                        const committed = String(data.committed || '');
                         const src = String(data.source || 'tab');
                         const speaker = src === 'microphone' ? 'You' : 'Interviewer';
-                        setLiveSpoken(text ? `${speaker}: ${text}` : '');
+                        const combined = `${committed} ${interim}`.trim();
+                        setLiveSpoken(combined ? `${speaker}: ${combined}` : '');
                     } else if (data.type === 'transcript.completed') {
                         setLiveSpoken('');
                         setTranscriptLines((prev) => [
