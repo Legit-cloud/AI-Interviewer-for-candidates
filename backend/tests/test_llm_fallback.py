@@ -85,6 +85,7 @@ async def test_everything_failing_returns_nothing_instead_of_raising(monkeypatch
 
 
 def test_models_come_from_settings(monkeypatch) -> None:
+    monkeypatch.delenv("GEMINI_MODEL", raising=False)
     a = _adapter(monkeypatch, gemini_api_key="g", gemini_model="gemini-test", llm_model="claude-x")
     assert a._gemini_models() == ["gemini-test"]
     a = _adapter(monkeypatch, gemini_api_key="g", llm_model="gemini-custom")
