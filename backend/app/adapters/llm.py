@@ -40,6 +40,7 @@ def _extract_json_object(raw: str) -> dict[str, Any] | None:
 
 # A provider whose key was rejected (401/403) is skipped for a while, so one bad key does not slow every answer.
 _AUTH_BAN_SECONDS = 600
+_RATE_LIMIT_COOLDOWN_SECONDS = 30
 _banned_until: dict[str, float] = {}
 
 
@@ -47,6 +48,17 @@ def mark_provider_rejected(name: str) -> None:
     if _banned_until.get(name, 0) < time.monotonic():
         logger.error("LLM provider %s rejected its key (401/403). Skipping it for %d minutes. Check the key in backend/.env.", name, _AUTH_BAN_SECONDS // 60)
     _banned_until[name] = time.monotonic() + _AUTH_BAN_SECONDS
+
+
+def mark_provider_rate_limited(name: str, seconds: int = _RATE_LIMIT_COOLDOWN_SECONDS) -> None:
+    until = time.monotonic() + seconds
+    if _banned_until.get(name, 0) < until:
+        logger.warning(
+            "LLM provider %s temporarily rate-limited or overloaded (429/503). Cooling down for %d seconds; switching to fallback.",
+            name,
+            seconds,
+        )
+    _banned_until[name] = max(_banned_until.get(name, 0), until)
 
 
 def reset_rejected_providers() -> None:
@@ -87,7 +99,29 @@ def reset_problems() -> None:
     _last_problem.clear()
 
 
+def _is_rate_limit_failure(exc: Exception) -> bool:
+    if isinstance(exc, httpx.HTTPStatusError):
+        return exc.response.status_code in (429, 503)
+    text = str(exc).upper()
+    return any(
+        m in text
+        for m in (
+            "429",
+            "RESOURCE_EXHAUSTED",
+            "RATE_LIMIT",
+            "RATE LIMIT",
+            "QUOTA_EXCEEDED",
+            "503",
+            "UNAVAILABLE",
+            "OVERLOADED",
+            "HIGH DEMAND",
+        )
+    )
+
+
 def _remember_failure(name: str, exc: Exception) -> None:
+    if _is_rate_limit_failure(exc):
+        mark_provider_rate_limited(name)
     if isinstance(exc, httpx.HTTPStatusError):
         try:
             detail = exc.response.text
@@ -409,7 +443,14 @@ class LLMProviderAdapter:
         for name in (self.settings.gemini_model, self.settings.llm_model if self.settings.llm_model.startswith("gemini-") else ""):
             if name and name not in candidates:
                 candidates.append(name)
-        return candidates or ["gemini-2.5-flash"]
+        return candidates or ["gemini-3.8-flash"]
+
+    def _gemini_fallback_models(self) -> list[str]:
+        models = list(self._gemini_models())
+        for fallback in ("gemini-3.8-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash"):
+            if fallback not in models:
+                models.append(fallback)
+        return models
 
     async def _stream_gemini(
         self,
@@ -423,19 +464,31 @@ class LLMProviderAdapter:
             from google.genai import types
 
             client = genai.Client(api_key=self.settings.gemini_api_key)
-            stream = await client.aio.models.generate_content_stream(
-                model=self._gemini_models()[0],
-                contents=user_prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_prompt,
-                    temperature=temperature,
-                    max_output_tokens=max_tokens,
-                ),
-            )
-            async for chunk in stream:
-                text = getattr(chunk, "text", None)
-                if text:
-                    yield str(text)
+            last_exc = None
+            for model in self._gemini_fallback_models():
+                try:
+                    stream = await client.aio.models.generate_content_stream(
+                        model=model,
+                        contents=user_prompt,
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_prompt,
+                            temperature=temperature,
+                            max_output_tokens=max_tokens,
+                        ),
+                    )
+                    any_yielded = False
+                    async for chunk in stream:
+                        text = getattr(chunk, "text", None)
+                        if text:
+                            any_yielded = True
+                            yield str(text)
+                    if any_yielded:
+                        return
+                except Exception as inner_exc:
+                    last_exc = inner_exc
+                    logger.warning("Gemini LLM model=%s stream failed: %s", model, inner_exc)
+            if last_exc:
+                raise last_exc
         except Exception as exc:
             if _is_auth_failure(exc):
                 mark_provider_rejected("gemini")
@@ -474,6 +527,8 @@ class LLMProviderAdapter:
                         mark_provider_rejected("gemini")
                         _remember_failure("gemini", inner_exc)
                         return None
+                    if _is_rate_limit_failure(inner_exc):
+                        mark_provider_rate_limited("gemini")
                     _last_problem["gemini"] = f"Gemini did not accept the model “{model}”. Set GEMINI_MODEL in backend/.env to one your key can use." if "404" in str(inner_exc) or "NOT_FOUND" in str(inner_exc).upper() else plain_problem("gemini", None)
                     logger.warning("Gemini LLM model=%s failed: %s", model, inner_exc)
             return None

@@ -110,8 +110,8 @@ function Jobs() {
               <DialogHeader>
                 <DialogTitle className="font-display text-2xl">Add a job description</DialogTitle>
                 <DialogDescription>
-                  Paste text or upload a supported file. You can refine extracted requirements
-                  after saving.
+                  Paste text or upload a supported file. You can refine extracted requirements after
+                  saving.
                 </DialogDescription>
               </DialogHeader>
 
@@ -129,7 +129,9 @@ function Jobs() {
                       onClick={() => setSourceMode(m)}
                       className={cn(
                         "flex-1 rounded-md py-1.5 text-xs font-medium transition-colors",
-                        sourceMode === m ? "bg-card text-foreground shadow-xs" : "text-muted-foreground",
+                        sourceMode === m
+                          ? "bg-card text-foreground shadow-xs"
+                          : "text-muted-foreground",
                       )}
                     >
                       {label}
@@ -198,7 +200,11 @@ function Jobs() {
                   />
                 </div>
 
-                <Button className="w-full" disabled={!title.trim() || !desc.trim()} onClick={create}>
+                <Button
+                  className="w-full"
+                  disabled={!title.trim() || !desc.trim()}
+                  onClick={create}
+                >
                   Extract and save job
                 </Button>
               </div>

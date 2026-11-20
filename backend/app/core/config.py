@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     llm_api_key: str | None = None
     llm_model: str = "gpt-4o"
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.8-flash"
     # Fallback providers, tried in this order after the primary: OpenAI, then Gemini.
     openai_api_key: str | None = None
     openai_base_url: str = "https://api.openai.com/v1"
@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     rate_limit_enabled: bool = True
     max_session_minutes: int = 120
     daily_session_quota: int = 40
+    max_answers_per_session: int = 100
 
     @property
     def cors_origin_list(self) -> list[str]:

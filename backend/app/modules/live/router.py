@@ -3,6 +3,7 @@ import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from starlette.websockets import WebSocketDisconnected
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -81,7 +82,9 @@ async def live_session_ws(
                 continue
             if await live.handle(websocket, role, msg, db):
                 return
-    except WebSocketDisconnect:
+    except (WebSocketDisconnect, WebSocketDisconnected):
         logger.info("Live WebSocket disconnected session_id=%s role=%s", session_id, role)
+    except Exception as exc:
+        logger.warning("Live WebSocket error session_id=%s role=%s: %s", session_id, role, exc)
     finally:
         await live.leave(websocket, db)

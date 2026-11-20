@@ -93,7 +93,11 @@ function ProfilePage() {
     }
     setUploading(true);
     try {
-      await addDocument({ name: file.name, sizeKb: Math.max(1, Math.round(file.size / 1024)), file });
+      await addDocument({
+        name: file.name,
+        sizeKb: Math.max(1, Math.round(file.size / 1024)),
+        file,
+      });
       toast.success("CV imported and extracted! Opening CV review...");
       navigate({ to: "/app/profile/review" });
     } catch (err) {
@@ -150,7 +154,10 @@ function ProfilePage() {
       />
 
       <div className="grid gap-8 md:grid-cols-[190px_1fr]">
-        <nav className="scrollbar-none flex gap-1 overflow-x-auto md:flex-col" aria-label="Profile sections">
+        <nav
+          className="scrollbar-none flex gap-1 overflow-x-auto md:flex-col"
+          aria-label="Profile sections"
+        >
           {tabs.map((t) => (
             <button
               key={t}
@@ -343,7 +350,9 @@ function ProfilePage() {
                         onChange={(ev) =>
                           save((p) => ({
                             experience: p.experience.map((x) =>
-                              x.id === e.id ? { ...x, role: ev.target.value, origin: "verified" } : x,
+                              x.id === e.id
+                                ? { ...x, role: ev.target.value, origin: "verified" }
+                                : x,
                             ),
                           }))
                         }
@@ -355,7 +364,9 @@ function ProfilePage() {
                         onChange={(ev) =>
                           save((p) => ({
                             experience: p.experience.map((x) =>
-                              x.id === e.id ? { ...x, employer: ev.target.value, origin: "verified" } : x,
+                              x.id === e.id
+                                ? { ...x, employer: ev.target.value, origin: "verified" }
+                                : x,
                             ),
                           }))
                         }
@@ -368,7 +379,9 @@ function ProfilePage() {
                         onChange={(ev) =>
                           save((p) => ({
                             experience: p.experience.map((x) =>
-                              x.id === e.id ? { ...x, dates: ev.target.value, origin: "verified" } : x,
+                              x.id === e.id
+                                ? { ...x, dates: ev.target.value, origin: "verified" }
+                                : x,
                             ),
                           }))
                         }
@@ -445,7 +458,14 @@ function ProfilePage() {
                   save((p) => ({
                     experience: [
                       ...p.experience,
-                      { id: uid(), role: "", employer: "", dates: "", summary: "", origin: "verified" },
+                      {
+                        id: uid(),
+                        role: "",
+                        employer: "",
+                        dates: "",
+                        summary: "",
+                        origin: "verified",
+                      },
                     ],
                   }))
                 }
@@ -572,7 +592,9 @@ function ProfilePage() {
                           onChange={(ev) =>
                             save((p) => ({
                               education: p.education.map((x) =>
-                                x.id === e.id ? { ...x, degree: ev.target.value, origin: "verified" } : x,
+                                x.id === e.id
+                                  ? { ...x, degree: ev.target.value, origin: "verified" }
+                                  : x,
                               ),
                             }))
                           }
@@ -584,7 +606,9 @@ function ProfilePage() {
                           onChange={(ev) =>
                             save((p) => ({
                               education: p.education.map((x) =>
-                                x.id === e.id ? { ...x, school: ev.target.value, origin: "verified" } : x,
+                                x.id === e.id
+                                  ? { ...x, school: ev.target.value, origin: "verified" }
+                                  : x,
                               ),
                             }))
                           }
@@ -597,7 +621,9 @@ function ProfilePage() {
                           onChange={(ev) =>
                             save((p) => ({
                               education: p.education.map((x) =>
-                                x.id === e.id ? { ...x, dates: ev.target.value, origin: "verified" } : x,
+                                x.id === e.id
+                                  ? { ...x, dates: ev.target.value, origin: "verified" }
+                                  : x,
                               ),
                             }))
                           }
@@ -650,7 +676,9 @@ function ProfilePage() {
                         onChange={(ev) =>
                           save((p) => ({
                             projects: p.projects.map((x) =>
-                              x.id === pr.id ? { ...x, name: ev.target.value, origin: "verified" } : x,
+                              x.id === pr.id
+                                ? { ...x, name: ev.target.value, origin: "verified" }
+                                : x,
                             ),
                           }))
                         }
@@ -674,7 +702,9 @@ function ProfilePage() {
                       onChange={(ev) =>
                         save((p) => ({
                           projects: p.projects.map((x) =>
-                            x.id === pr.id ? { ...x, summary: ev.target.value, origin: "verified" } : x,
+                            x.id === pr.id
+                              ? { ...x, summary: ev.target.value, origin: "verified" }
+                              : x,
                           ),
                         }))
                       }
@@ -732,7 +762,10 @@ function ProfilePage() {
                 <EmptyState title="No documents uploaded yet." />
               ) : (
                 profile.documents.map((d) => (
-                  <div key={d.id} className="panel flex flex-wrap items-center justify-between gap-3 p-4">
+                  <div
+                    key={d.id}
+                    className="panel flex flex-wrap items-center justify-between gap-3 p-4"
+                  >
                     <div className="flex items-center gap-3 text-sm">
                       <FileTextIcon className="size-5 text-muted-foreground" aria-hidden="true" />
                       <div>

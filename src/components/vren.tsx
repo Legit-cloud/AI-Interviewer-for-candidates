@@ -6,13 +6,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import type { FieldOrigin } from "@/lib/store";
 
-export function Logo({
-  className,
-  inverted = false,
-}: {
-  className?: string;
-  inverted?: boolean;
-}) {
+export function Logo({ className, inverted = false }: { className?: string; inverted?: boolean }) {
   return (
     <Link
       to="/"
@@ -136,7 +130,9 @@ export function PageHeader({
           {title}
         </h1>
         {description && (
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">{description}</p>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
+            {description}
+          </p>
         )}
       </div>
       {actions && <div className="flex shrink-0 flex-wrap items-center gap-2.5">{actions}</div>}
@@ -163,16 +159,19 @@ export function EmptyState({
         </div>
       )}
       <p className="font-medium text-foreground">{title}</p>
-      {description && <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{description}</p>}
-      {children && <div className="mt-4 flex flex-wrap justify-center gap-2.5 text-sm">{children}</div>}
+      {description && (
+        <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">{description}</p>
+      )}
+      {children && (
+        <div className="mt-4 flex flex-wrap justify-center gap-2.5 text-sm">{children}</div>
+      )}
     </div>
   );
 }
 
 export function ConfidenceBar({ value }: { value: number }) {
   const pct = Math.round(value * 100);
-  const tone =
-    pct >= 85 ? "bg-success" : pct >= 60 ? "bg-warning" : "bg-destructive";
+  const tone = pct >= 85 ? "bg-success" : pct >= 60 ? "bg-warning" : "bg-destructive";
   return (
     <div className="flex items-center gap-2" aria-label={`Extraction confidence ${pct}%`}>
       <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">

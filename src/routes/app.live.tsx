@@ -247,7 +247,9 @@ function LiveSessionPage() {
           ...t.slice(-39),
           {
             id: String(evt["item_id"] ?? evt.event_id),
-            speaker: String(evt["speaker"] ?? (evt["source"] === "microphone" ? "You" : "Interviewer")),
+            speaker: String(
+              evt["speaker"] ?? (evt["source"] === "microphone" ? "You" : "Interviewer"),
+            ),
             text: String(evt["text"] ?? ""),
             at: String(evt["timestamp"] ?? ""),
           },
@@ -315,11 +317,47 @@ function LiveSessionPage() {
       setSessionId(h.sessionId);
       setPairing(h.pairing);
       setAnswers(h.history);
+      h.configureCapture(["tab", "microphone"]);
+      setCapture("listening");
       setPhase("live");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not start the live session.");
     } finally {
       setStarting(false);
+    }
+  };
+
+  const togglePause = () => {
+    if (capture === "paused") {
+      audioCaptureRef.current?.resume();
+      handle.current?.resume();
+      setCapture("listening");
+      toast.info("Session resumed.");
+    } else {
+      audioCaptureRef.current?.pause();
+      handle.current?.pause();
+      setCapture("paused");
+      toast.info("Session paused.");
+    }
+  };
+
+  const endCurrentSession = async () => {
+    if (!window.confirm("End this session? Capture stops and the session is finalised.")) {
+      return;
+    }
+    stopAudioCapture();
+    try {
+      handle.current?.stop();
+      if (sessionId) {
+        await endSessionById(sessionId);
+      }
+    } catch (err) {
+      console.warn("Could not stop session via API:", err);
+    } finally {
+      handle.current?.close();
+      setPhase("ended");
+      toast.success("Session ended.");
+      void hydrateFromBackend();
     }
   };
 
@@ -430,13 +468,15 @@ function LiveSessionPage() {
               </Button>
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Starting a live interview requires the FastAPI backend running on port 8000. In your terminal, run:
+              Starting a live interview requires the FastAPI backend running on port 8000. In your
+              terminal, run:
             </p>
             <pre className="mt-2 rounded bg-black/40 p-2 font-mono text-xs text-muted-foreground select-all">
               npm run dev:api
             </pre>
             <p className="mt-1 text-xs text-muted-foreground">
-              Or start both the web app and backend together with: <code className="font-mono text-foreground font-medium">npm run dev</code>
+              Or start both the web app and backend together with:{" "}
+              <code className="font-mono text-foreground font-medium">npm run dev</code>
             </p>
           </section>
         )}
@@ -465,7 +505,10 @@ function LiveSessionPage() {
           >
             <p className="text-sm font-medium">You have an interview in progress</p>
             <div className="flex gap-2">
-              <Button onClick={() => void start(resumable.id)} disabled={starting || backendOffline}>
+              <Button
+                onClick={() => void start(resumable.id)}
+                disabled={starting || backendOffline}
+              >
                 Resume
               </Button>
               <Button variant="outline" onClick={() => void endOld(resumable.id)}>
@@ -500,6 +543,51 @@ function LiveSessionPage() {
             </p>
           )}
 
+          <div className="rounded-xl border border-primary/30 bg-primary-soft/40 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  Required: Start Audio Capture (Meeting + Mic)
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  You must grant tab audio and microphone capture before generating your 6-digit
+                  PIN.
+                </p>
+              </div>
+              {capturingAudio ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/20 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
+                  ✓ Active
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/20 px-2.5 py-0.5 text-xs font-medium text-amber-400">
+                  Compulsory
+                </span>
+              )}
+            </div>
+
+            {!capturingAudio ? (
+              <Button
+                type="button"
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium inline-flex items-center justify-center gap-2"
+                onClick={startAudioCapture}
+              >
+                <MicrophoneIcon className="size-4" weight="bold" />
+                <span>Start Audio Capture (Meeting + Mic)</span>
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <AudioVisualizer
+                  tabAnalyser={tabAnalyser}
+                  micAnalyser={micAnalyser}
+                  capturing={capturingAudio}
+                />
+                <Button variant="outline" size="sm" onClick={stopAudioCapture}>
+                  Stop / Reconfigure Audio Capture
+                </Button>
+              </div>
+            )}
+          </div>
+
           <label className="flex items-start gap-2.5 text-sm">
             <input
               type="checkbox"
@@ -517,15 +605,17 @@ function LiveSessionPage() {
 
           <Button
             onClick={() => void start()}
-            disabled={!ackRules || starting || backendOffline}
+            disabled={!ackRules || starting || backendOffline || !capturingAudio}
             size="lg"
             className="w-full"
           >
             {backendOffline
-              ? "Backend is offline (run npm run dev:api)"
-              : starting
-                ? "Starting…"
-                : "Start"}
+              ? "Backend is offline (run npm run dev)"
+              : !capturingAudio
+                ? "Start Audio Capture above to proceed"
+                : starting
+                  ? "Starting…"
+                  : "Start Live Session & Get 6-Digit PIN"}
           </Button>
 
           <details className="text-sm">
@@ -654,28 +744,15 @@ function LiveSessionPage() {
             </Button>
           )}
 
-          {capture === "paused" ? (
-            <Button variant="outline" onClick={() => handle.current?.resume()}>
-              Resume
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              onClick={() => handle.current?.pause()}
-              disabled={capture === "idle"}
-            >
-              Pause
-            </Button>
-          )}
           <Button
-            variant="destructive"
-            onClick={() => {
-              if (window.confirm("End this session? Capture stops and the session is finalised.")) {
-                stopAudioCapture();
-                handle.current?.stop();
-              }
-            }}
+            variant="outline"
+            onClick={togglePause}
+            disabled={!capturingAudio && capture === "idle"}
           >
+            {capture === "paused" ? "Resume" : "Pause"}
+          </Button>
+
+          <Button variant="destructive" onClick={() => void endCurrentSession()}>
             Stop session
           </Button>
         </div>
@@ -689,7 +766,7 @@ function LiveSessionPage() {
         />
       )}
 
-      {phase === "live" && paired && (
+      {phase === "live" && (paired || capturingAudio) && (
         <section className="rounded-xl border bg-card p-5" aria-label="Sound check">
           <p className="eyebrow mb-3">Sound check</p>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -728,12 +805,37 @@ function LiveSessionPage() {
               );
             })}
           </div>
+
+          {liveSpoken && (
+            <div className="mt-3 flex items-center gap-2.5 rounded-lg border border-sky-500/30 bg-sky-500/10 px-3 py-2 text-xs text-sky-200 animate-pulse">
+              <span className="h-2 w-2 rounded-full bg-sky-400" />
+              <span className="font-semibold text-sky-300">Live Speaking:</span>
+              <span className="font-medium text-foreground">{liveSpoken}</span>
+            </div>
+          )}
         </section>
       )}
 
       {phase === "live" && !paired && (
         <section className="rounded-xl border bg-card p-5" aria-label="Pairing code">
-          {pairing && countdown > 0 ? (
+          {!capturingAudio ? (
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-5 text-center space-y-3">
+              <p className="font-semibold text-amber-200 text-base">
+                Start Audio Capture (Meeting + Mic) Required
+              </p>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                Audio capture must be active before the 6-digit pairing PIN is displayed. This
+                ensures Vren is actively listening to the interview.
+              </p>
+              <Button
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium inline-flex items-center gap-2"
+                onClick={startAudioCapture}
+              >
+                <MicrophoneIcon className="size-4" weight="bold" />
+                <span>Start Audio Capture (Meeting + Mic)</span>
+              </Button>
+            </div>
+          ) : pairing && countdown > 0 ? (
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="eyebrow mb-1">Pairing code</p>
@@ -744,7 +846,8 @@ function LiveSessionPage() {
                   {pairing.code}
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Enter it in the AudioCore Desktop App to mirror live answers in your transparent overlay. Expires in {Math.floor(countdown / 60)}:
+                  Enter it in the AudioCore Desktop App to mirror live answers in your transparent
+                  overlay. Expires in {Math.floor(countdown / 60)}:
                   {String(countdown % 60).padStart(2, "0")}. It works once.
                 </p>
               </div>
@@ -754,12 +857,8 @@ function LiveSessionPage() {
             </div>
           ) : (
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <p className="text-sm text-muted-foreground">
-                The pairing code has expired or been used.
-              </p>
-              <Button variant="outline" onClick={newCode}>
-                Get a new code
-              </Button>
+              <p className="text-sm text-muted-foreground">The pairing code has expired.</p>
+              <Button onClick={newCode}>Get a new code</Button>
             </div>
           )}
         </section>
@@ -811,6 +910,55 @@ function LiveSessionPage() {
         </section>
 
         <aside className="space-y-4">
+          <div className="rounded-xl border bg-card p-4">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm font-medium">Live Transcript</p>
+              {capture === "listening" && (
+                <span className="inline-flex items-center gap-1.5 text-xs text-emerald-500">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Listening
+                </span>
+              )}
+            </div>
+            {liveSpoken && (
+              <div className="mb-3 rounded-lg border border-sky-500/30 bg-sky-500/10 p-2.5 text-xs text-sky-300 animate-pulse">
+                <span className="font-semibold">Speaking:</span> {liveSpoken}
+              </div>
+            )}
+            {transcript.length === 0 && !liveSpoken ? (
+              <p className="text-sm text-muted-foreground">
+                Start audio capture above to see live transcript as each person speaks.
+              </p>
+            ) : (
+              <ul className="max-h-80 space-y-2.5 overflow-auto text-sm">
+                {transcript.map((t) => {
+                  const isYou = t.speaker === "You";
+                  return (
+                    <li
+                      key={t.id}
+                      className="rounded-lg bg-background/50 p-2 border border-border/50"
+                    >
+                      <div className="flex items-center justify-between text-[11px] mb-1">
+                        <span
+                          className={cn(
+                            "px-1.5 py-0.5 rounded font-semibold",
+                            isYou
+                              ? "bg-sky-500/15 text-sky-400"
+                              : "bg-emerald-500/15 text-emerald-400",
+                          )}
+                        >
+                          {t.speaker}
+                        </span>
+                        <span className="font-mono text-muted-foreground">{t.at}</span>
+                      </div>
+                      <p className="text-foreground/90">{t.text}</p>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
           {phase === "live" && (
             <div className="space-y-2 rounded-xl border bg-card p-4">
               <p className="text-sm font-medium">Question on screen?</p>
@@ -860,43 +1008,6 @@ function LiveSessionPage() {
               </Button>
             </form>
           )}
-          <div className="rounded-xl border bg-card p-4">
-            <p className="mb-2 text-sm font-medium">Live Transcript</p>
-            {liveSpoken && (
-              <div className="mb-3 rounded-lg border border-sky-500/30 bg-sky-500/10 p-2.5 text-xs text-sky-300 animate-pulse">
-                <span className="font-semibold">Speaking:</span> {liveSpoken}
-              </div>
-            )}
-            {transcript.length === 0 && !liveSpoken ? (
-              <p className="text-sm text-muted-foreground">
-                Start audio capture above to see live transcript as each person speaks.
-              </p>
-            ) : (
-              <ul className="max-h-80 space-y-2.5 overflow-auto text-sm">
-                {transcript.map((t) => {
-                  const isYou = t.speaker === "You";
-                  return (
-                    <li key={t.id} className="rounded-lg bg-background/50 p-2 border border-border/50">
-                      <div className="flex items-center justify-between text-[11px] mb-1">
-                        <span
-                          className={cn(
-                            "px-1.5 py-0.5 rounded font-semibold",
-                            isYou
-                              ? "bg-sky-500/15 text-sky-400"
-                              : "bg-emerald-500/15 text-emerald-400",
-                          )}
-                        >
-                          {t.speaker}
-                        </span>
-                        <span className="font-mono text-muted-foreground">{t.at}</span>
-                      </div>
-                      <p className="text-foreground/90">{t.text}</p>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
         </aside>
       </div>
     </PageTransition>

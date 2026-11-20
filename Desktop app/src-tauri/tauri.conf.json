@@ -1,65 +1,60 @@
 {
-    "build": {
-        "beforeDevCommand": "npm run dev:web",
-        "beforeBuildCommand": "npm run build:web",
-        "devPath": "http://localhost:1420",
-        "distDir": "../dist"
+  "build": {
+    "beforeDevCommand": "npm run dev:web",
+    "beforeBuildCommand": "npm run build:web",
+    "devPath": "http://localhost:1420",
+    "distDir": "../dist"
+  },
+  "package": {
+    "productName": "AudioCore",
+    "version": "0.1.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "shell": {
+        "all": false
+      },
+      "window": {
+        "all": false,
+        "startDragging": true,
+        "close": true
+      }
     },
-    "package": {
-        "productName": "AudioCore",
-        "version": "0.1.0"
+    "bundle": {
+      "active": true,
+      "identifier": "com.vren.audiocore",
+      "category": "DeveloperTool",
+      "copyright": "",
+      "deb": {
+        "depends": []
+      },
+      "externalBin": [],
+      "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+      "resources": [],
+      "shortDescription": "",
+      "targets": "all"
     },
-    "tauri": {
-        "allowlist": {
-            "all": false,
-            "shell": {
-                "all": false
-            },
-            "window": {
-                "all": false,
-                "startDragging": true,
-                "close": true
-            }
-        },
-        "bundle": {
-            "active": true,
-            "identifier": "com.vren.audiocore",
-            "category": "DeveloperTool",
-            "copyright": "",
-            "deb": {
-                "depends": []
-            },
-            "externalBin": [],
-            "icon": [
-                "icons/32x32.png",
-                "icons/128x128.png",
-                "icons/128x128@2x.png",
-                "icons/icon.ico"
-            ],
-            "resources": [],
-            "shortDescription": "",
-            "targets": "all"
-        },
-        "security": {
-            "csp": null
-        },
-        "windows": [
-            {
-                "label": "main",
-                "contentProtected": true,
-                "fullscreen": false,
-                "resizable": false,
-                "title": "AudioCore",
-                "width": 450,
-                "height": 700,
-                "transparent": true,
-                "decorations": false,
-                "alwaysOnTop": true,
-                "skipTaskbar": true,
-                "center": false,
-                "x": 50,
-                "y": 50
-            }
-        ]
-    }
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "label": "main",
+        "contentProtected": true,
+        "fullscreen": false,
+        "resizable": false,
+        "title": "AudioCore",
+        "width": 450,
+        "height": 700,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "center": false,
+        "x": 50,
+        "y": 50
+      }
+    ]
+  }
 }

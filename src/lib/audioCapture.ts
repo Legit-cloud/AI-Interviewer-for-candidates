@@ -44,6 +44,7 @@ export class DualAudioCapture {
   private tabSilenceHangover = 0;
   private micSilenceHangover = 0;
   private active = false;
+  private paused = false;
 
   constructor(private callbacks: AudioCaptureCallbacks) {}
 
@@ -59,6 +60,18 @@ export class DualAudioCapture {
     return this.active;
   }
 
+  public isPaused(): boolean {
+    return this.paused;
+  }
+
+  public pause(): void {
+    this.paused = true;
+  }
+
+  public resume(): void {
+    this.paused = false;
+  }
+
   /**
    * Start capturing system/meeting audio (Interviewer) and microphone (Candidate).
    * Must be triggered from a user gesture (e.g. clicking "Start" or "Enable Audio").
@@ -68,7 +81,9 @@ export class DualAudioCapture {
     const wantMic = options?.captureMic ?? true;
 
     // 1. Initialize AudioContext at 16kHz (or system rate downsampled)
-    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     this.audioCtx = new AudioContextClass();
     if (this.audioCtx.state === "suspended") {
       await this.audioCtx.resume();
@@ -93,30 +108,33 @@ export class DualAudioCapture {
       if (!audioTracks.length) {
         stream.getTracks().forEach((t) => t.stop());
         throw new Error(
-          "No audio track was shared. You must check 'Share audio' or 'Share tab audio' in the browser prompt so Vren can transcribe the interviewer."
+          "No audio track was shared. You must check 'Share audio' or 'Share tab audio' in the browser prompt so Vren can transcribe the interviewer.",
         );
       }
 
       this.tabStream = stream;
-      audioTracks[0].addEventListener("ended", () => {
-        this.callbacks.onInterviewerTrackEnded?.();
-      });
+      const tabTrack = audioTracks[0];
+      if (tabTrack) {
+        tabTrack.addEventListener("ended", () => {
+          this.callbacks.onInterviewerTrackEnded?.();
+        });
 
-      // Set up pipeline for Interviewer
-      this.tabSourceNode = this.audioCtx.createMediaStreamSource(new MediaStream([audioTracks[0]]));
-      this.tabAnalyser = this.audioCtx.createAnalyser();
-      this.tabAnalyser.fftSize = 256;
-      this.tabSourceNode.connect(this.tabAnalyser);
+        // Set up pipeline for Interviewer
+        this.tabSourceNode = this.audioCtx.createMediaStreamSource(new MediaStream([tabTrack]));
+        this.tabAnalyser = this.audioCtx.createAnalyser();
+        this.tabAnalyser.fftSize = 256;
+        this.tabSourceNode.connect(this.tabAnalyser);
 
-      this.tabProcessor = this.audioCtx.createScriptProcessor(4096, 1, 1);
-      this.tabSourceNode.connect(this.tabProcessor);
-      this.tabProcessor.connect(this.audioCtx.destination);
+        this.tabProcessor = this.audioCtx.createScriptProcessor(4096, 1, 1);
+        this.tabSourceNode.connect(this.tabProcessor);
+        this.tabProcessor.connect(this.audioCtx.destination);
 
-      this.tabProcessor.onaudioprocess = (e) => {
-        if (!this.active) return;
-        const inputData = e.inputBuffer.getChannelData(0);
-        this.processAndSendFrame(inputData, e.inputBuffer.sampleRate, "tab");
-      };
+        this.tabProcessor.onaudioprocess = (e) => {
+          if (!this.active || this.paused) return;
+          const inputData = e.inputBuffer.getChannelData(0);
+          this.processAndSendFrame(inputData, e.inputBuffer.sampleRate, "tab");
+        };
+      }
     }
 
     // 3. Capture Candidate Audio via getUserMedia
@@ -135,8 +153,9 @@ export class DualAudioCapture {
 
       this.micStream = stream;
       const micTracks = stream.getAudioTracks();
-      if (micTracks.length) {
-        this.micSourceNode = this.audioCtx.createMediaStreamSource(new MediaStream([micTracks[0]]));
+      const micTrack = micTracks[0];
+      if (micTrack) {
+        this.micSourceNode = this.audioCtx.createMediaStreamSource(new MediaStream([micTrack]));
         this.micAnalyser = this.audioCtx.createAnalyser();
         this.micAnalyser.fftSize = 256;
         this.micSourceNode.connect(this.micAnalyser);
@@ -146,7 +165,7 @@ export class DualAudioCapture {
         this.micProcessor.connect(this.audioCtx.destination);
 
         this.micProcessor.onaudioprocess = (e) => {
-          if (!this.active) return;
+          if (!this.active || this.paused) return;
           const inputData = e.inputBuffer.getChannelData(0);
           this.processAndSendFrame(inputData, e.inputBuffer.sampleRate, "microphone");
         };
@@ -159,7 +178,49 @@ export class DualAudioCapture {
   /**
    * Resamples float32 PCM to 16kHz, converts to PCM16 Int16Array, and dispatches base64 frame.
    */
-  private processAndSendFrame(input: Float32Array, inputSampleRate: number, source: "tab" | "microphone") {
+  private processAndSendFrame(
+    input: Float32Array,
+    inputSampleRate: number,
+    source: "tab" | "microphone",
+  ) {
+    // Ensure a WebSocket to the backend audio server exists with offline buffering
+    if (typeof window !== "undefined") {
+      const win = window as unknown as {
+        _audioWs?: WebSocket;
+        _audioWsQueue?: Uint8Array[];
+      };
+      if (!win._audioWsQueue) {
+        win._audioWsQueue = [];
+      }
+
+      const ensureSocket = () => {
+        if (!win._audioWs || win._audioWs.readyState === WebSocket.CLOSED) {
+          const wsPort = Number(import.meta.env?.["VITE_AUDIO_WS_PORT"] ?? 8081);
+          win._audioWs = new WebSocket(`ws://localhost:${wsPort}`);
+          win._audioWs.addEventListener("open", () => {
+            console.log("[audio-ws] connected");
+            // Flush buffered frames on open
+            while (
+              win._audioWsQueue &&
+              win._audioWsQueue.length > 0 &&
+              win._audioWs?.readyState === WebSocket.OPEN
+            ) {
+              const pending = win._audioWsQueue.shift();
+              if (pending) win._audioWs.send(pending);
+            }
+          });
+          win._audioWs.addEventListener("close", () => {
+            console.log("[audio-ws] disconnected, buffering offline frames");
+          });
+          win._audioWs.addEventListener("error", (e: Event) => {
+            console.error("[audio-ws] error", e);
+          });
+        }
+      };
+
+      ensureSocket();
+    }
+
     const targetSampleRate = 16000;
     const resampled = this.resampleTo16k(input, inputSampleRate, targetSampleRate);
     if (!resampled.length) return;
@@ -197,12 +258,28 @@ export class DualAudioCapture {
     // Convert Float32 [-1.0, 1.0] to Int16 [-32768, 32767]
     const pcm16 = new Int16Array(resampled.length);
     for (let i = 0; i < resampled.length; i++) {
-      const s = Math.max(-1, Math.min(1, resampled[i]));
+      const s = Math.max(-1, Math.min(1, resampled[i] ?? 0));
       pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
     }
 
     const uint8 = new Uint8Array(pcm16.buffer);
     const b64 = this.uint8ToBase64(uint8);
+
+    // Forward raw PCM bytes to backend audio WebSocket or buffer offline
+    if (typeof window !== "undefined") {
+      const win = window as unknown as {
+        _audioWs?: WebSocket;
+        _audioWsQueue?: Uint8Array[];
+      };
+      if (win._audioWs && win._audioWs.readyState === WebSocket.OPEN) {
+        win._audioWs.send(uint8);
+      } else if (win._audioWsQueue) {
+        // Buffer up to 50 chunks while offline/connecting
+        if (win._audioWsQueue.length < 50) {
+          win._audioWsQueue.push(uint8);
+        }
+      }
+    }
 
     const seq = source === "tab" ? ++this.tabSeq : ++this.micSeq;
     this.callbacks.onAudioFrame({
@@ -225,7 +302,9 @@ export class DualAudioCapture {
       const low = Math.floor(srcIdx);
       const high = Math.min(low + 1, input.length - 1);
       const frac = srcIdx - low;
-      result[i] = input[low] * (1 - frac) + input[high] * frac;
+      const valLow = input[low] ?? 0;
+      const valHigh = input[high] ?? 0;
+      result[i] = valLow * (1 - frac) + valHigh * frac;
     }
     return result;
   }
@@ -234,12 +313,16 @@ export class DualAudioCapture {
     let binary = "";
     const len = bytes.byteLength;
     for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(bytes[i]);
+      binary += String.fromCharCode(bytes[i] ?? 0);
     }
     return btoa(binary);
   }
 
   public getLevels(): AudioLevels {
+    if (this.paused) {
+      return { tabRms: 0, micRms: 0, tabSpeaking: false, micSpeaking: false };
+    }
+
     let tabRms = 0;
     let micRms = 0;
 
@@ -248,7 +331,8 @@ export class DualAudioCapture {
       this.tabAnalyser.getByteTimeDomainData(data);
       let sum = 0;
       for (let i = 0; i < data.length; i++) {
-        const val = (data[i] - 128) / 128;
+        const byteVal = data[i] ?? 128;
+        const val = (byteVal - 128) / 128;
         sum += val * val;
       }
       tabRms = Math.sqrt(sum / data.length);
@@ -259,7 +343,8 @@ export class DualAudioCapture {
       this.micAnalyser.getByteTimeDomainData(data);
       let sum = 0;
       for (let i = 0; i < data.length; i++) {
-        const val = (data[i] - 128) / 128;
+        const byteVal = data[i] ?? 128;
+        const val = (byteVal - 128) / 128;
         sum += val * val;
       }
       micRms = Math.sqrt(sum / data.length);
@@ -297,4 +382,3 @@ export class DualAudioCapture {
     }
   }
 }
-
